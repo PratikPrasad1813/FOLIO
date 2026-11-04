@@ -1,0 +1,32 @@
+import { createHash, randomBytes } from "node:crypto";
+import { cookies } from "next/headers";
+import { db } from "@/db";
+import { authFlows } from "@/db/schema";
+import { allowAuthAttempt, currentUser, hashToken, safeDestination, sessionTokenHash } from "@/lib/auth";
+import { sealToken } from "@/lib/crypto";
+import { appOrigin, isProviderConfigured, OAUTH_PROVIDERS, redirectUri, type OAuthProvider } from "@/lib/oauth";
+export const dynamic = "force-dynamic";
+export async function GET(request: Request, { params }: { params: Promise<{ provider: string }> }) {
+  const slug = (await params).provider;
+  const provider = (slug === "google" || slug === "github") ? slug as OAuthProvider : null;
+  const origin = appOrigin(request);
+  const fail = (message: string) => Response.redirect(`${origin}/login?error=${encodeURIComponent(message)}`, 302);
+  if (!provider) return fail("That sign-in option isn’t available.");
+  if (!isProviderConfigured(provider)) return fail(`${OAUTH_PROVIDERS[provider].label} sign-in is not configured for this deployment.`);
+  if (!await allowAuthAttempt(request, "oauth")) return fail("Too many attempts. Please try again later.");
+  const url = new URL(request.url);
+  const linking = url.searchParams.get("link") === "1";
+  const user = linking ? await currentUser() : null;
+  const sessionHash = linking ? await sessionTokenHash() : null;
+  if (linking && (!user || !sessionHash)) return fail("Sign in before linking a provider.");
+  const state = randomBytes(32).toString("base64url");
+  const browser = randomBytes(32).toString("base64url");
+  const verifier = randomBytes(32).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  await db.insert(authFlows).values({ stateHash: hashToken(state), browserHash: hashToken(browser), provider, verifierEnc: sealToken(verifier)!, returnTo: linking ? "/settings" : safeDestination(url.searchParams.get("next")), linkUserId: user?.id ?? null, linkSessionHash: sessionHash, expiresAt: new Date(Date.now() + 10 * 60_000) });
+  (await cookies()).set("folio_oauth_browser", browser, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/auth/oauth", maxAge: 600 });
+  const config = OAUTH_PROVIDERS[provider];
+  const target = new URL(config.authorizeUrl);
+  for (const [key, value] of Object.entries({ client_id: config.clientId()!, redirect_uri: redirectUri(request, provider), response_type: "code", scope: config.scope, state, code_challenge: challenge, code_challenge_method: "S256", prompt: "select_account" })) target.searchParams.set(key, value);
+  return Response.redirect(target.toString(), 302);
+}

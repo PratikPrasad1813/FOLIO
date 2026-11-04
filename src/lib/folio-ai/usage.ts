@@ -1,0 +1,164 @@
+import { and, eq, lte, sql } from "drizzle-orm";
+import { db } from "@/db";
+import * as schema from "@/db/schema";
+import { ensureSchema } from "@/db/migrate";
+import { FOLIO_AI_CONFIG } from "@/lib/folio-ai/config";
+import type { AIReservation, AIUsage } from "@/lib/folio-ai/types";
+
+export class AIUsageError extends Error {
+  constructor(message: string, public status: number, public code: string, public usage?: AIUsage) {
+    super(message);
+    this.name = "AIUsageError";
+  }
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+const DAILY_LIMIT = FOLIO_AI_CONFIG.dailyMessageLimit;
+const USER_LOCK_SALT = 71_042;
+const utcDate = (date = new Date()) => date.toISOString().slice(0, 10);
+const nextUtcReset = (date: string) => new Date(new Date(`${date}T00:00:00.000Z`).getTime() + 86_400_000).toISOString();
+
+async function lockUser(tx: Tx, userId: string) {
+  // Transaction lock makes reserve/release/complete atomic across tabs and
+  // serverless instances. Collisions only serialize unrelated users.
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${userId}, ${USER_LOCK_SALT}))`);
+}
+async function ensureDailyRow(tx: Tx, userId: string, date: string) {
+  await tx.insert(schema.folioAiDailyUsage).values({ userId, usageDate: date })
+    .onConflictDoNothing({ target: [schema.folioAiDailyUsage.userId, schema.folioAiDailyUsage.usageDate] });
+}
+async function expireReservations(tx: Tx, userId: string, now: Date) {
+  const expired = await tx.select({ id: schema.folioAiUsageReservations.id, usageDate: schema.folioAiUsageReservations.usageDate })
+    .from(schema.folioAiUsageReservations)
+    .where(and(eq(schema.folioAiUsageReservations.userId, userId), eq(schema.folioAiUsageReservations.status, "reserved"), lte(schema.folioAiUsageReservations.expiresAt, now)))
+    .for("update");
+  if (!expired.length) return;
+  await tx.update(schema.folioAiUsageReservations).set({ status: "expired" })
+    .where(and(eq(schema.folioAiUsageReservations.userId, userId), eq(schema.folioAiUsageReservations.status, "reserved"), lte(schema.folioAiUsageReservations.expiresAt, now)));
+  const counts = new Map<string, number>();
+  for (const item of expired) counts.set(item.usageDate, (counts.get(item.usageDate) ?? 0) + 1);
+  for (const [usageDate, count] of counts) {
+    await ensureDailyRow(tx, userId, usageDate);
+    await tx.update(schema.folioAiDailyUsage)
+      .set({ reservedMessageCount: sql`greatest(${schema.folioAiDailyUsage.reservedMessageCount} - ${count}, 0)`, updatedAt: now })
+      .where(and(eq(schema.folioAiDailyUsage.userId, userId), eq(schema.folioAiDailyUsage.usageDate, usageDate)));
+  }
+}
+async function summary(tx: Tx, userId: string, date: string): Promise<AIUsage> {
+  await ensureDailyRow(tx, userId, date);
+  const [row] = await tx.select().from(schema.folioAiDailyUsage)
+    .where(and(eq(schema.folioAiDailyUsage.userId, userId), eq(schema.folioAiDailyUsage.usageDate, date))).limit(1).for("update");
+  const completed = row?.completedMessageCount ?? 0;
+  const reserved = row?.reservedMessageCount ?? 0;
+  return { plan: "free", modelId: FOLIO_AI_CONFIG.modelId, usageDate: date, completed, reserved, limit: DAILY_LIMIT, available: Math.max(0, DAILY_LIMIT - completed - reserved), resetAt: nextUtcReset(date) };
+}
+
+export async function readAIUsage(userId: string, now = new Date()): Promise<AIUsage> {
+  await ensureSchema();
+  const date = utcDate(now);
+  return db.transaction(async tx => {
+    await lockUser(tx, userId);
+    await expireReservations(tx, userId, now);
+    return summary(tx, userId, date);
+  });
+}
+
+export interface ReserveResult { reservation: AIReservation; usage: AIUsage; alreadyCompleted: boolean; reused: boolean }
+interface ReserveFailure { failure: { message: string; status: number; code: string }; usage: AIUsage }
+
+export async function reserveAIMessage(userId: string, generationId: string, _inputCharacters: number, now = new Date()): Promise<ReserveResult> {
+  await ensureSchema();
+  const date = utcDate(now);
+  const outcome = await db.transaction(async (tx: Tx) => {
+    await lockUser(tx, userId);
+    // Commit timeout cleanup even if this request is later denied.
+    await expireReservations(tx, userId, now);
+    const [existing] = await tx.select().from(schema.folioAiUsageReservations)
+      .where(and(eq(schema.folioAiUsageReservations.userId, userId), eq(schema.folioAiUsageReservations.generationId, generationId))).limit(1).for("update");
+    const usage = await summary(tx, userId, date);
+    if (existing?.status === "completed") {
+      return { reservation: { id: existing.id, generationId, usageDate: existing.usageDate, expiresAt: existing.expiresAt.toISOString() }, usage, alreadyCompleted: true, reused: true } as ReserveResult;
+    }
+    if (existing?.status === "reserved" && existing.expiresAt > now) {
+      return { reservation: { id: existing.id, generationId, usageDate: existing.usageDate, expiresAt: existing.expiresAt.toISOString() }, usage, alreadyCompleted: false, reused: true } as ReserveResult;
+    }
+    if (existing) return { failure: { message: "This generation request has expired or was already closed. Start a new message.", status: 409, code: "reservation_closed" }, usage } as ReserveFailure;
+    if (usage.completed + usage.reserved >= DAILY_LIMIT) {
+      return { failure: { message: `Your Folio AI limit has been reached. You've used all ${DAILY_LIMIT} free AI messages for today. Your allowance will reset at the displayed time. You can continue using the rest of Folio normally.`, status: 429, code: "daily_limit_reached" }, usage } as ReserveFailure;
+    }
+    const expiresAt = new Date(now.getTime() + FOLIO_AI_CONFIG.reservationLeaseMilliseconds);
+    const [reservation] = await tx.insert(schema.folioAiUsageReservations).values({ userId, generationId, usageDate: date, expiresAt, status: "reserved" }).returning();
+    await tx.update(schema.folioAiDailyUsage)
+      .set({ reservedMessageCount: sql`${schema.folioAiDailyUsage.reservedMessageCount} + 1`, updatedAt: now })
+      .where(and(eq(schema.folioAiDailyUsage.userId, userId), eq(schema.folioAiDailyUsage.usageDate, date)));
+    return { reservation: { id: reservation.id, generationId, usageDate: date, expiresAt: expiresAt.toISOString() }, usage: { ...usage, reserved: usage.reserved + 1, available: Math.max(0, usage.available - 1) }, alreadyCompleted: false, reused: false } as ReserveResult;
+  });
+  if ("failure" in outcome) throw new AIUsageError(outcome.failure.message, outcome.failure.status, outcome.failure.code, outcome.usage);
+  return outcome;
+}
+
+interface FinishSuccess { usage: AIUsage; idempotent: boolean }
+interface FinishFailure { failure: { message: string; status: number; code: string }; usage?: AIUsage }
+export async function finishAIReservation(userId: string, reservationId: string, outcome: "completed" | "failed" | "cancelled", now = new Date()): Promise<FinishSuccess> {
+  await ensureSchema();
+  const date = utcDate(now);
+  const result = await db.transaction(async (tx: Tx) => {
+    await lockUser(tx, userId);
+    await expireReservations(tx, userId, now);
+    const [reservation] = await tx.select().from(schema.folioAiUsageReservations)
+      .where(and(eq(schema.folioAiUsageReservations.userId, userId), eq(schema.folioAiUsageReservations.id, reservationId))).limit(1).for("update");
+    if (!reservation) return { failure: { message: "AI generation reservation was not found.", status: 404, code: "reservation_not_found" } } as FinishFailure;
+    if (reservation.status === "completed") {
+      if (outcome !== "completed") return { failure: { message: "A completed response cannot be changed to an interrupted generation.", status: 409, code: "already_completed" } } as FinishFailure;
+      return { usage: await summary(tx, userId, date), idempotent: true } as FinishSuccess;
+    }
+    if (reservation.status !== "reserved" || reservation.expiresAt <= now) {
+      return { failure: { message: "The AI generation reservation expired. Check usage and try again.", status: 409, code: "reservation_expired" }, usage: await summary(tx, userId, date) } as FinishFailure;
+    }
+    await tx.update(schema.folioAiUsageReservations).set({ status: outcome, completedAt: outcome === "completed" ? now : null })
+      .where(and(eq(schema.folioAiUsageReservations.userId, userId), eq(schema.folioAiUsageReservations.id, reservationId), eq(schema.folioAiUsageReservations.status, "reserved")));
+    await ensureDailyRow(tx, userId, reservation.usageDate);
+    await tx.update(schema.folioAiDailyUsage).set({ reservedMessageCount: sql`greatest(${schema.folioAiDailyUsage.reservedMessageCount} - 1, 0)`, ...(outcome === "completed" ? { completedMessageCount: sql`${schema.folioAiDailyUsage.completedMessageCount} + 1` } : {}), updatedAt: now })
+      .where(and(eq(schema.folioAiDailyUsage.userId, userId), eq(schema.folioAiDailyUsage.usageDate, reservation.usageDate)));
+    return { usage: await summary(tx, userId, date), idempotent: false } as FinishSuccess;
+  });
+  if ("failure" in result) throw new AIUsageError(result.failure.message, result.failure.status, result.failure.code, result.usage);
+  return result;
+}
+
+/**
+ * Extends the lease on an active reservation while a long-running AI task is
+ * still actively heartbeating, so tasks running longer than 3 or 10 minutes
+ * never lose their reserved slot mid-execution.
+ */
+export async function renewAIReservation(userId: string, reservationId: string, now = new Date()): Promise<{ reservation: AIReservation; usage: AIUsage }> {
+  await ensureSchema();
+  const date = utcDate(now);
+  const outcome = await db.transaction(async (tx: Tx) => {
+    await lockUser(tx, userId);
+    const [reservation] = await tx.select().from(schema.folioAiUsageReservations)
+      .where(and(eq(schema.folioAiUsageReservations.userId, userId), eq(schema.folioAiUsageReservations.id, reservationId))).limit(1).for("update");
+    if (!reservation) {
+      return { failure: { message: "AI generation reservation was not found.", status: 404, code: "reservation_not_found" } } as FinishFailure;
+    }
+    if (reservation.status !== "reserved") {
+      return { failure: { message: `Cannot renew a ${reservation.status} reservation.`, status: 409, code: "reservation_closed" }, usage: await summary(tx, userId, date) } as FinishFailure;
+    }
+    const expiresAt = new Date(now.getTime() + FOLIO_AI_CONFIG.reservationLeaseMilliseconds);
+    await tx.update(schema.folioAiUsageReservations)
+      .set({ expiresAt })
+      .where(and(eq(schema.folioAiUsageReservations.userId, userId), eq(schema.folioAiUsageReservations.id, reservationId)));
+    const usage = await summary(tx, userId, date);
+    return {
+      reservation: {
+        id: reservation.id,
+        generationId: reservation.generationId,
+        usageDate: reservation.usageDate,
+        expiresAt: expiresAt.toISOString(),
+      },
+      usage,
+    };
+  });
+  if ("failure" in outcome) throw new AIUsageError(outcome.failure.message, outcome.failure.status, outcome.failure.code, outcome.usage);
+  return outcome;
+}

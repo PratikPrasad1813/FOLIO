@@ -1,0 +1,76 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1793524812623,
+      "tag": "0000_search_and_filters",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793528511533,
+      "tag": "0001_folio_ai_usage",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793532266273,
+      "tag": "0002_folio_ai_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793534082655,
+      "tag": "0003_identity_and_onboarding",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793547043187,
+      "tag": "0004_neon_auth_identity_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793547582522,
+      "tag": "0005_neon_auth_unique_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793624401086,
+      "tag": "0006_ai_conversations",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793624402086,
+      "tag": "0007_password_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793632000000,
+      "tag": "0008_vip_experience",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793635600000,
+      "tag": "0009_ai_long_running_tasks",
+      "breakpoints": true
+    }
+  ]
+}
