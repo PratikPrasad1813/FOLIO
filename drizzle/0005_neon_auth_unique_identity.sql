@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "folio_users_auth_user_id_idx" ON "folio_users" USING btree ("auth_user_id");

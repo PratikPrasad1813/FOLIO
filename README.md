@@ -1,35 +1,5 @@
 # Folio
 
-<<<<<<< Updated upstream
-### One workspace. Every idea. Every project. Everything in motion.
-
-Folio is an AI-powered productivity and project management platform designed to bring your entire workflow together.
-
-From organizing projects and managing daily tasks to capturing ideas, coordinating schedules, tracking progress, and working with an intelligent AI assistant, Folio gives you one unified space to plan, organize, and get things done.
-
-## ✨ What makes Folio different?
-
-- **Project Management:** Organize projects, track progress, and manage deadlines.
-- **Task Management:** Manage tasks through Kanban, List, and Calendar views.
-- **Ideas Management:** Capture, organize, and develop ideas.
-- **Calendar Integration:** Connect Google Calendar to coordinate your schedule.
-- **Analytics:** Understand productivity, workload, and project progress.
-- **AI Assistant:** Interact with your workspace using natural language, subject to device compatibility.
-- **Personalization:** Configure your workspace around your preferences.
-- **Modern Experience:** Responsive interface with light and dark themes.
-
-## 🎯 Our Vision
-
-Folio aims to make productivity simpler by bringing scattered workflows into one connected workspace.
-
-We believe managing work should feel clear, organized, and effortless.
-
-**Plan better. Work smarter. Build more.**
-
-🌐 Website: https://folio-management-studio.netlify.app/
-
-⭐ If you find Folio interesting, consider starring the repository and following its development.
-=======
 <div align="center">
   <h3>A little clarity. A lot of possibility.</h3>
   <p>
@@ -39,7 +9,7 @@ We believe managing work should feel clear, organized, and effortless.
   </p>
 
   <p>
-    <a href="https://github.com/PratikPrasad1813/FOLIO"><img src="https://img.shields.io/badge/GitHub-Repository-blue?logo=github" alt="GitHub Repository" /></a>
+    <a href="https://github.com/PratikPrasad1813/Folio"><img src="https://img.shields.io/badge/GitHub-Repository-blue?logo=github" alt="GitHub Repository" /></a>
     <a href="https://nextjs.org"><img src="https://img.shields.io/badge/Next.js-16.4.4-black?logo=next.js" alt="Next.js" /></a>
     <a href="https://orm.drizzle.team"><img src="https://img.shields.io/badge/Drizzle_ORM-0.45.2-brightgreen" alt="Drizzle ORM" /></a>
     <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/PostgreSQL-15%2B-blue?logo=postgresql" alt="PostgreSQL" /></a>
@@ -256,7 +226,7 @@ All screenshots are captured from the actual running application using Playwrigh
 
 ### 1. Clone & Install Dependencies
 ```sh
-git clone https://github.com/PratikPrasad1813/FOLIO.git
+git clone https://github.com/PratikPrasad1813/Folio.git
 cd Folio
 npm install
 ```
@@ -492,7 +462,7 @@ This command:
 ## Production Deployment
 
 ### Netlify Deployment
-1. Connect the GitHub repository `https://github.com/PratikPrasad1813/FOLIO`.
+1. Connect the GitHub repository `https://github.com/PratikPrasad1813/Folio`.
 2. Set build command: `npm run build`.
 3. Set publish directory: `.next`.
 4. Configure environment variables in Netlify Dashboard:
@@ -531,9 +501,9 @@ npm run start
 ## Contributing & Security Reporting
 
 Contributions are welcome! Please check the GitHub repository:
-- **Repository:** [https://github.com/PratikPrasad1813/FOLIO](https://github.com/PratikPrasad1813/FOLIO)
-- **Issues:** [https://github.com/PratikPrasad1813/FOLIO/issues](https://github.com/PratikPrasad1813/FOLIO/issues)
-- **Pull Requests:** [https://github.com/PratikPrasad1813/FOLIO/pulls](https://github.com/PratikPrasad1813/FOLIO/pulls)
+- **Repository:** [https://github.com/PratikPrasad1813/Folio](https://github.com/PratikPrasad1813/Folio)
+- **Issues:** [https://github.com/PratikPrasad1813/Folio/issues](https://github.com/PratikPrasad1813/Folio/issues)
+- **Pull Requests:** [https://github.com/PratikPrasad1813/Folio/pulls](https://github.com/PratikPrasad1813/Folio/pulls)
 
 ### Security Reporting
 If you discover a potential security vulnerability, please report it responsibly by opening a confidential security advisory on GitHub or contacting the repository maintainers. Never open public issues containing sensitive credentials or exploitable payloads.
@@ -543,4 +513,3 @@ If you discover a potential security vulnerability, please report it responsibly
 ## License Information
 
 This repository currently does not include a standalone open-source license file. All rights are reserved by the project author unless explicitly stated otherwise. Check the repository for updates on licensing.
->>>>>>> Stashed changes

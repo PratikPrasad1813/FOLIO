@@ -1,0 +1,1 @@
+ALTER TABLE "folio_users" ADD COLUMN "auth_user_id" text;

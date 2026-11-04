@@ -1,0 +1,175 @@
+/* ==========================================================================
+   Folio theme system
+   Light is the default. <html data-theme="dark"> switches every token below.
+   Legacy hard-coded colours are covered by theme-dark.generated.css
+   (scripts/build-dark-theme.mjs); this file is loaded last and wins.
+   ========================================================================== */
+
+:root {
+  /* existing tokens (globals.css): --background --surface --text --muted --border --accent --accent-soft --green */
+  --surface-2: #fbfbfd;
+  --surface-3: #f3f3f7;
+  --surface-hover: #f7f6fb;
+  --heading: #1f2027;
+  --text-soft: #4d4e5a;
+  --faint: #a2a3af;
+  --border-strong: #dcdde6;
+  --accent-strong: #6f58ad;
+  --accent-ring: rgba(142, 122, 184, 0.34);
+  --ink: #2d2c35;
+  --ink-hover: #45414f;
+  --on-ink: #ffffff;
+  --shadow-xs: 0 1px 2px rgba(26, 24, 44, 0.05);
+  --shadow-sm: 0 1px 2px rgba(26, 24, 44, 0.04), 0 10px 26px -20px rgba(26, 24, 44, 0.32);
+  --shadow-md: 0 2px 6px rgba(26, 24, 44, 0.05), 0 22px 44px -24px rgba(26, 24, 44, 0.38);
+  --shadow-lg: 0 28px 70px -22px rgba(26, 24, 44, 0.38), 0 6px 18px -8px rgba(26, 24, 44, 0.12);
+  --tone-violet: #6e57ab;
+  --tone-violet-soft: #f0ecfa;
+  --tone-blue: #4a71aa;
+  --tone-blue-soft: #e9f0fa;
+  --tone-green: #3b8063;
+  --tone-green-soft: #e6f3eb;
+  --tone-amber: #9a6a2b;
+  --tone-amber-soft: #fbf1e1;
+  --tone-red: #b14c57;
+  --tone-red-soft: #fcebed;
+  --tone-neutral: #6c6b78;
+  --tone-neutral-soft: #f1f1f5;
+  --c-violet: #9b84d6;
+  --c-green: #5fa584;
+  --c-peach: #d99a72;
+  --c-blue: #6c95d2;
+  --c-yellow: #cba843;
+  --c-pink: #d084a6;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0e0f13;
+  --surface: #15161c;
+  --surface-2: #191a21;
+  --surface-3: #20212a;
+  --surface-hover: #1c1d25;
+  --text: #e4e4eb;
+  --heading: #f3f3f8;
+  --text-soft: #c5c6d2;
+  --muted: #9a9bac;
+  --faint: #707184;
+  --border: #262732;
+  --border-strong: #353644;
+  --accent: #a796e6;
+  --accent-strong: #c2b4f5;
+  --accent-soft: rgba(167, 150, 230, 0.14);
+  --accent-ring: rgba(167, 150, 230, 0.45);
+  --green: #78c39f;
+  --ink: #ecebf4;
+  --ink-hover: #ffffff;
+  --on-ink: #16151d;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45), 0 12px 28px -18px rgba(0, 0, 0, 0.75);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5), 0 24px 48px -22px rgba(0, 0, 0, 0.85);
+  --shadow-lg: 0 30px 80px -18px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --tone-violet: #b9a9f3;
+  --tone-violet-soft: rgba(167, 150, 230, 0.15);
+  --tone-blue: #8eb1eb;
+  --tone-blue-soft: rgba(120, 160, 225, 0.15);
+  --tone-green: #7ccaa4;
+  --tone-green-soft: rgba(110, 195, 150, 0.14);
+  --tone-amber: #e8ba7b;
+  --tone-amber-soft: rgba(225, 170, 95, 0.14);
+  --tone-red: #f1959d;
+  --tone-red-soft: rgba(235, 120, 130, 0.15);
+  --tone-neutral: #a7a7b8;
+  --tone-neutral-soft: rgba(165, 165, 185, 0.12);
+  --c-violet: #a994ea;
+  --c-green: #6cbb94;
+  --c-peach: #e3a67e;
+  --c-blue: #7da6e5;
+  --c-yellow: #d9b95a;
+  --c-pink: #df91b3;
+}
+
+/* Tasks: orange step in the priority scale + label palette. */
+:root {
+  --tone-orange: #b0552a;
+  --tone-orange-soft: #fdeee4;
+  --lt-violet: #6a52a8; --lt-violet-bg: #efeafb;
+  --lt-blue: #3a64a0; --lt-blue-bg: #e7effb;
+  --lt-green: #2b7556; --lt-green-bg: #e2f2e9;
+  --lt-amber: #8b5c16; --lt-amber-bg: #faefda;
+  --lt-pink: #a1427a; --lt-pink-bg: #fbe8f1;
+  --lt-teal: #1c7070; --lt-teal-bg: #ddf1f0;
+  --lt-peach: #9f5129; --lt-peach-bg: #fcebe0;
+  --lt-slate: #52576a; --lt-slate-bg: #eceef3;
+}
+:root[data-theme="dark"] {
+  --tone-orange: #f4a275;
+  --tone-orange-soft: rgba(240, 150, 100, 0.15);
+  --lt-violet: #c6b8fb; --lt-violet-bg: rgba(167, 150, 230, 0.16);
+  --lt-blue: #a0bef1; --lt-blue-bg: rgba(120, 160, 225, 0.16);
+  --lt-green: #90d4b1; --lt-green-bg: rgba(110, 195, 150, 0.15);
+  --lt-amber: #edc488; --lt-amber-bg: rgba(225, 170, 95, 0.15);
+  --lt-pink: #f1a8ca; --lt-pink-bg: rgba(225, 120, 170, 0.15);
+  --lt-teal: #88d5d1; --lt-teal-bg: rgba(90, 190, 185, 0.15);
+  --lt-peach: #f3b591; --lt-peach-bg: rgba(235, 150, 105, 0.15);
+  --lt-slate: #bcbfce; --lt-slate-bg: rgba(170, 175, 195, 0.13);
+}
+
+/* ---------------------------------------------------------------- dark shell refinements */
+[data-theme="dark"] body { background: var(--background); color: var(--text); }
+[data-theme="dark"] .sidebar { background: #111217; border-right-color: var(--border); }
+[data-theme="dark"] .topbar { background: rgba(14, 15, 19, 0.8); border-bottom-color: var(--border); }
+[data-theme="dark"] .modal { background: var(--surface); border-color: var(--border-strong); box-shadow: var(--shadow-lg); }
+[data-theme="dark"] .modal-backdrop { background: rgba(5, 5, 9, 0.62); }
+[data-theme="dark"] .modal-header h2 { color: var(--heading); }
+[data-theme="dark"] .modal-footer { border-top-color: var(--border); }
+[data-theme="dark"] .dropdown-menu,
+[data-theme="dark"] .notification-popover { background: var(--surface); border-color: var(--border-strong); box-shadow: var(--shadow-lg); }
+[data-theme="dark"] .toast { background: var(--surface-3); border-color: var(--border-strong); color: var(--text); box-shadow: var(--shadow-lg); }
+[data-theme="dark"] .panel { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .skeleton { background: linear-gradient(100deg, var(--surface-3) 30%, var(--surface-2) 50%, var(--surface-3) 70%); background-size: 250% 100%; }
+[data-theme="dark"] ::selection { background: rgba(167, 150, 230, 0.35); color: #ffffff; }
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.75); }
+
+/* The dashboard keeps its own token block; align it with the shared palette. */
+[data-theme="dark"] .dash {
+  --dash-surface: var(--surface);
+  --dash-surface-2: var(--surface-2);
+  --dash-surface-3: var(--surface-3);
+  --dash-border: var(--border);
+  --dash-border-strong: var(--border-strong);
+  --dash-text: var(--text);
+  --dash-text-soft: var(--text-soft);
+  --dash-muted: var(--muted);
+  --dash-faint: var(--faint);
+  --dash-accent: var(--accent);
+  --dash-accent-soft: var(--accent-soft);
+  --dash-green-soft: var(--tone-green-soft);
+  --dash-blue-soft: var(--tone-blue-soft);
+  --dash-amber-soft: var(--tone-amber-soft);
+  --dash-ring-track: var(--surface-3);
+  --dash-shadow: var(--shadow-sm);
+  --dash-shadow-lift: var(--shadow-md);
+}
+[data-theme="dark"] .dash-hero { background: radial-gradient(760px 300px at 8% -40%, rgba(167, 150, 230, 0.16), transparent 68%), radial-gradient(520px 260px at 92% 130%, rgba(110, 195, 150, 0.1), transparent 70%), var(--surface); }
+[data-theme="dark"] .dash-hero-focus { background: var(--surface-2); border-color: var(--border); }
+[data-theme="dark"] .dash-hero-date { background: rgba(255, 255, 255, 0.04); border-color: var(--border-strong); color: var(--muted); }
+
+/* ---------------------------------------------------------------- theme toggle */
+.theme-toggle .theme-icon-sun { display: none; }
+[data-theme="dark"] .theme-toggle .theme-icon-sun { display: block; }
+[data-theme="dark"] .theme-toggle .theme-icon-moon { display: none; }
+.theme-toggle svg { transition: transform 0.4s cubic-bezier(0.3, 1.4, 0.5, 1); }
+.theme-toggle:hover svg { transform: rotate(-18deg) scale(1.06); }
+
+/* Smooth colour cross-fade while switching themes (class added for ~300ms). */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease, fill 0.2s ease, stroke 0.2s ease, box-shadow 0.3s ease !important;
+  transition-delay: 0s !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.theme-transition * { transition: none !important; }
+}

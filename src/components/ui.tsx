@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { BookOpen, Check, Code2, Coffee, FolderKanban, Heart, LayoutTemplate, Lightbulb, LoaderCircle, Megaphone, PenTool, Smartphone, X } from "lucide-react";
-import { initials } from "@/lib/types";
+import { initials, statusLabel } from "@/lib/types";
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return <span className="brand"><svg width="33" height="35" viewBox="0 0 33 35" fill="none" aria-hidden="true"><path d="M6 6.5C6 3.46 8.46 1 11.5 1H27v9H15v7H6V6.5Z" fill="currentColor"/><path d="M6 17h9v11.5a5.5 5.5 0 0 1-5.5 5.5H6V17Z" fill="currentColor"/><path d="M18 13h9v4.5a5.5 5.5 0 0 1-5.5 5.5H18V13Z" fill="#A89AE9"/></svg>{!compact && <span>folio<span className="brand-dot">.</span></span>}</span>;
@@ -15,23 +15,27 @@ export function ProjectIcon({ icon = "layout", color = "violet", small = false }
 }
 export function Avatar({ name = "You", small = false }: { name?: string; small?: boolean }) { return <span className={`avatar ${small ? "avatar-sm" : ""}`} aria-label={name}>{initials(name)}</span>; }
 export function Spinner({ size = 18 }: { size?: number }) { return <LoaderCircle size={size} className="spin" aria-label="Loading"/>; }
-export function Status({ status }: { status: string }) { return <span className={`status status-${status.toLowerCase().replaceAll(" ", "-")}`}><span/>{status}</span>; }
+export function Status({ status }: { status: string }) { return <span className={`status status-${status.toLowerCase().replaceAll(" ", "-")}`}><span/>{statusLabel(status)}</span>; }
 export function EmptyState({ title, description, action, onAction, icon = "project" }: { title: string; description: string; action?: string; onAction?: () => void; icon?: "project" | "idea" | "task" }) {
   const Icon = icon === "idea" ? Lightbulb : icon === "task" ? Check : FolderKanban;
   return <div className="empty-state"><div className="empty-icon"><Icon size={27} strokeWidth={1.5}/></div><h3>{title}</h3><p>{description}</p>{action && <button className="button primary" onClick={onAction}>{action}</button>}</div>;
 }
-export function Modal({ title, children, onClose, className = "", subtitle }: { title: string; children: ReactNode; onClose: () => void; className?: string; subtitle?: string }) {
+export function Modal({ title, children, onClose, className = "", subtitle, initialFocus = "field" }: { title: string; children: ReactNode; onClose: () => void; className?: string; subtitle?: string; initialFocus?: "field" | "panel" }) {
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  // Parents pass a fresh onClose on every render; keep the latest in a ref so the
+  // effect below runs once per open (re-running it used to steal focus mid-typing).
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const timer = requestAnimationFrame(() => { const auto = panel.current?.querySelector<HTMLElement>("[autofocus], input:not([type=hidden]), textarea"); (auto || panel.current)?.focus(); });
+    const timer = requestAnimationFrame(() => { const auto = initialFocus === "panel" ? null : panel.current?.querySelector<HTMLElement>("[autofocus], input:not([type=hidden]), textarea"); (auto || panel.current)?.focus(); });
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
       }
       if (event.key === "Tab") {
         const elements = Array.from(panel.current?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]') || []).filter(el => el.offsetParent !== null);
@@ -43,7 +47,8 @@ export function Modal({ title, children, onClose, className = "", subtitle }: { 
     };
     document.addEventListener("keydown", handleKey);
     return () => { cancelAnimationFrame(timer); document.removeEventListener("keydown", handleKey); document.body.style.overflow = previousOverflow; previous?.focus(); };
-  }, [onClose]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per open; initialFocus is read on mount only
+  }, []);
   return <div className={`modal-backdrop ${className.includes("drawer") ? "drawer-backdrop" : ""}`} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div className={`modal ${className}`} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panel} tabIndex={-1}><div className="modal-header"><div><h2 id={titleId}>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button close-button" onClick={onClose} aria-label="Close dialog"><X size={20}/></button></div>{children}</div></div>;
 }
 
