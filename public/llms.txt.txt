@@ -1,0 +1,15 @@
+# Folio
+
+> Folio is an open-source personal workspace and productivity studio that consolidates projects, tasks, Google Calendar synchronization, idea capture, and AI assistance into a single unified dashboard.
+
+- App URL: https://folio-management-studio.netlify.app
+- Repository: https://github.com/PratikPrasad1813/FOLIO
+- Stack: Next.js 16, TypeScript, Tailwind CSS, PostgreSQL, Drizzle ORM
+
+## Core Capabilities
+- **Project Tracking:** Milestones, execution roadmaps, and progress meters.
+- **Task Management:** Kanban workflow boards and high-density task lists.
+- **Calendar Integration:** Bi-directional Google Calendar integration.
+- **Idea Board:** Fast thought capture with one-click conversion to active projects.
+- **Folio AI:** On-device/API-driven task breakdown and workspace management.
+- **Open Source:** Self-hostable, transparent, privacy-centric alternative to Notion and ClickUp.

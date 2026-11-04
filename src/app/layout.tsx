@@ -36,11 +36,33 @@ export const viewport: Viewport = {
 // Runs before first paint: saved preference first, then the OS setting.
 const themeBootScript = `(function(){try{var s=localStorage.getItem("folio-theme");var t=s==="dark"||s==="light"?s:(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");document.documentElement.dataset.theme=t;document.documentElement.dataset.themePreference=s==="dark"||s==="light"?s:"system";document.documentElement.style.colorScheme=t;}catch(e){document.documentElement.dataset.theme="light";}})();`;
 
+const softwareApplicationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Folio",
+  applicationCategory: "ProductivityApplication",
+  operatingSystem: "Web",
+  url: "https://folio-management-studio.netlify.app",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+  description: "An open-source personal workspace unifying projects, tasks, Google Calendar, and AI.",
+  codeRepository: "https://github.com/PratikPrasad1813/FOLIO",
+};
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" data-theme="light" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(softwareApplicationJsonLd).replace(/</g, "\\u003c"),
+          }}
+        />
       </head>
       <body><ThemeRuntime/>{children}</body>
     </html>
