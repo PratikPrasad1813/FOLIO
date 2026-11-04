@@ -50,7 +50,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { GithubMark } from "@/components/auth-screen";
 import { EMAIL_FEATURES_ENABLED } from "@/lib/feature-flags";
 
-export const GITHUB_REPO_URL = "https://github.com/PratikPrasad1813/Folio";
+export const GITHUB_REPO_URL = "https://github.com/PratikPrasad1813/FOLIO";
 // Documentation lives on the Third-Commit branch of the repository (the repo has no "main" branch).
 const GITHUB_DOCS_BASE = `${GITHUB_REPO_URL}/blob/Third-Commit`;
 
@@ -468,7 +468,7 @@ const FAQ = [
   ],
   [
     "How do I self-host Folio or contribute?",
-    "Folio can be deployed to any Node.js environment or platform like Netlify or Vercel connected to a PostgreSQL database (such as Neon PostgreSQL). The repository is publicly hosted on GitHub at https://github.com/PratikPrasad1813/Folio.",
+    "Folio can be deployed to any Node.js environment or platform like Netlify or Vercel connected to a PostgreSQL database (such as Neon PostgreSQL). The repository is publicly hosted on GitHub at https://github.com/PratikPrasad1813/FOLIO.",
   ],
   [
     "Can I use Folio on mobile devices?",
