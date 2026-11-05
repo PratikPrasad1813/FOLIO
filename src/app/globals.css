@@ -80,3 +80,5 @@
 .delete-confirm-btn{background:#c84040!important;border-color:#b53535!important;color:#ffffff!important}
 .delete-confirm-btn:hover:not(:disabled){background:#ad3333!important}
 .delete-confirm-btn:disabled{opacity:.55;cursor:not-allowed}
+header.topbar{ -webkit-app-region:drag; user-select:none }
+header.topbar button,header.topbar input,header.topbar a{ -webkit-app-region:no-drag }

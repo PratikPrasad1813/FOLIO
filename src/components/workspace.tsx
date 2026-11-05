@@ -118,6 +118,14 @@ export default function Workspace({ children }: { children?: ReactNode }) {
 
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(null), 4200); return () => window.clearTimeout(timer); }, [toast]);
   useEffect(() => {
+    return window.folioWindowsAPI?.onQuickAddTriggered(() => {
+      setPopover(null);
+      setSearchOpen(false);
+      setHelpOpen(false);
+      setEditor({ kind: "tasks" });
+    });
+  }, []);
+  useEffect(() => {
     function keydown(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setPopover(null); setHelpOpen(false); setSearchOpen(value => !value); setEditor(null); setConfirmation(null); return; }
       const target = event.target as HTMLElement;

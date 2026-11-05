@@ -47,6 +47,8 @@ export function useNotifications(
   const unreadRef = useRef(unreadCount);
   const lastPollAt = useRef(0);
   const autoTzAttempted = useRef(false);
+  const nativeNotificationCutoffAt = useRef<number | null>(null);
+  const seenNativeNotificationIds = useRef(new Set<string>());
 
   useEffect(() => {
     panelOpenRef.current = panelOpen;
@@ -86,6 +88,21 @@ export function useNotifications(
         if (!res.ok) throw new Error(body.error || "Couldn’t load notifications.");
 
         const nextList = body.notifications ?? [];
+        if (nativeNotificationCutoffAt.current === null) {
+          nativeNotificationCutoffAt.current = Date.now();
+        } else {
+          for (const item of nextList) {
+            if (seenNativeNotificationIds.current.has(item.id)) continue;
+            if (
+              !item.read &&
+              Date.parse(item.createdAt) >= nativeNotificationCutoffAt.current &&
+              document.visibilityState === "hidden"
+            ) {
+              window.folioWindowsAPI?.sendNotification(item.title, item.description);
+            }
+          }
+        }
+        for (const item of nextList) seenNativeNotificationIds.current.add(item.id);
         if (opts.appendOffset !== undefined && opts.appendOffset > 0) {
           setItems((prev) => {
             const seen = new Set(prev.map((n) => n.id));
@@ -119,7 +136,7 @@ export function useNotifications(
       if (typeof body.unreadCount === "number") {
         const changed = body.unreadCount !== unreadRef.current;
         setUnreadCount(body.unreadCount);
-        if (changed && panelOpenRef.current) {
+        if (changed) {
           void fetchNotifications({ silent: true });
         }
       }
@@ -198,7 +215,7 @@ export function useNotifications(
   // Visibility-aware polling + workspace mutation sync listener
   useEffect(() => {
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === "visible" || window.folioWindowsAPI) {
         void fetchUnreadCount();
       }
     }, POLL_INTERVAL_MS);
