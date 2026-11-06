@@ -4,9 +4,10 @@
   "version": "1.0.0",
   "identifier": "com.folio.workspace",
   "build": {
-    "frontendDist": "../public",
-    "devUrl": "http://localhost:3000",
-    "beforeDevCommand": "npm run dev"
+  "beforeBuildCommand": "",
+  "beforeDevCommand": "",
+  "frontendDist": "../public",
+  "devUrl": "http://localhost:3000"
   },
   "app": {
     "windows": [
