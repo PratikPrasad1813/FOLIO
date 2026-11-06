@@ -1,5 +1,7 @@
 # Folio authentication and account transition
 
+For production database provisioning and schema migrations, see [DATABASE_SETUP.md](./DATABASE_SETUP.md). Automated UI capture uses a separate local test database; see [SCREENSHOTS.md](./SCREENSHOTS.md).
+
 ## What the repository history actually shows
 
 The initial commit `8f0069e` used Folio's own email/password and Google/GitHub OAuth routes. It used Node's built-in **scrypt**, a random salt, and a `salt:hex-key` password hash; `folio_sessions` stored only the SHA-256 hash of an opaque cookie token. The OAuth routes used a state cookie and provider-specific authorization-code exchanges. There was no third-party authentication library and no middleware file in that commit. The next application commit `5c6936a` explicitly **disabled authentication**, routing every request to one shared demo user; it left OAuth and API files behind, but they were not a complete working authentication system. Third-Commit `d432f4c` introduced `@neon/auth`, its client, server wrapper, catch-all proxy, Neon middleware, `auth_user_id` link, and migrations `0004`/`0005`; some old files remained in that published tree. The old migration document describes an intermediate design that is not independently present as a Git commit.
@@ -16,19 +18,19 @@ No application user IDs, ownership foreign keys, data, existing identity tables,
 
 Recovery requires configured SMTP. Responses do not reveal whether an email exists. Links contain the token in a URL fragment, are single-use, and are not logged. Use a trusted mail service; do not disable TLS verification. Folio does not expose hashes, tokens, or provider secrets to the browser.
 
-## Deployment, including Netlify
+## Render deployment
 
-Set these in the server-side Netlify environment configuration (and `.env.local` locally):
+Set these in the Render service's environment configuration (and `.env.local` locally):
 
 * `DATABASE_URL`: existing Neon PostgreSQL connection string. Keep the same database to preserve data.
-* `APP_URL`: canonical **HTTPS** origin, e.g. `https://your-domain.example`. Set `NEXT_PUBLIC_APP_URL` to the same public origin if used. Do not use a request-supplied host as a production canonical URL.
+* `APP_URL`: `https://folio-management-studio.onrender.com`. Set `NEXT_PUBLIC_APP_URL` to the same public origin. Do not use a request-supplied host as a production canonical URL.
 * `FOLIO_ENCRYPTION_KEY`: a stable random secret of at least 32 characters (`openssl rand -base64 32`). It protects OAuth flow verifiers and existing Calendar tokens; do not rotate casually or old Calendar tokens become unreadable.
-* `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: optional Google web OAuth credentials. Register `https://YOUR-DOMAIN/api/auth/oauth/google/callback`. Google Calendar has the separate callback `/api/integrations/google/callback` and separate scopes.
-* `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: optional GitHub OAuth app credentials. Register `https://YOUR-DOMAIN/api/auth/oauth/github/callback`.
+* `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: optional Google web OAuth credentials. Register `https://folio-management-studio.onrender.com/api/auth/oauth/google/callback`. Google Calendar has the separate callback `https://folio-management-studio.onrender.com/api/integrations/google/callback` and separate scopes.
+* `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: optional GitHub OAuth app credentials. Register `https://folio-management-studio.onrender.com/api/auth/oauth/github/callback`.
 * `SMTP_URL`, `SMTP_FROM`: authenticated SMTP URL and sender for recovery. SMTP must support TLS/STARTTLS. Without these, recovery reports that it is unconfigured; existing compatible passwords still work.
 * `FOLIO_CRON_SECRET`: optional, for scheduled reminders.
 
-Do not set `NEON_AUTH_BASE_URL` or `NEON_AUTH_COOKIE_SECRET`; they are obsolete. Secrets are server-only. Each preview hostname needs a correctly configured canonical origin and provider callback; do not expose screenshot mode or its database credentials in Netlify. Register local callback URLs separately when testing locally.
+Do not set `NEON_AUTH_BASE_URL` or `NEON_AUTH_COOKIE_SECRET`; they are obsolete. Secrets are server-only. Each preview hostname needs a correctly configured canonical origin and provider callback; do not expose screenshot mode or its database credentials in Render. Register local callback URLs separately when testing locally.
 
 ## Schema and rollout
 
@@ -88,12 +90,13 @@ Rules that hold regardless of the flag:
 
 1. In Resend, add your domain and create the DNS records it shows (DKIM and SPF; DMARC recommended). Resend will not send from a domain you have not verified.
 2. Create a Resend API key with sending access.
-3. Set these **server-only** variables in your host (for example, Netlify environment variables):
+3. Set these **server-only** variables in your Render service environment:
 
    ```sh
    SMTP_URL="smtps://resend:re_your_api_key@smtp.resend.com:465"
    SMTP_FROM="Folio <hello@mail.your-domain.example>"
-   APP_URL="https://your-canonical-domain.example"
+   APP_URL="https://folio-management-studio.onrender.com"
+   NEXT_PUBLIC_APP_URL="https://folio-management-studio.onrender.com"
    ```
 
    Port 465 (or 2465) uses implicit TLS. Port 587, 2587, or 25 uses STARTTLS. The username is the literal string `resend`.

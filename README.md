@@ -20,6 +20,14 @@
 
 ---
 
+## Setup Guides
+
+- [Database setup and migrations](DATABASE_SETUP.md)
+- [Authentication and account security](AUTHENTICATION.md)
+- [Refreshing product screenshots](SCREENSHOTS.md)
+
+---
+
 ## Table of Contents
 
 1. [Overview & Vision](#overview--vision)
@@ -257,8 +265,8 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | Variable | Required | Description |
 | --- | --- | --- |
 | `DATABASE_URL` | **Yes** | PostgreSQL connection URL (e.g. `postgresql://user:pass@ep-xyz.neon.tech/neondb` or `postgresql://postgres:postgres@127.0.0.1:5432/app_db`) |
-| `APP_URL` | **Yes** | Canonical public origin (e.g. `http://localhost:3000` in dev, `https://folio.example.com` in production) |
-| `NEXT_PUBLIC_APP_URL` | Optional | Client-side public origin fallback |
+| `APP_URL` | **Yes** | Canonical public origin (`http://localhost:3000` in dev, `https://folio-management-studio.onrender.com` in production) |
+| `NEXT_PUBLIC_APP_URL` | Optional | Same public origin as `APP_URL`; used by client-side integrations |
 | `FOLIO_ENCRYPTION_KEY` | **Yes** (prod) | 32+ character secret for AES-256-GCM token encryption (`openssl rand -base64 32`) |
 | `GOOGLE_CLIENT_ID` | Optional | Google OAuth client ID for sign-in & Google Calendar |
 | `GOOGLE_CLIENT_SECRET` | Optional | Google OAuth client secret |
@@ -336,7 +344,7 @@ To enable Google Calendar sync:
 3. Create an **OAuth 2.0 Client ID** (Web application).
 4. Add the following **Authorized redirect URI**:
    ```
-   https://YOUR-APP-URL/api/integrations/google/callback
+   https://folio-management-studio.onrender.com/api/integrations/google/callback
    ```
 5. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in your environment.
 6. When connected, refresh tokens are sealed with `AES-256-GCM` using `FOLIO_ENCRYPTION_KEY`.
@@ -350,7 +358,7 @@ To enable GitHub sign-in:
 1. In GitHub, go to **Settings** → **Developer Settings** → **OAuth Apps** → **New OAuth App**.
 2. Set the **Authorization callback URL**:
    ```
-   https://YOUR-APP-URL/api/auth/oauth/github/callback
+   https://folio-management-studio.onrender.com/api/auth/oauth/github/callback
    ```
 3. Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in your environment.
 
@@ -360,7 +368,7 @@ To enable GitHub sign-in:
 
 ### Current status: email features are paused in the interface
 
-While Folio runs on a free Netlify subdomain without a verified sending domain, the frontend hides its email-dependent features behind `NEXT_PUBLIC_EMAIL_FEATURES_ENABLED` (default `false`):
+Until a verified SMTP sender is configured for the Render deployment, the frontend hides its email-dependent features behind `NEXT_PUBLIC_EMAIL_FEATURES_ENABLED` (default `false`):
 
 | Hidden or replaced while disabled | Still implemented in the backend |
 | --- | --- |
@@ -461,13 +469,12 @@ This command:
 
 ## Production Deployment
 
-### Netlify Deployment
-1. Connect the GitHub repository `https://github.com/PratikPrasad1813/Folio`.
-2. Set build command: `npm run build`.
-3. Set publish directory: `.next`.
-4. Configure environment variables in Netlify Dashboard:
+### Render Deployment
+1. Create a Render Web Service connected to the GitHub repository `https://github.com/PratikPrasad1813/Folio`.
+2. Set the build command to `npm install && npm run build` and the start command to `npm run start`.
+3. Configure environment variables in the Render Dashboard:
    - `DATABASE_URL` — Neon PostgreSQL connection string.
-   - `APP_URL` — Canonical production HTTPS URL (e.g. `https://folio.studio`).
+   - `APP_URL` and `NEXT_PUBLIC_APP_URL` — `https://folio-management-studio.onrender.com`.
    - `FOLIO_ENCRYPTION_KEY` — 32+ character random secret.
    - `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET` (optional).
    - `GITHUB_CLIENT_ID` & `GITHUB_CLIENT_SECRET` (optional).

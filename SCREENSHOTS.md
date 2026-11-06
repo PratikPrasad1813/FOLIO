@@ -7,7 +7,7 @@ The on-demand Playwright command starts a private loopback Next.js server, creat
 1. Install dependencies: `npm install`.
 2. Install a browser: `npx playwright install chromium`. On Linux, if system libraries are missing, run `npx playwright install-deps chromium` with appropriate administrator privileges.
 3. Create a separate local PostgreSQL database called `folio_screenshots` (or `folio_screenshots_<suffix>`). For example: `createdb folio_screenshots`. Give the local user permission to create Folio's tables. **Never point this at your production database**. Remote Neon databases and loopback tunnels whose PostgreSQL server reports a remote address are deliberately refused, even if they are test branches.
-4. Set `FOLIO_SCREENSHOT_MODE=local` and `SCREENSHOT_DATABASE_URL` to that database. `DATABASE_URL`, if set, must point to a different database name. Neither variable belongs in Netlify or production configuration. Do not set `NODE_ENV=production` for this command.
+4. Set `FOLIO_SCREENSHOT_MODE=local` and `SCREENSHOT_DATABASE_URL` to that database. `DATABASE_URL`, if set, must point to a different database name. These test-only variables must not be set in Render's production environment. Do not set `NODE_ENV=production` for this command.
 
 ## Run or refresh
 

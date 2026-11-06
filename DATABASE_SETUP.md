@@ -1,6 +1,6 @@
 # Folio Database Setup & Schema Management
 
-Folio connects to PostgreSQL (including Neon PostgreSQL or local PostgreSQL) via Drizzle ORM. Database connections read `DATABASE_URL` from the environment.
+Folio connects to PostgreSQL (including Neon PostgreSQL or local PostgreSQL) via Drizzle ORM. Database connections read `DATABASE_URL` from the environment. The database stores account credentials, sessions, and workspace data; keep its connection string private.
 
 ---
 
@@ -8,12 +8,23 @@ Folio connects to PostgreSQL (including Neon PostgreSQL or local PostgreSQL) via
 
 ### Fresh database initialisation
 
+1. Create a PostgreSQL database and set its connection string as `DATABASE_URL` in the project-root `.env.local` file. Do not commit this file or share its contents.
+2. Install dependencies and initialize the schema:
+
 ```sh
 npm install
-npm run db:init       # applies base application schema followed by ordered Drizzle migrations
-npm run db:verify     # read-only comparison verifying all 28 tables against src/db/schema.ts
+npm run db:init       # applies the base application schema and pending Drizzle migrations
+npm run db:verify     # read-only comparison against src/db/schema.ts
 npm run dev
 ```
+
+For an existing database, use its existing `DATABASE_URL` so that Folio continues using the same data. The initializer is additive: it creates missing Folio schema and applies pending migrations without dropping tables or records.
+
+### Production on Render
+
+Set `DATABASE_URL` in the Render service's environment settings to the PostgreSQL provider's connection string. For the current deployment, the app's public origin is `https://folio-management-studio.onrender.com`; set both `APP_URL` and `NEXT_PUBLIC_APP_URL` to that value as well. Keep database credentials and other secrets in the host's environment settings, not in source control.
+
+Before deploying schema changes to an existing database, take a database backup. Apply pending changes with `npm run db:migrate`, then run `npm run db:verify` to perform a read-only schema check. Neither command resets or deletes existing data.
 
 ---
 
@@ -24,7 +35,7 @@ Folio builds its PostgreSQL database in two ordered layers:
 | Layer | Source | Tables & Features |
 | --- | --- | --- |
 | **Layer 1: Base Application Schema** | `src/db/base-schema-statements.json` | The 16 base tables: `folio_users`, `folio_sessions`, `folio_projects`, `folio_milestones`, `folio_tasks`, `folio_subtasks`, `folio_ideas`, `folio_activities`, `folio_google_accounts`, `folio_google_calendars`, `folio_google_events`, `folio_task_reminders`, `folio_notification_prefs`, `folio_notifications`, `folio_reminder_deliveries`, `folio_scheduler_runs` |
-| **Layer 2: Drizzle Journal** | `drizzle/0000` through `0008` | 12 additional tables and column enhancements: `folio_recent_searches`, `folio_saved_filters`, `folio_ai_daily_usage`, `folio_ai_usage_reservations`, `folio_ai_preferences`, `folio_ai_conversations`, `folio_ai_messages`, `folio_auth_flows`, `folio_auth_identities`, `folio_auth_rate_limits`, `folio_password_resets`, `folio_email_verifications`, and `folio_users` profile/onboarding columns |
+| **Layer 2: Drizzle Journal** | `drizzle/0000` through `0009` | 13 additional tables and column enhancements: `folio_recent_searches`, `folio_saved_filters`, `folio_ai_daily_usage`, `folio_ai_usage_reservations`, `folio_ai_preferences`, `folio_ai_conversations`, `folio_ai_messages`, `folio_auth_flows`, `folio_auth_identities`, `folio_auth_rate_limits`, `folio_password_resets`, `folio_email_verifications`, `folio_ai_tasks`, and `folio_users` profile/onboarding columns |
 
 Both layers are idempotent and guarded by a session-level advisory lock (`72031917`), ensuring parallel cold-starts or simultaneous server instances cannot race.
 
@@ -71,4 +82,4 @@ When an account is deleted via `DELETE /api/account`:
 Never run automated screenshot generation or destructive tests against a production or application database.
 - Screenshot generation requires `FOLIO_SCREENSHOT_MODE=local` and a dedicated loopback database named `folio_screenshots`.
 - Remote Neon databases and databases with matching names to `DATABASE_URL` are strictly refused by safety guards.
-- See `SCREENSHOTS.md` for full instructions.
+- See [SCREENSHOTS.md](./SCREENSHOTS.md) for full instructions.
