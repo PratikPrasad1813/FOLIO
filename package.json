@@ -18,6 +18,9 @@
   },
   "dependencies": {
     "@mlc-ai/web-llm": "^0.2.87",
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-deep-link": "^2.6.3",
+    "@tauri-apps/plugin-opener": "^2.7.2",
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
     "electron-updater": "^6.8.11",
@@ -33,6 +36,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.17",
+    "@tauri-apps/cli": "^2.12.4",
     "@types/node": "22.19.15",
     "@types/nodemailer": "8.0.2",
     "@types/pg": "8.18.0",

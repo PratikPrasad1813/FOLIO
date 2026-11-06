@@ -6,6 +6,7 @@ import { Logo, Spinner } from "@/components/ui";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ProductImage } from "@/components/public-site";
 import { EMAIL_FEATURES_ENABLED } from "@/lib/feature-flags";
+import { isTauri } from "@tauri-apps/api/core";
 
 export function GoogleMark() { return <svg width="19" height="19" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.7 1.2 9.2 3.6l6.9-6.9C35.9 2.4 30.5 0 24 0 14.6 0 6.5 5.4 2.6 13.2l8 6.2C12.4 13.7 17.7 9.5 24 9.5Z"/><path fill="#4285F4" d="M47 24.5c0-1.5-.2-3.1-.4-4.5H24v9h12.9c-.5 3-2.2 5.5-4.7 7.2l7.7 6C44.4 38 47 32.2 47 24.5Z"/><path fill="#FBBC05" d="M10.5 28.6A14.6 14.6 0 0 1 9.8 24c0-1.6.2-3.1.7-4.6l-8-6.2A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.9-6.2Z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.2 1.4-4.9 2.3-8.2 2.3-6.3 0-11.6-4.2-13.5-9.9l-7.9 6.2C6.5 42.6 14.6 48 24 48Z"/></svg>; }
 export function GithubMark() { return <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .6C5.7.6.6 5.7.6 12c0 5 3.3 9.3 7.8 10.8.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.6 1.3 3.3 1 .1-.8.4-1.3.7-1.6-2.5-.3-5.2-1.3-5.2-5.7 0-1.2.4-2.3 1.2-3.1-.1-.3-.5-1.5.1-3 0 0 1-.3 3.1 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.1-1.2 3.1-1.2.6 1.5.2 2.7.1 3 .8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.2 5.7.4.4.8 1 .8 2.1v3.1c0 .3.2.6.8.5A11.4 11.4 0 0 0 23.4 12C23.4 5.7 18.3.6 12 .6Z"/></svg>; }
@@ -28,7 +29,23 @@ export function AuthScreen({ mode, next, error: initialError = "" }: AuthScreenP
 
   async function providerSignIn(provider: "google" | "github") {
     setError(""); setNotice(""); setBusy(provider);
-    window.location.assign(`/api/auth/oauth/${provider}?next=${encodeURIComponent(next)}`);
+    const target = new URL(`/api/auth/oauth/${provider}`, window.location.origin);
+    target.searchParams.set("next", next);
+    if (isTauri()) {
+      target.searchParams.set("desktop", "1");
+      try {
+        const { openUrl } = await import("@tauri-apps/plugin-opener");
+        await openUrl(target.toString());
+        setNotice("Continue signing in in your browser. Folio will reopen when you're done.");
+        setBusy(null);
+      } catch (error) {
+        console.error("Could not open the sign-in page in the browser.", error);
+        setError("Could not open your browser. Please try again.");
+        setBusy(null);
+      }
+      return;
+    }
+    window.location.assign(target.toString());
   }
 
   async function submit(event: FormEvent) {

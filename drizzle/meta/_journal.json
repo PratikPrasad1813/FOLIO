@@ -71,6 +71,13 @@
       "when": 1793635600000,
       "tag": "0009_ai_long_running_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793945159005,
+      "tag": "0010_desktop_auth_handoff",
+      "breakpoints": true
     }
   ]
 }

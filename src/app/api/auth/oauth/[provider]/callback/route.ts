@@ -1,7 +1,8 @@
+import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { and, eq, gt } from "drizzle-orm";
 import { db } from "@/db";
-import { authFlows } from "@/db/schema";
+import { authFlows, desktopAuthHandoffs } from "@/db/schema";
 import { createSession, currentUser, hashToken, sessionTokenHash, signedInDestination } from "@/lib/auth";
 import { openToken } from "@/lib/crypto";
 import { appOrigin, exchangeProviderCode, isProviderConfigured, resolveOAuthIdentity, type OAuthProvider } from "@/lib/oauth";
@@ -34,6 +35,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
     if (flow.linkUserId) {
       await onProviderLinked({ user, provider, providerEmail: identity.email, appOrigin: origin });
     } else {
+      if (flow.desktop) {
+        const code = randomBytes(32).toString("hex");
+        await db.insert(desktopAuthHandoffs).values({
+          tokenHash: hashToken(code),
+          userId: user.id,
+          destination: signedInDestination(user, flow.returnTo),
+          expiresAt: new Date(Date.now() + 2 * 60_000),
+        });
+        if (!user.welcomeEmailSentAt && Date.now() - new Date(user.createdAt).getTime() < 60_000) {
+          await onAccountCreated({ user, appOrigin: origin });
+        }
+        return Response.redirect(`folio://auth?code=${code}`, 302);
+      }
       await createSession(user.id);
       if (!user.welcomeEmailSentAt && Date.now() - new Date(user.createdAt).getTime() < 60_000) {
         await onAccountCreated({ user, appOrigin: origin });

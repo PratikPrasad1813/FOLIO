@@ -518,10 +518,18 @@ export const authFlows = pgTable("folio_auth_flows", {
   provider: text("provider").notNull(),
   verifierEnc: text("verifier_enc").notNull(),
   returnTo: text("return_to").notNull(),
+  desktop: boolean("desktop").notNull().default(false),
   linkUserId: uuid("link_user_id").references(() => users.id, { onDelete: "cascade" }),
   linkSessionHash: text("link_session_hash"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, t => [index("folio_auth_flows_expiry_idx").on(t.expiresAt)]);
+
+export const desktopAuthHandoffs = pgTable("folio_desktop_auth_handoffs", {
+  tokenHash: text("token_hash").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  destination: text("destination").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, t => [index("folio_desktop_auth_handoffs_expiry_idx").on(t.expiresAt)]);
 
 export const authRateLimits = pgTable("folio_auth_rate_limits", {
   key: text("key").primaryKey(),

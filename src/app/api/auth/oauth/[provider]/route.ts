@@ -16,6 +16,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
   if (!await allowAuthAttempt(request, "oauth")) return fail("Too many attempts. Please try again later.");
   const url = new URL(request.url);
   const linking = url.searchParams.get("link") === "1";
+  const desktop = !linking && url.searchParams.get("desktop") === "1";
   const user = linking ? await currentUser() : null;
   const sessionHash = linking ? await sessionTokenHash() : null;
   if (linking && (!user || !sessionHash)) return fail("Sign in before linking a provider.");
@@ -23,7 +24,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
   const browser = randomBytes(32).toString("base64url");
   const verifier = randomBytes(32).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
-  await db.insert(authFlows).values({ stateHash: hashToken(state), browserHash: hashToken(browser), provider, verifierEnc: sealToken(verifier)!, returnTo: linking ? "/settings" : safeDestination(url.searchParams.get("next")), linkUserId: user?.id ?? null, linkSessionHash: sessionHash, expiresAt: new Date(Date.now() + 10 * 60_000) });
+  await db.insert(authFlows).values({ stateHash: hashToken(state), browserHash: hashToken(browser), provider, verifierEnc: sealToken(verifier)!, returnTo: linking ? "/settings" : safeDestination(url.searchParams.get("next")), desktop, linkUserId: user?.id ?? null, linkSessionHash: sessionHash, expiresAt: new Date(Date.now() + 10 * 60_000) });
   (await cookies()).set("folio_oauth_browser", browser, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/auth/oauth", maxAge: 600 });
   const config = OAUTH_PROVIDERS[provider];
   const target = new URL(config.authorizeUrl);
