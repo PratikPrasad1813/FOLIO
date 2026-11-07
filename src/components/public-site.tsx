@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/ui";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { HeroDownload } from "@/components/hero-download";
 import { GithubMark } from "@/components/auth-screen";
 import { EMAIL_FEATURES_ENABLED } from "@/lib/feature-flags";
 
@@ -535,10 +536,7 @@ export function LandingPage() {
               <br className="lp-desktop-break" /> A thoughtful personal workspace for everything you want to make happen.
             </p>
             <div className="lp-hero-actions">
-              <Link href="/signup" className="lp-button is-primary">
-                Make room for better work
-                <ArrowUpRight size={17} />
-              </Link>
+              <HeroDownload />
               <a
                 href={GITHUB_REPO_URL}
                 target="_blank"
@@ -1143,6 +1141,15 @@ export function LandingPage() {
           </div>
 
           <div className="lp-docs-grid">
+            <Link href="/docs" className="lp-doc-card">
+              <span className="lp-doc-icon">ENGINEERING MANUAL</span>
+              <h3>Folio Engineering Documentation</h3>
+              <p>Architecture, database schema, authentication, calendar sync, local AI, and desktop releases.</p>
+              <span className="lp-doc-link">
+                Explore documentation <ArrowUpRight size={13} />
+              </span>
+            </Link>
+
             <a
               href={`${GITHUB_REPO_URL}#readme`}
               target="_blank"
