@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { Apple, ChevronDown, Download, Globe2, Monitor, Terminal } from "lucide-react";
+import { ChevronDown, Download, Globe2 } from "lucide-react";
 
 type DesktopPlatform = "windows" | "macos" | "linux" | "unknown";
+type PlatformLogoProps = { size?: number; className?: string };
+type PlatformIconComponent = (props: PlatformLogoProps) => React.JSX.Element;
 
 const RELEASES = {
   latest: "https://github.com/PratikPrasad1813/FOLIO/releases/latest",
@@ -17,21 +19,76 @@ const RELEASES = {
 
 const RECOMMENDATIONS: Record<
   DesktopPlatform,
-  { label: string; href: string; Icon: typeof Monitor }
+  { label: string; href: string; Icon: PlatformIconComponent | typeof Download }
 > = {
-  windows: { label: "Download for Windows (.exe)", href: RELEASES.windowsExe, Icon: Monitor },
-  macos: { label: "Download for macOS (.dmg)", href: RELEASES.macos, Icon: Apple },
-  linux: { label: "Download for Linux (.deb)", href: RELEASES.linuxDeb, Icon: Terminal },
+  windows: { label: "Download for Windows (.exe)", href: RELEASES.windowsExe, Icon: WindowsLogo },
+  macos: { label: "Download for macOS (.dmg)", href: RELEASES.macos, Icon: AppleLogo },
+  linux: { label: "Download for Linux (.deb)", href: RELEASES.linuxDeb, Icon: LinuxLogo },
   unknown: { label: "Download Desktop App", href: RELEASES.latest, Icon: Download },
 };
 
 const DOWNLOAD_OPTIONS = [
-  { label: "Windows installer (.exe)", detail: "64-bit Windows", href: RELEASES.windowsExe, Icon: Monitor },
-  { label: "Windows package (.msi)", detail: "64-bit Windows", href: RELEASES.windowsMsi, Icon: Monitor },
-  { label: "macOS universal disk image (.dmg)", detail: "Apple Silicon and Intel", href: RELEASES.macos, Icon: Apple },
-  { label: "Linux package (.deb)", detail: "Debian and Ubuntu, x86_64", href: RELEASES.linuxDeb, Icon: Terminal },
-  { label: "Linux image (.AppImage)", detail: "Portable x86_64 package", href: RELEASES.linuxAppImage, Icon: Terminal },
+  { label: "Windows installer (.exe)", detail: "64-bit Windows", href: RELEASES.windowsExe, Icon: WindowsLogo },
+  { label: "Windows package (.msi)", detail: "64-bit Windows", href: RELEASES.windowsMsi, Icon: WindowsLogo },
+  { label: "macOS universal disk image (.dmg)", detail: "Apple Silicon and Intel", href: RELEASES.macos, Icon: AppleLogo },
+  { label: "Linux package (.deb)", detail: "Debian and Ubuntu, x86_64", href: RELEASES.linuxDeb, Icon: LinuxLogo },
+  { label: "Linux image (.AppImage)", detail: "Portable x86_64 package", href: RELEASES.linuxAppImage, Icon: LinuxLogo },
 ] as const;
+
+function WindowsLogo({ size = 17, className }: PlatformLogoProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M2 4.2 10.7 3v8.4H2V4.2Zm10.1-1.4L22 1.3v10.1h-9.9V2.8ZM2 12.8h8.7v8.3L2 19.9v-7.1Zm10.1 0H22v9.9l-9.9-1.4v-8.5Z" />
+    </svg>
+  );
+}
+
+function AppleLogo({ size = 17, className }: PlatformLogoProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 384 512"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M318.7 268.6c-.2-36.7 16.4-64.4 50-84.8-18.8-26.8-47.2-41.6-84.8-44.5-35.6-2.8-74.4 20.8-88.6 20.8-15 0-49.4-19.8-76.6-19.8C62.5 141.2 0 186.2 0 273.8c0 25.9 4.7 52.7 14.1 80.4 12.5 36.7 57.5 126.6 104.4 125.1 24.6-.6 42-17.5 74.9-17.5 31.9 0 48 17.5 75.4 17.5 47.3-.7 88-82.4 99.9-119.2-63.5-29.9-60-87.7-50-91.5zM260.8 105.5c27.4-32.5 24.9-62.1 24.1-72.7-24.2 1.4-52.2 16.8-68.1 35.4-17.4 19.8-27.6 44.3-25.4 71.9 26.1 2 50-11.4 69.4-34.6z" />
+    </svg>
+  );
+}
+
+function LinuxLogo({ size = 17, className }: PlatformLogoProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        fill="#111827"
+        d="M16 2.2c-4.1 0-6.2 3.2-6.2 7.5 0 1.7.3 3.3.8 4.7-2 2.1-3.1 4.6-3.1 7.5 0 2.2.7 4 2 5.2l-.9 2.1c-.4 1 .4 1.8 1.5 1.5l4.1-1.2c.6.1 1.2.2 1.8.2s1.2-.1 1.8-.2l4.1 1.2c1.1.3 1.9-.5 1.5-1.5l-.9-2.1c1.3-1.2 2-3 2-5.2 0-2.9-1.1-5.4-3.1-7.5.5-1.4.8-3 .8-4.7 0-4.3-2.1-7.5-6.2-7.5Z"
+      />
+      <ellipse cx="16" cy="21" rx="5.1" ry="6.4" fill="#fff" />
+      <ellipse cx="13.8" cy="9.2" rx="1.1" ry="1.5" fill="#fff" />
+      <ellipse cx="18.2" cy="9.2" rx="1.1" ry="1.5" fill="#fff" />
+      <circle cx="14.1" cy="9.4" r=".55" fill="#111827" />
+      <circle cx="17.9" cy="9.4" r=".55" fill="#111827" />
+      <path d="m13.5 12.1 2.5 1.5 2.5-1.5-2.5-.6-2.5.6Z" fill="#f59e0b" />
+      <path d="M7.3 23.2c-1.8-.7-3.2-.3-3.6.6-.4 1 .4 2.2 2.4 2.8l3 .9.2-2.7-2-1.6Zm17.4 0c1.8-.7 3.2-.3 3.6.6.4 1-.4 2.2-2.4 2.8l-3 .9-.2-2.7 2-1.6Z" fill="#111827" />
+      <path d="m11.1 28.5-1.5 1.8 4.4-.7.4-1.8-3.3.7Zm9.8 0 1.5 1.8-4.4-.7-.4-1.8 3.3.7Z" fill="#f59e0b" />
+    </svg>
+  );
+}
 
 function detectPlatform(userAgent: string): DesktopPlatform {
   if (/Android|iPhone|iPad|iPod/i.test(userAgent)) return "unknown";

@@ -115,6 +115,9 @@ export function PublicHeader({ home = false }: { home?: boolean }) {
               {label}
             </a>
           ))}
+          <Link href="/docs" onClick={() => setOpen(false)}>
+            Docs
+          </Link>
           <a
             href={GITHUB_REPO_URL}
             target="_blank"
@@ -264,7 +267,7 @@ export function PublicFooter() {
               Contribute
             </a>
             <Link href="/#tech-stack">Technology Stack</Link>
-            <Link href="/#docs">Developer Documentation</Link>
+            <Link href="/docs">Developer Documentation</Link>
           </div>
           <div>
             <span>DOCUMENTATION</span>
@@ -537,6 +540,10 @@ export function LandingPage() {
             </p>
             <div className="lp-hero-actions">
               <HeroDownload />
+              <Link href="/docs" className="lp-button is-outline lp-btn-docs">
+                <BookOpen size={15} />
+                Go to Documentation
+              </Link>
               <a
                 href={GITHUB_REPO_URL}
                 target="_blank"
@@ -1123,92 +1130,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* 11. DOCUMENTATION GUIDES */}
-        <section className="lp-section lp-docs-section" id="docs">
-          <div className="lp-section-header">
-            <span className="lp-eyebrow">
-              <BookOpen size={14} />
-              ARCHITECTURE &amp; GUIDES
-            </span>
-            <h2>
-              Documented down to
-              <br />
-              <em>every detail.</em>
-            </h2>
-            <p>
-              Clear, honest engineering documentation for local development, schema migrations, and production operations.
-            </p>
-          </div>
-
-          <div className="lp-docs-grid">
-            <Link href="/docs" className="lp-doc-card">
-              <span className="lp-doc-icon">ENGINEERING MANUAL</span>
-              <h3>Folio Engineering Documentation</h3>
-              <p>Architecture, database schema, authentication, calendar sync, local AI, and desktop releases.</p>
-              <span className="lp-doc-link">
-                Explore documentation <ArrowUpRight size={13} />
-              </span>
-            </Link>
-
-            <a
-              href={`${GITHUB_REPO_URL}#readme`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="lp-doc-card"
-            >
-              <span className="lp-doc-icon">README.md</span>
-              <h3>Project Overview &amp; Architecture</h3>
-              <p>Complete project walkthrough, directory layout, commands, and local quickstart.</p>
-              <span className="lp-doc-link">
-                Read guide <ArrowUpRight size={13} />
-              </span>
-            </a>
-
-            <a
-              href={`${GITHUB_DOCS_BASE}/DATABASE_SETUP.md`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="lp-doc-card"
-            >
-              <span className="lp-doc-icon">DATABASE_SETUP.md</span>
-              <h3>PostgreSQL &amp; Migrations</h3>
-              <p>Base schema initialisation, ordered Drizzle migrations, and schema verification.</p>
-              <span className="lp-doc-link">
-                Read guide <ArrowUpRight size={13} />
-              </span>
-            </a>
-
-            <a
-              href={`${GITHUB_DOCS_BASE}/AUTHENTICATION.md`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="lp-doc-card"
-            >
-              <span className="lp-doc-icon">AUTHENTICATION.md</span>
-              <h3>Auth &amp; Account Deletion</h3>
-              <p>Self-managed auth architecture, scrypt hashing, OAuth callbacks, and data lifecycle.</p>
-              <span className="lp-doc-link">
-                Read guide <ArrowUpRight size={13} />
-              </span>
-            </a>
-
-            <a
-              href={`${GITHUB_DOCS_BASE}/SCREENSHOTS.md`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="lp-doc-card"
-            >
-              <span className="lp-doc-icon">SCREENSHOTS.md</span>
-              <h3>Automated Screenshots</h3>
-              <p>Playwright automated pipeline capturing real application screens in isolated test DB.</p>
-              <span className="lp-doc-link">
-                Read guide <ArrowUpRight size={13} />
-              </span>
-            </a>
-          </div>
-        </section>
-
-        {/* 12. FAQ */}
+        {/* 11. FAQ */}
         <section id="faq" className="lp-section lp-faq">
           <div>
             <span className="lp-eyebrow">
@@ -1237,7 +1159,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* 13. FINAL CALL TO ACTION */}
+        {/* 12. FINAL CALL TO ACTION */}
         <section className="lp-final">
           <span className="lp-final-spark" aria-hidden="true">
             ✳
