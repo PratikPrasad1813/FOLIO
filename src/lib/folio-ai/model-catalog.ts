@@ -1,3 +1,5 @@
+import { MINIMUM_AI_DEVICE_MEMORY_GB } from "@/lib/folio-ai/device";
+
 export type LocalModelCategory = "fast" | "structured" | "reasoning" | "coder" | "creative";
 
 export interface LocalModelSpec {
@@ -11,7 +13,7 @@ export interface LocalModelSpec {
   strengths: readonly string[];
 }
 
-export const DEFAULT_LOCAL_MODEL_ID = "qwen-2.5-3b";
+export const DEFAULT_LOCAL_MODEL_ID = "smollm2-1.7b";
 
 export const LOCAL_MODELS: Readonly<Record<string, LocalModelSpec>> = {
   "qwen-2.5-3b": {
@@ -77,6 +79,11 @@ export const LOCAL_MODELS: Readonly<Record<string, LocalModelSpec>> = {
 };
 
 export const LOCAL_MODEL_LIST: readonly LocalModelSpec[] = Object.values(LOCAL_MODELS);
+
+export function getCompatibleLocalModels(deviceMemoryGB?: number): readonly LocalModelSpec[] {
+  const memoryLimit = deviceMemoryGB ?? MINIMUM_AI_DEVICE_MEMORY_GB;
+  return LOCAL_MODEL_LIST.filter(model => model.minRamGb <= memoryLimit);
+}
 
 export function getLocalModel(modelId: string): LocalModelSpec | undefined {
   return LOCAL_MODELS[modelId];

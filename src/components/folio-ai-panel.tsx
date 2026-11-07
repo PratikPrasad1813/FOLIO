@@ -8,8 +8,12 @@ import {
   Gauge, History, MessageSquare, Moon, Play, Plus, RotateCcw, Send, ShieldCheck, Sparkles, Square, Trash2, WifiOff, X, Wand2,
 } from "lucide-react";
 import { Modal, Spinner } from "@/components/ui";
-import { FOLIO_AI_CONFIG, approximateHumanSize } from "@/lib/folio-ai/config";
-import { checkLocalAICompatibility } from "@/lib/folio-ai/device";
+import { FOLIO_AI_CONFIG, approximateHumanSize, estimateTokenCount } from "@/lib/folio-ai/config";
+import {
+  checkLocalAICompatibility,
+  isLocalAIAvailable,
+  MINIMUM_AI_DEVICE_MEMORY_GB,
+} from "@/lib/folio-ai/device";
 import {
   getLoadedProviderState,
   getLocalProvider,
@@ -35,11 +39,13 @@ import {
   type FolioAIModelInfo, type ModelPreference, type ModelTier,
 } from "@/lib/folio-ai/models";
 import {
-  DEFAULT_LOCAL_MODEL_ID, LOCAL_MODEL_LIST, LOCAL_MODELS, getLocalModelByWebLLMId,
+  DEFAULT_LOCAL_MODEL_ID, getCompatibleLocalModels, getLocalModelByWebLLMId,
   type LocalModelSpec,
 } from "@/lib/folio-ai/model-catalog";
+import { WebLLMProvider } from "@/lib/folio-ai/webllm-provider";
 import { routeTaskPrompt } from "@/lib/folio-ai/task-router";
 import { FolioAIModelSelector } from "@/components/folio-ai-model-selector";
+import { FolioAIMarkdown } from "@/components/folio-ai-markdown";
 import {
   ASSISTANT_PRESENTATIONS, ASSISTANT_STYLES,
   type AIActionResult, type AICompatibility, type AIInitErrorKind, type AIMessage, type AIPreferences,
@@ -56,6 +62,8 @@ ${AI_ACTION_PLAN_OPEN}
 ${AI_ACTION_PLAN_CLOSE}
 
 Rules:
+- Write concise, natural answers. Use Markdown only when it improves readability; prefer short lists over heading-heavy replies and never print Markdown markers literally.
+- If the request is too large to answer reliably in one response, say so plainly and ask the user to split it into smaller prompts.
 - Only use action ids you know: create_project, update_project, archive_project, restore_project, delete_project, create_task, create_tasks, update_task, complete_task, reopen_task, delete_task, delete_tasks, create_idea, update_idea, delete_idea, convert_idea, search_workspace, workspace_summary, task_report, project_report, list_calendar_events, create_calendar_event, update_calendar_event, delete_calendar_event, list_reminders, create_reminder, cancel_reminder, delete_reminder.
 - Include dates as YYYY-MM-DD. For calendar events use ISO datetimes.
 - For destructive or bulk operations, still emit the plan; Folio AI will show a confirmation preview before anything is executed.
@@ -335,6 +343,13 @@ export function FolioAIPanel() {
     cached: initialProviderState.ready,
   });
   const [modelError, setModelError] = useState<{ kind: AIInitErrorKind; title: string; message: string } | null>(null);
+  const [batchState, setBatchState] = useState<{
+    completed: number;
+    total: number;
+    current: string;
+    progress: number;
+    errors: string[];
+  } | null>(null);
   const [usage, setUsage] = useState<AIUsage | null>(null);
   const [usageLoading, setUsageLoading] = useState(true);
   const [usageError, setUsageError] = useState("");
@@ -345,6 +360,7 @@ export function FolioAIPanel() {
   const [limitReached, setLimitReached] = useState(false);
   const [copyId, setCopyId] = useState<string | null>(null);
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [showScrollToLatest, setShowScrollToLatest] = useState(false);
   const [plans, setPlans] = useState<
     Record<
       string,
@@ -384,7 +400,8 @@ export function FolioAIPanel() {
   const providerRef = useRef<Awaited<ReturnType<typeof getLocalProvider>> | null>(
     initialProviderState.provider,
   );
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
   const messagesRef = useRef(messages);
   const mountedRef = useRef(true);
   const actionHistoryRef = useRef<string[]>([]);
@@ -628,7 +645,11 @@ export function FolioAIPanel() {
     } catch (error) {
       console.warn("Folio AI could not read local model routing preference:", error);
     }
-    void checkLocalAICompatibility().then(result => { if (mountedRef.current) setCompatibility(result); });
+    void checkLocalAICompatibility().then(result => {
+      if (!mountedRef.current) return;
+      setCompatibility(result);
+      setRecommendation(recommendModel({ ...profileDevice(), deviceMemoryGB: result.deviceMemoryGB }));
+    });
     void refreshUsage().catch(() => {});
     void refreshPreferences().catch(() => {});
     void loadWorkspaceSummary().catch(() => {});
@@ -670,21 +691,48 @@ export function FolioAIPanel() {
     }
   }, [autoRoute]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages, generating]);
-
-  const selectedModel = useMemo<FolioAIModelInfo | null>(() => {
-    if (!prefs) return modelInfoFromLocalSpec(LOCAL_MODELS[DEFAULT_LOCAL_MODEL_ID]);
-    if (prefs.selectedModelId && MODEL_BY_ID[prefs.selectedModelId]) return MODEL_BY_ID[prefs.selectedModelId];
-    if (prefs.selectedModelId) {
-      const localModel = getLocalModelByWebLLMId(prefs.selectedModelId);
-      if (localModel) return modelInfoFromLocalSpec(localModel);
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (container && stickToBottomRef.current) {
+      container.scrollTop = container.scrollHeight;
     }
-    if (prefs.modelPreference !== "automatic") return MODEL_BY_TIER[prefs.modelPreference as ModelTier] ?? recommendation?.recommendedModel ?? MODEL_BY_TIER.balanced;
-    return modelInfoFromLocalSpec(LOCAL_MODELS[DEFAULT_LOCAL_MODEL_ID]);
-  }, [prefs, recommendation]);
+  }, [messages, generating]);
+
+  const compatibleLocalModels = useMemo(
+    () => getCompatibleLocalModels(compatibility.deviceMemoryGB),
+    [compatibility.deviceMemoryGB],
+  );
+  const deviceMemoryGB = compatibility.deviceMemoryGB;
+  const aiUnavailableForMemory = deviceMemoryGB !== undefined && !isLocalAIAvailable(deviceMemoryGB);
 
   useEffect(() => {
-    if (!selectedModel || compatibility.state === "unsupported") return;
+    if (!aiUnavailableForMemory) return;
+    void unloadLocalProvider().catch(error => {
+      console.error("Folio AI could not release a model on a low-memory device:", error);
+    });
+  }, [aiUnavailableForMemory]);
+
+  const selectedModel = useMemo<FolioAIModelInfo | null>(() => {
+    const fallbackSpec =
+      compatibleLocalModels.find(model => model.webLlmModelId === recommendation?.recommendedModel.modelId) ??
+      compatibleLocalModels.find(model => model.id === DEFAULT_LOCAL_MODEL_ID) ??
+      compatibleLocalModels[0];
+    if (!fallbackSpec) return null;
+    if (!prefs) return modelInfoFromLocalSpec(fallbackSpec);
+    if (prefs.selectedModelId) {
+      const localModel = compatibleLocalModels.find(model => model.webLlmModelId === prefs.selectedModelId);
+      if (localModel) return modelInfoFromLocalSpec(localModel);
+    }
+    if (prefs.modelPreference !== "automatic") {
+      const preferredModel = MODEL_BY_TIER[prefs.modelPreference as ModelTier];
+      const compatiblePreference = compatibleLocalModels.find(model => model.webLlmModelId === preferredModel.modelId);
+      if (compatiblePreference) return modelInfoFromLocalSpec(compatiblePreference);
+    }
+    return modelInfoFromLocalSpec(fallbackSpec);
+  }, [prefs, recommendation, compatibleLocalModels]);
+
+  useEffect(() => {
+    if (!selectedModel || (compatibility.state !== "supported" && compatibility.state !== "caution")) return;
     if (process.env.NODE_ENV !== "production" && typeof window !== "undefined" && window.__FOLIO_AI_TEST_PROVIDER__) {
       return;
     }
@@ -692,14 +740,14 @@ export function FolioAIPanel() {
     const run = async () => {
       const webllm = await import("@mlc-ai/web-llm");
       const status: Record<string, boolean> = {};
-      for (const model of LOCAL_MODEL_LIST) {
+      for (const model of compatibleLocalModels) {
         status[model.webLlmModelId] = await webllm.hasModelInCache(model.webLlmModelId, webllm.prebuiltAppConfig).catch(() => false);
       }
       if (!cancelled) setCacheStatus(status);
     };
     void run();
     return () => { cancelled = true; };
-  }, [compatibility.state, selectedModel]);
+  }, [compatibility.state, selectedModel, compatibleLocalModels]);
 
   const assistantState = generating ? "thinking" : runningPlan ? "processing" : modelState === "ready" ? "idle" : modelState === "error" ? "error" : "idle";
 
@@ -709,13 +757,14 @@ export function FolioAIPanel() {
     try {
       const result = await checkLocalAICompatibility();
       setCompatibility(result);
-      setRecommendation(recommendModel(profileDevice()));
+      setRecommendation(recommendModel({ ...profileDevice(), deviceMemoryGB: result.deviceMemoryGB }));
     } finally { setChecking(false); }
   }
 
   async function loadModel() {
     if (modelState === "loading" || modelState === "ready") return;
     if (!selectedModel) return;
+    setBatchState(null);
     setModelState("loading"); setModelError(null); setProgress({ progress: 0, text: "Loading the local AI engine…", cached: false });
     try {
       const provider = await getLocalProvider(selectedModel);
@@ -734,6 +783,63 @@ export function FolioAIPanel() {
       if (!mountedRef.current) return;
       setModelError(details); setModelState("error");
     }
+  }
+
+  async function downloadCompatibleModels() {
+    if (modelState === "loading" || generating || runningPlan) return;
+    const queue = compatibleLocalModels.filter(model => !cacheStatus[model.webLlmModelId]);
+    if (!queue.length) {
+      setBatchState({ completed: 0, total: 0, current: "All compatible models are already downloaded.", progress: 1, errors: [] });
+      return;
+    }
+
+    setModelState("loading");
+    setModelError(null);
+    setBatchState({ completed: 0, total: queue.length, current: queue[0].name, progress: 0, errors: [] });
+    const errors: string[] = [];
+
+    try {
+      await unloadLocalProvider();
+      providerRef.current = null;
+      setActiveModel(null);
+      for (let index = 0; index < queue.length; index += 1) {
+        const model = queue[index];
+        const provider = new WebLLMProvider(modelInfoFromLocalSpec(model));
+        setBatchState({ completed: index, total: queue.length, current: model.name, progress: 0, errors: [...errors] });
+        try {
+          await provider.initialize(progressUpdate => {
+            setBatchState({
+              completed: index,
+              total: queue.length,
+              current: model.name,
+              progress: progressUpdate.progress,
+              errors: [...errors],
+            });
+          });
+          setCacheStatus(status => ({ ...status, [model.webLlmModelId]: true }));
+        } catch (error) {
+          const details = classifyLoadError(error);
+          errors.push(`${model.name}: ${details.message}`);
+        } finally {
+          try {
+            await provider.unload();
+          } catch (error) {
+            errors.push(`${model.name}: could not release model resources (${visibleError(error)})`);
+          }
+        }
+      }
+    } catch (error) {
+      errors.push(`Model download could not start: ${visibleError(error)}`);
+    }
+
+    setBatchState({
+      completed: queue.length,
+      total: queue.length,
+      current: errors.length ? "Some models could not be downloaded." : "All compatible models are ready in browser storage.",
+      progress: 1,
+      errors,
+    });
+    setModelState("idle");
   }
 
   async function switchModel(model: FolioAIModelInfo, preference: ModelPreference) {
@@ -772,10 +878,14 @@ export function FolioAIPanel() {
     }
   }
 
-  function makeContext(historyList: AIMessage[], newest: string): LocalChatMessage[] {
+  function makeContext(
+    historyList: AIMessage[],
+    newest: string,
+    contextWindowTokens: number = FOLIO_AI_CONFIG.contextWindowTokens,
+  ): LocalChatMessage[] {
     const actionHistory = actionHistoryRef.current.slice(-6);
     const historyBlock = actionHistory.length ? `\n\nRecent completed actions in this conversation:\n${actionHistory.map(line => `- ${line}`).join("\n")}` : "";
-    
+
     // Concise workspace summary block so local model can see real IDs and names
     const workspaceBlockParts: string[] = [];
     if (workspaceSummary?.projects?.length) {
@@ -787,11 +897,24 @@ export function FolioAIPanel() {
     if (workspaceSummary?.ideas?.length) {
       workspaceBlockParts.push("Ideas:\n" + workspaceSummary.ideas.slice(0, 6).map((i: NonNullable<WorkspaceSummaryContext["ideas"]>[number]) => `- “${i.title}” (id: "${i.id}")`).join("\n"));
     }
-    const workspaceBlock = workspaceBlockParts.length ? `\n\n${workspaceBlockParts.join("\n\n")}` : "";
-
+    const workspaceText = workspaceBlockParts.join("\n\n");
+    const baseSystem = SYSTEM_PROMPT(prefs ?? { assistantName: "Folio AI", presentation: "neutral", style: "friendly", modelPreference: "automatic", selectedModelId: null }) + `\nCurrent local date: ${dateKey()}. Account timezone: ${regionalTimezone() || "UTC"}. Interpret relative dates in this timezone. Ask for clarification when the intended date is ambiguous.`;
+    const maxPromptCharacters = Math.max(
+      0,
+      (contextWindowTokens - FOLIO_AI_CONFIG.maxOutputTokens - 256) *
+        FOLIO_AI_CONFIG.approximateCharactersPerToken,
+    );
+    const dynamicBudget = Math.max(
+      0,
+      maxPromptCharacters - baseSystem.length - historyBlock.length - newest.length,
+    );
+    const workspaceBudget = Math.min(workspaceText.length, Math.floor(dynamicBudget * 0.45));
+    const workspaceBlock = workspaceBudget
+      ? `\n\n${workspaceText.slice(0, workspaceBudget)}`
+      : "";
     const clean = historyList.filter(message => message.generationStatus !== "error" && message.content.trim()).slice(-FOLIO_AI_CONFIG.maxContextMessages);
     const collected: AIMessage[] = [];
-    let budget = FOLIO_AI_CONFIG.maxContextCharacters - newest.length - historyBlock.length - workspaceBlock.length;
+    let budget = Math.max(0, dynamicBudget - workspaceBlock.length);
     for (let i = clean.length - 1; i >= 0 && budget > 0; i--) {
       const message = clean[i];
       const text = message.content.slice(-budget);
@@ -799,7 +922,7 @@ export function FolioAIPanel() {
       budget -= text.length;
     }
     return [
-      { role: "system", content: SYSTEM_PROMPT(prefs ?? { assistantName: "Folio AI", presentation: "neutral", style: "friendly", modelPreference: "automatic", selectedModelId: null }) + `\nCurrent local date: ${dateKey()}. Account timezone: ${regionalTimezone() || "UTC"}. Interpret relative dates in this timezone. Ask for clarification when the intended date is ambiguous.` + workspaceBlock + historyBlock },
+      { role: "system", content: baseSystem + workspaceBlock + historyBlock },
       ...collected.map(message => ({ role: message.role, content: message.content })),
       { role: "user", content: newest },
     ];
@@ -864,16 +987,35 @@ export function FolioAIPanel() {
     const text = (resumeOptions ? resumeOptions.task.prompt : raw).trim();
     if (!text || generating || Boolean(pendingSyncTask) || runningPlan) return;
     if (text.length > FOLIO_AI_CONFIG.maxInputCharacters) {
-      setGenerationError(`Messages are limited to ${FOLIO_AI_CONFIG.maxInputCharacters.toLocaleString()} characters.`);
+      setGenerationError(`This prompt is too long. Split it into smaller prompts of ${FOLIO_AI_CONFIG.maxInputCharacters.toLocaleString()} characters or less.`);
       return;
     }
 
     const route = autoRoute ? routeTaskPrompt(text) : null;
-    const generationModel = route
-      ? modelInfoFromLocalSpec(route.model)
-      : selectedModel;
+    const routedModel = route
+      ? compatibleLocalModels.find(model => model.id === route.model.id)
+      : undefined;
+    const generationModel = routedModel ? modelInfoFromLocalSpec(routedModel) : selectedModel;
     if (!generationModel) {
       setGenerationError("Choose a local model before sending a message.");
+      return;
+    }
+
+    const priorMessages = resumeOptions
+      ? messagesRef.current.filter(
+          m => m.id !== resumeOptions.task.assistantMessageId && m.taskId !== resumeOptions.task.id,
+        )
+      : messagesRef.current;
+    const contextMessages = makeContext(priorMessages, text, generationModel.contextWindowTokens);
+    const estimatedPromptTokens = estimateTokenCount(
+      contextMessages.map(message => message.content).join("\n"),
+    );
+    const promptTokenLimit = Math.max(
+      1,
+      generationModel.contextWindowTokens - FOLIO_AI_CONFIG.maxOutputTokens - 256,
+    );
+    if (estimatedPromptTokens > promptTokenLimit) {
+      setGenerationError("This request and its conversation history are too long for the local model. Start a new chat or split the request into smaller prompts.");
       return;
     }
 
@@ -882,6 +1024,7 @@ export function FolioAIPanel() {
     if (!provider || provider.modelId !== generationModel.modelId || modelState !== "ready") {
       if (generationModel) {
         try {
+          setBatchState(null);
           setModelState("loading");
           const p = await getLocalProvider(generationModel);
           providerRef.current = p;
@@ -914,16 +1057,10 @@ export function FolioAIPanel() {
     setLimitReached(false);
     if (!resumeOptions) setDraft("");
 
-    const priorMessages = resumeOptions
-      ? messagesRef.current.filter(
-          m => m.id !== resumeOptions.task.assistantMessageId && m.taskId !== resumeOptions.task.id,
-        )
-      : messagesRef.current;
-
-    const contextMessages = makeContext(priorMessages, text);
     const modelId = generationModel.modelId;
 
     try {
+      stickToBottomRef.current = true;
       const started = await startBackgroundAITask({
         prompt: text,
         conversationId:
@@ -1138,6 +1275,11 @@ export function FolioAIPanel() {
   const canGenerate = modelState === "ready" && Boolean(usage && !usage.limitReached) && !generating && !pendingSyncTask && !runningPlan;
   const progressPercent = Math.round(progress.progress * 100);
   const displayModel = activeModel ?? selectedModel;
+  const pendingBatchModels = compatibleLocalModels.filter(model => !cacheStatus[model.webLlmModelId]);
+  const batchDownloadBytes = pendingBatchModels.reduce((total, model) => {
+    const size = Number.parseFloat(model.sizeDisplay.replace(/[^\d.]/g, ""));
+    return total + (Number.isFinite(size) ? size * 1_000_000_000 : 0);
+  }, 0);
 
   const reassuranceText = useMemo(() => {
     if (!generating) return null;
@@ -1150,10 +1292,20 @@ export function FolioAIPanel() {
     return null;
   }, [generating, elapsedSeconds]);
 
+  if (aiUnavailableForMemory) {
+    return (
+      <section className="folio-ai-page fa-ai-unavailable" aria-labelledby="fa-unavailable-title">
+        <span className="fa-brand-icon"><BrainCircuit size={21} /></span>
+        <h1 id="fa-unavailable-title">Folio AI isn’t available on this device</h1>
+        <p>Local AI needs at least {MINIMUM_AI_DEVICE_MEMORY_GB} GB of reported system memory. AI stays off here so the rest of Folio remains responsive.</p>
+      </section>
+    );
+  }
+
   return (
     <section className="folio-ai-page" aria-label="Folio AI workspace assistant">
       <header className="fa-page-header">
-        <div className="fa-page-title"><span className="fa-brand-icon"><BrainCircuit size={21} /></span><div><span className="eyebrow">PRIVATE BY DESIGN</span><h1>Folio AI</h1><p>A workspace assistant that runs right here on your device.</p></div></div>
+        <div className="fa-page-title"><span className="fa-brand-icon"><BrainCircuit size={21} /></span><div><span className="eyebrow">PRIVATE BY DESIGN</span><h1>Folio AI</h1><p>Your private, on-device assistant.</p></div></div>
         <div className="fa-page-actions"><button type="button" className="pj-btn is-ghost is-sm" onClick={() => setSettingsOpen(true)}><Cpu size={14} />Model &amp; assistant</button><div className="fa-plan-pill"><span />Free · Local AI</div></div>
       </header>
 
@@ -1225,11 +1377,21 @@ export function FolioAIPanel() {
               <span className="fa-welcome-art"><AIAvatar state={assistantState} size={44} /></span>
               <h2>Hi! I’m {prefs?.assistantName ?? "Folio AI"}.</h2>
               <p>I can help you understand your workspace, organize your work, and plan your day.</p>
-              <div className="fa-phase-note"><ShieldCheck size={15} /><span>I can perform real Folio actions through approved, secure steps — you’ll always see a preview before anything destructive or bulk is executed. No cloud model or paid provider is used.</span></div>
+              <div className="fa-phase-note"><ShieldCheck size={15} /><span>Runs on your device. Workspace changes wait for your review.</span></div>
               <div className="fa-prompts">{EXAMPLES.map(({ text, icon: Icon }) => <button type="button" key={text} disabled={modelState === "loading" || Boolean(pendingSyncTask) || Boolean(runningPlan)} onClick={() => { if (modelState === "ready") void sendMessage(text); else setDraft(text); }}><Icon size={15} /><span>{text}</span><ChevronDown size={13} className="fa-prompt-arrow" /></button>)}</div>
             </div>
           ) : (
-            <div className="fa-messages" aria-live="polite">
+            <div
+              className="fa-messages"
+              aria-live="polite"
+              ref={messagesContainerRef}
+              onScroll={event => {
+                const container = event.currentTarget;
+                const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 72;
+                stickToBottomRef.current = atBottom;
+                setShowScrollToLatest(!atBottom);
+              }}
+            >
               {messages.map(message => {
                 const plan = plans[message.id];
                 const task =
@@ -1263,8 +1425,10 @@ export function FolioAIPanel() {
                       </div>
 
                       {message.content ? (
-                        <div className="fa-message-text">
-                          {stripActionBlock(message.content)}
+                        <div className={`fa-message-text${message.role === "assistant" ? " is-assistant" : ""}`}>
+                          {message.role === "assistant"
+                            ? <FolioAIMarkdown content={stripActionBlock(message.content)} />
+                            : stripActionBlock(message.content)}
                           {(isMsgFailed || isMsgCancelled) && (
                             <span className="fa-partial-badge">
                               Partial output preserved
@@ -1336,7 +1500,21 @@ export function FolioAIPanel() {
                   </article>
                 );
               })}
-              <div ref={bottomRef} />
+              {showScrollToLatest && (
+                <button
+                  type="button"
+                  className="fa-scroll-latest"
+                  onClick={() => {
+                    stickToBottomRef.current = true;
+                    setShowScrollToLatest(false);
+                    const container = messagesContainerRef.current;
+                    if (container) container.scrollTop = container.scrollHeight;
+                  }}
+                >
+                  Latest message
+                  <ChevronDown size={14} />
+                </button>
+              )}
             </div>
           )}
 
@@ -1366,33 +1544,42 @@ export function FolioAIPanel() {
               {generating ? <button type="button" className="fa-stop-button" onClick={() => void stopGeneration()}><Square size={13} fill="currentColor" />Stop generation</button> : <button type="submit" className="fa-send-button" disabled={!canGenerate || !draft.trim() || draft.length > FOLIO_AI_CONFIG.maxInputCharacters}><Send size={15} />Send<kbd>↵</kbd></button>}
             </div>
           </form>
-          <footer className="fa-chat-foot"><ShieldCheck size={13} />AI runs on this device. Your conversations and task progress sync to your Folio account so you can resume them across devices.</footer>
+          <footer className="fa-chat-foot"><ShieldCheck size={13} />Private inference on this device · conversation history syncs to your Folio account.</footer>
         </section>
 
         <aside className="fa-side-column">
           <section className="fa-device-card" aria-labelledby="fa-device-title">
             <div className="fa-side-heading"><span><Cpu size={15} /></span><div><h2 id="fa-device-title">Your device</h2><p>Browser-based inference</p></div></div>
-            <div className={`fa-compatibility is-${compatibility.state}`}><span className="fa-compat-dot" /><div><strong>{compatibility.title}</strong><p>{compatibility.message}</p></div></div>
-            {compatibility.adapter && <div className="fa-adapter"><span>GPU adapter</span><strong title={compatibility.adapter}>{compatibility.adapter}</strong></div>}
-            {compatibility.deviceMemoryGB && <div className="fa-adapter"><span>Browser memory estimate</span><strong>{compatibility.deviceMemoryGB} GB · coarse estimate</strong></div>}
-            {compatibility.state === "unsupported" && <div className="fa-troubleshoot"><strong>Troubleshooting</strong><ul><li>Use a current browser with WebGPU enabled.</li><li>Enable hardware acceleration and check GPU drivers.</li><li>Use HTTPS or localhost; WebGPU requires a secure context.</li><li>Try again after restarting the browser.</li></ul></div>}
-            {compatibility.state === "caution" && <div className="fa-device-caution"><AlertTriangle size={13} />This is a warning, not a compatibility failure. You can try loading a smaller model.</div>}
-            <div className="fa-device-actions"><button type="button" className="pj-btn is-ghost is-sm" disabled={checking || compatibility.state === "checking"} onClick={() => void recheckCompatibility()}>{checking ? <Spinner size={13} /> : <RotateCcw size={13} />}Check compatibility</button></div>
+            <div className={`fa-compatibility is-${compatibility.state}`}><span className="fa-compat-dot" /><div><strong>{compatibility.title}</strong></div></div>
+            {compatibility.state === "caution" && <div className="fa-device-caution"><AlertTriangle size={13} />Memory is limited. The compatible model list has been reduced for this device.</div>}
+            <details className="fa-advanced-details">
+              <summary>Device details</summary>
+              {compatibility.message && <p>{compatibility.message}</p>}
+              {compatibility.adapter && <div className="fa-adapter"><span>GPU adapter</span><strong title={compatibility.adapter}>{compatibility.adapter}</strong></div>}
+              {compatibility.deviceMemoryGB && <div className="fa-adapter"><span>Browser memory estimate</span><strong>{compatibility.deviceMemoryGB} GB · approximate</strong></div>}
+              {compatibility.state === "unsupported" && <div className="fa-troubleshoot"><strong>Troubleshooting</strong><ul><li>Use a current browser with WebGPU enabled.</li><li>Enable hardware acceleration and check GPU drivers.</li><li>Use HTTPS or localhost; WebGPU requires a secure context.</li></ul></div>}
+              <div className="fa-device-actions"><button type="button" className="pj-btn is-ghost is-sm" disabled={checking || compatibility.state === "checking"} onClick={() => void recheckCompatibility()}>{checking ? <Spinner size={13} /> : <RotateCcw size={13} />}Check compatibility</button></div>
+            </details>
           </section>
 
           <section className="fa-model-card" aria-labelledby="fa-model-title">
             <div className="fa-side-heading"><span><Download size={15} /></span><div><h2 id="fa-model-title">Model &amp; performance</h2><p>Recommended for this device</p></div></div>
             {recommendation && compatibility.state !== "unsupported" && (
-              <div className="fa-recommend"><CheckCircle2 size={14} /><div><strong>Recommended: {recommendation.recommendedModel.modelName}</strong><p>{recommendation.reason}</p></div></div>
+              <details className="fa-advanced-details fa-recommend-details">
+                <summary><CheckCircle2 size={14} />Why this model?</summary>
+                <p>{recommendation.reason}</p>
+              </details>
             )}
             <div className="fa-model-name">{displayModel?.modelName ?? "No model selected"}</div>
-            {displayModel && <div className="fa-model-stats"><span><small>First download</small><strong>{approximateHumanSize(displayModel.approximateDownloadBytes)}</strong></span><span><small>Estimated GPU memory</small><strong>~{(displayModel.requiredGpuMemoryMB / 1024).toFixed(1)} GB</strong></span><span><small>Context window</small><strong>{displayModel.contextWindowTokens.toLocaleString()} tokens</strong></span>{cacheStatus[displayModel.modelId] !== undefined && <span><small>Cache</small><strong>{cacheStatus[displayModel.modelId] ? "Cached" : "Not cached"}</strong></span>}</div>}
+            {displayModel && <details className="fa-advanced-details fa-model-info"><summary>Model details</summary><div className="fa-model-stats"><span><small>First download</small><strong>{approximateHumanSize(displayModel.approximateDownloadBytes)}</strong></span><span><small>Estimated GPU memory</small><strong>~{(displayModel.requiredGpuMemoryMB / 1024).toFixed(1)} GB</strong></span><span><small>Context window</small><strong>{displayModel.contextWindowTokens.toLocaleString()} tokens</strong></span>{cacheStatus[displayModel.modelId] !== undefined && <span><small>Cache</small><strong>{cacheStatus[displayModel.modelId] ? "Cached" : "Not cached"}</strong></span>}</div></details>}
 
             <FolioAIModelSelector
               selectedModelId={
                 getLocalModelByWebLLMId(selectedModel?.modelId ?? "")?.id ??
+                compatibleLocalModels[0]?.id ??
                 DEFAULT_LOCAL_MODEL_ID
               }
+              models={compatibleLocalModels}
               autoRoute={autoRoute}
               downloadedModelIds={new Set(
                 Object.entries(cacheStatus)
@@ -1412,13 +1599,38 @@ export function FolioAIPanel() {
               }}
             />
 
-            {modelState === "loading" && <div className="fa-progress" role="status"><div className="fa-progress-copy"><span>{progress.text || "Preparing local model…"}</span><strong>{progressPercent}%</strong></div><div className="fa-progress-track"><i style={{ width: `${Math.max(2, progressPercent)}%` }} /></div><small>{progress.cached ? "Cached artifacts are being reused." : "WebLLM caches model artifacts in this browser for later visits; storage can be evicted by the browser."}</small></div>}
+            {modelState === "loading" && !batchState && <div className="fa-progress" role="status"><div className="fa-progress-copy"><span>{progress.text || "Preparing local model…"}</span><strong>{progressPercent}%</strong></div><div className="fa-progress-track"><i style={{ width: `${Math.max(2, progressPercent)}%` }} /></div><small>{progress.cached ? "Cached artifacts are being reused." : "WebLLM caches model artifacts in this browser for later visits; storage can be evicted by the browser."}</small></div>}
             {modelError && <div className={`fa-model-error is-${modelError.kind}`} role="alert"><strong>{modelError.title}</strong><p>{modelError.message}</p></div>}
             {modelState !== "ready" ? (
               <button type="button" className="pj-btn is-primary fa-load-button" disabled={compatibility.state === "checking" || compatibility.state === "unsupported" || modelState === "loading" || !displayModel} onClick={() => void loadModel()}>
                 {modelState === "loading" ? <><Spinner size={15} />Loading…</> : modelState === "error" ? <><RotateCcw size={15} />Retry local model</> : compatibility.state === "caution" ? <><BrainCircuit size={15} />Try loading model anyway</> : <><Download size={15} />Download &amp; load local model</>}
               </button>
             ) : <div className="fa-ready-label"><CheckCircle2 size={14} />Ready · running locally</div>}
+            {compatibleLocalModels.length > 1 && compatibility.state !== "unsupported" && (
+              <>
+                <button
+                  type="button"
+                  className="pj-btn is-secondary is-sm fa-batch-download"
+                  disabled={modelState === "loading" || generating || Boolean(runningPlan)}
+                  onClick={() => void downloadCompatibleModels()}
+                >
+                  {modelState === "loading" ? <Spinner size={14} /> : <Download size={14} />}
+                  {pendingBatchModels.length
+                    ? `Download ${pendingBatchModels.length} compatible models · ${approximateHumanSize(batchDownloadBytes)}`
+                    : "All compatible models downloaded"}
+                </button>
+                <p className="fa-batch-note">One sequence, one model at a time. Only models suited to this device are included.</p>
+                {batchState && (
+                  <div className="fa-batch-status" role="status" aria-live="polite">
+                    {batchState.total > 0 && batchState.completed < batchState.total && (
+                      <div className="fa-progress-track"><i style={{ width: `${Math.max(2, ((batchState.completed + batchState.progress) / batchState.total) * 100)}%` }} /></div>
+                    )}
+                    <span>{batchState.total > 0 && batchState.completed < batchState.total ? `${batchState.current} · ${batchState.completed + 1} of ${batchState.total}` : batchState.current}</span>
+                    {batchState.errors.length > 0 && <ul>{batchState.errors.map(error => <li key={error}>{error}</li>)}</ul>}
+                  </div>
+                )}
+              </>
+            )}
             <button type="button" className="pj-link fa-settings-link" onClick={() => setSettingsOpen(true)}>Assistant identity &amp; more <ChevronDown size={12} /></button>
           </section>
 
@@ -1432,7 +1644,7 @@ export function FolioAIPanel() {
             </> : <div className="fa-usage-error"><WifiOff size={15} /><span>{usageError || "Could not sync account usage."}</span><button className="pj-link" onClick={() => void refreshUsage()}>Retry</button></div>}
           </section>
 
-          <section className="fa-capabilities"><div className="fa-cap-heading"><Sparkles size={14} /><strong>Workspace operator</strong></div><p>Folio AI can securely create, update, search, and organize your projects, tasks, ideas, calendar events, and reminders after you review its plan. It never touches the database directly or runs arbitrary SQL.</p><div className="fa-cap-status"><Check size={13} />On-device inference · account-synced history</div><div className="fa-cap-status is-future"><ShieldCheck size={12} />Destructive changes always need confirmation</div></section>
+          <details className="fa-capabilities fa-advanced-details"><summary><Sparkles size={14} />What Folio AI can do</summary><p>Organize projects, tasks, ideas, calendar events, and reminders after you review a plan. Folio AI never touches the database directly or runs arbitrary SQL.</p><div className="fa-cap-status"><Check size={13} />On-device inference · account-synced history</div><div className="fa-cap-status is-future"><ShieldCheck size={12} />Destructive changes always need confirmation</div></details>
         </aside>
       </div>
 
@@ -1449,8 +1661,10 @@ export function FolioAIPanel() {
               <FolioAIModelSelector
                 selectedModelId={
                   getLocalModelByWebLLMId(selectedModel?.modelId ?? "")?.id ??
+                  compatibleLocalModels[0]?.id ??
                   DEFAULT_LOCAL_MODEL_ID
                 }
+                models={compatibleLocalModels}
                 autoRoute={autoRoute}
                 downloadedModelIds={new Set(
                   Object.entries(cacheStatus)
@@ -1469,7 +1683,7 @@ export function FolioAIPanel() {
                   void switchModel(modelInfoFromLocalSpec(model), preference);
                 }}
               />
-              <div className="fa-model-catalog">{FOLIO_AI_MODELS.map(model => <div key={model.modelId} className={`fa-model-row ${prefs.selectedModelId === model.modelId ? "is-selected" : ""}`}><div><strong>{model.modelName}</strong><small>{model.description}</small><span>{model.advantage} · {model.limitation}</span></div><em>{approximateHumanSize(model.approximateDownloadBytes)} · ~{(model.requiredGpuMemoryMB / 1024).toFixed(1)} GB{cacheStatus[model.modelId] ? " · cached" : ""}</em></div>)}</div>
+              <div className="fa-model-catalog">{FOLIO_AI_MODELS.filter(model => compatibleLocalModels.some(spec => spec.webLlmModelId === model.modelId)).map(model => <div key={model.modelId} className={`fa-model-row ${prefs.selectedModelId === model.modelId ? "is-selected" : ""}`}><div><strong>{model.modelName}</strong><small>{model.description}</small><span>{model.advantage} · {model.limitation}</span></div><em>{approximateHumanSize(model.approximateDownloadBytes)} · ~{(model.requiredGpuMemoryMB / 1024).toFixed(1)} GB{cacheStatus[model.modelId] ? " · cached" : ""}</em></div>)}</div>
             </section>
             {prefsError && <p className="form-error" role="alert">{prefsError}</p>}
             <div className="fa-settings-actions"><button type="button" className="pj-btn is-secondary is-sm" onClick={() => { setOnboarding(true); setSettingsOpen(false); }}>Edit welcome</button><button type="button" className="pj-btn is-primary is-sm" onClick={() => void saveIdentity(prefs).then(() => setSettingsOpen(false))}><Check size={14} />Save settings</button></div>

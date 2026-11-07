@@ -92,7 +92,7 @@ export async function reconcileStaleAITasks(
     for (const task of staleTasks) {
       const wasExplicitReload = explicitIds.includes(task.id);
       const stage = task.partialContent.trim()
-        ? "Worker stopped · partial response saved"
+        ? "Worker interrupted · partial output preserved"
         : "Worker stopped before completion";
       const errorMessage = wasExplicitReload
         ? "Generation was interrupted when the page reloaded. Any partial output was saved and your daily allowance was not charged. You can resume or retry below."
@@ -526,7 +526,7 @@ export async function updateAITaskProgress(
           : nextStatus === "cancelled"
             ? "Cancelled by user"
             : nextStatus === "failed"
-              ? "Execution failed"
+              ? "Response interrupted"
               : task.stage);
 
     const isTerminalOrWaiting =

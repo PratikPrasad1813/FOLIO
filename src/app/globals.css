@@ -82,3 +82,5 @@
 .delete-confirm-btn:disabled{opacity:.55;cursor:not-allowed}
 header.topbar{ -webkit-app-region:drag; user-select:none }
 header.topbar button,header.topbar input,header.topbar a{ -webkit-app-region:no-drag }
+/* Keep the account badge next to the wordmark instead of stretching it across the sidebar. */
+.sidebar-brand{justify-content:flex-start;gap:0}.personal-label{margin-left:8px;margin-right:0}.sidebar-mobile-close{margin-left:auto}

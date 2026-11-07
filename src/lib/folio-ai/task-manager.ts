@@ -555,20 +555,27 @@ async function runTaskLifecycle(
     const reason = controller.signal.reason;
     const isStall = reason === "inactivity-stall";
     const isUserCancel = aborted && !isStall;
+    const isContextLimit =
+      error instanceof Error &&
+      /(?:context|prompt).{0,40}(?:length|window|limit|size|exceed|too (?:long|large))|(?:maximum|max).{0,30}(?:context|sequence|token|length)|too many tokens/i.test(error.message);
 
     const nextStatus: AITaskStatus = isUserCancel ? "cancelled" : "failed";
     const errorMessage = isUserCancel
       ? null
       : isStall
         ? "The AI worker stopped producing output for 5 minutes. Partial output was saved and estimated local token usage was counted."
+        : isContextLimit
+          ? "This request is too large for the local model to answer in one go. Start a new chat or split it into smaller prompts."
         : error instanceof Error
           ? error.message
           : "Generation could not be completed.";
     const nextStage = isUserCancel
       ? "Cancelled by user · usage updated"
+      : isContextLimit
+        ? "Request too long · split into smaller prompts"
       : accumulatedText.trim()
-        ? "Execution failed · partial response saved"
-        : "Execution failed";
+        ? "Response interrupted · partial output preserved"
+        : "Response interrupted";
 
     try {
       const synced = await patchTaskOnServer(

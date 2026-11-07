@@ -1,6 +1,7 @@
 import { aiError, aiJson, parseSmallJson, requireAIUser } from "@/lib/folio-ai/http";
 import { getAIPreferences, saveAIPreferences, sanitizePreferences } from "@/lib/folio-ai/preferences";
 import { MODEL_BY_ID } from "@/lib/folio-ai/models";
+import { getLocalModelByWebLLMId } from "@/lib/folio-ai/model-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export async function PATCH(request: Request) {
       return aiJson({ error: error instanceof Error ? error.message : "Invalid preferences." }, 400);
     }
     // A manual model preference must reference a verified model ID when supplied.
-    if (patch.selectedModelId && !MODEL_BY_ID[patch.selectedModelId]) {
+    if (patch.selectedModelId && !MODEL_BY_ID[patch.selectedModelId] && !getLocalModelByWebLLMId(patch.selectedModelId)) {
       return aiJson({ error: "The selected model is not supported by this Folio build." }, 400);
     }
     if (patch.modelPreference && patch.modelPreference !== "automatic" && !patch.selectedModelId) {

@@ -1,20 +1,19 @@
 # Folio
 
 <div align="center">
-  <h3>A little clarity. A lot of possibility.</h3>
+  <h2>A little clarity. A lot of possibility.</h2>
+  <p><strong>A calm, private workspace for the things you’re working toward.</strong></p>
+  <p>Bring projects, tasks, ideas, and your schedule into one thoughtful space—with optional AI that runs on your device.</p>
   <p>
-    A thoughtful, privacy-first personal workspace for your projects, tasks, schedule, and ideas.
-    <br />
-    Built with <strong>Next.js 16 (App Router)</strong>, <strong>PostgreSQL</strong> via <strong>Drizzle ORM</strong>, and on-device <strong>WebGPU Local AI</strong>.
+    <a href="#core-features">Explore Folio</a> ·
+    <a href="#quickstart--local-installation">Get started</a> ·
+    <a href="#screenshot-gallery--visual-tour">View the interface</a>
   </p>
-
   <p>
-    <a href="https://github.com/PratikPrasad1813/Folio"><img src="https://img.shields.io/badge/GitHub-Repository-blue?logo=github" alt="GitHub Repository" /></a>
-    <a href="https://nextjs.org"><img src="https://img.shields.io/badge/Next.js-16.4.4-black?logo=next.js" alt="Next.js" /></a>
-    <a href="https://orm.drizzle.team"><img src="https://img.shields.io/badge/Drizzle_ORM-0.45.2-brightgreen" alt="Drizzle ORM" /></a>
-    <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/PostgreSQL-15%2B-blue?logo=postgresql" alt="PostgreSQL" /></a>
-    <a href="https://webllm.mlc.ai"><img src="https://img.shields.io/badge/WebLLM-Local_WebGPU-purple" alt="WebLLM" /></a>
-    <a href="https://playwright.dev"><img src="https://img.shields.io/badge/Playwright-E2E_Screenshots-orange?logo=playwright" alt="Playwright" /></a>
+    <a href="https://github.com/PratikPrasad1813/Folio"><img src="https://img.shields.io/badge/Repository-Folio-25232c?style=for-the-badge&logo=github&logoColor=white" alt="Folio on GitHub" /></a>
+    <a href="https://nextjs.org"><img src="https://img.shields.io/badge/Next.js-16-25232c?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js 16" /></a>
+    <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/PostgreSQL-15%2B-5b7195?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL 15 or later" /></a>
+    <a href="https://webllm.mlc.ai"><img src="https://img.shields.io/badge/AI-On%20device-8572b5?style=for-the-badge" alt="On-device WebGPU AI" /></a>
   </p>
 </div>
 
@@ -204,6 +203,8 @@ All screenshots are captured from the actual running application using Playwrigh
 ### On-Device AI Inference (WebLLM)
 - Powered by `@mlc-ai/web-llm` running directly inside the browser using WebGPU.
 - **No third-party AI processing:** Prompt inference happens on-device; conversations and task progress sync with your Folio account for history and resumption.
+- **Device-aware model choices:** Models are downloaded to browser storage on request. A one-click batch downloads only models within the device’s reported memory tier, sequentially; devices reporting under 4 GB do not expose Folio AI. Unknown memory starts with the smallest model. Mobile browsers also need WebGPU.
+- **Readable responses:** Assistant output renders Markdown as formatted content rather than showing raw heading and emphasis markers. Long prompts are checked against the local model’s context budget, with a request to split oversized work into smaller prompts.
 - **Verified Action Plans:** When AI prepares workspace changes, you inspect the exact proposed plan before confirming execution.
 - **Reliable Long-Running Tasks (No 3-Minute Cutoff):** Complex prompts and multi-step workspace plans are never killed by a fixed 180-second timer. A background task manager (`src/lib/folio-ai/task-manager.ts`) and PostgreSQL task table (`folio_ai_tasks`) persist task status (`queued`, `running`, `waiting`, `completed`, `failed`, `cancelled`), execution stages, periodic heartbeats, reservation lease renewals, and intermediate partial output across in-app navigation and page refreshes.
 - 50,000-token daily allowance tracked via account-wide database reservations; the UI displays usage as a percentage only, never a remaining-token count.

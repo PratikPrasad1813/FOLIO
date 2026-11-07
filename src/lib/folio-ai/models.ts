@@ -1,4 +1,5 @@
 import { FOLIO_AI_CONFIG, approximateHumanSize } from "@/lib/folio-ai/config";
+import { MINIMUM_AI_DEVICE_MEMORY_GB } from "@/lib/folio-ai/device";
 
 export type ModelTier = "lightweight" | "balanced" | "high";
 export type ModelPreference = "automatic" | ModelTier;
@@ -23,10 +24,10 @@ export interface FolioAIModelInfo {
 export const FOLIO_AI_MODELS: FolioAIModelInfo[] = [
   {
     tier: "lightweight",
-    modelId: "Llama-3.2-3B-Instruct-q4f16_1-MLC",
-    modelName: "Llama 3.2 3B Instruct · Q4F16",
-    approximateDownloadBytes: 1_800_000_000,
-    requiredGpuMemoryMB: 2_500,
+    modelId: "SmolLM2-1.7B-Instruct-q4f16_1-MLC",
+    modelName: "SmolLM2 1.7B Instruct · Q4F16",
+    approximateDownloadBytes: 1_100_000_000,
+    requiredGpuMemoryMB: 1_600,
     contextWindowTokens: 4_096,
     description: "Fast local model for quick task updates and lightweight workspace actions.",
     advantage: "Responsive quick-add and prioritization on lower-spec devices.",
@@ -92,16 +93,22 @@ export interface ModelRecommendation {
   recommendedTier: ModelTier;
   recommendedModel: FolioAIModelInfo;
   reason: string;
-  /** Models considered runnable on this device (registry-verified + adapter available). */
+  /** Model tiers within the reported system-memory budget. */
   compatibleTiers: ModelTier[];
 }
 
 export function recommendModel(profile: DeviceProfile): ModelRecommendation {
   const memory = profile.deviceMemoryGB;
+  const memoryLimit = memory ?? 4;
+  const minimumMemoryByTier: Record<ModelTier, number> = {
+    lightweight: MINIMUM_AI_DEVICE_MEMORY_GB,
+    balanced: 6,
+    high: 12,
+  };
+  const compatibleTiers = MODEL_TIERS.filter(tier => minimumMemoryByTier[tier] <= memoryLimit);
   let recommendedTier: ModelTier;
   if (memory === undefined) {
-    // Unknown system memory: stay conservative but useful.
-    recommendedTier = "balanced";
+    recommendedTier = "lightweight";
   } else if (memory < 8) {
     recommendedTier = "lightweight";
   } else if (memory >= 12) {
@@ -112,7 +119,9 @@ export function recommendModel(profile: DeviceProfile): ModelRecommendation {
   const recommendedModel = MODEL_BY_TIER[recommendedTier];
   const reason =
     recommendedTier === "lightweight"
-      ? "This device reports less than 8 GB of system memory. The fast model is a more suitable starting point for a laptop."
+      ? memory === undefined
+        ? "System memory is not reported, so Folio starts with its smallest model."
+        : "This device reports less than 8 GB of system memory. The smallest model is the safest starting point."
       : recommendedTier === "high"
         ? "This device reports enough memory (12+ GB) to run the high-performance model with good speed and the strongest instruction-following."
         : "This model offers a good balance of response quality, speed, and resource usage on your device.";
@@ -120,7 +129,7 @@ export function recommendModel(profile: DeviceProfile): ModelRecommendation {
     recommendedTier,
     recommendedModel,
     reason,
-    compatibleTiers: MODEL_TIERS,
+    compatibleTiers,
   };
 }
 

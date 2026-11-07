@@ -1,6 +1,17 @@
 import { FOLIO_AI_CONFIG } from "@/lib/folio-ai/config";
 import type { AICompatibility } from "@/lib/folio-ai/types";
 
+export const MINIMUM_AI_DEVICE_MEMORY_GB = 4;
+
+export function getDeviceMemoryGB(): number | undefined {
+  if (typeof navigator === "undefined") return undefined;
+  return (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+}
+
+export function isLocalAIAvailable(memoryGB = getDeviceMemoryGB()): boolean {
+  return memoryGB === undefined || memoryGB >= MINIMUM_AI_DEVICE_MEMORY_GB;
+}
+
 interface GPUAdapterInfoLike { description?: string; vendor?: string; architecture?: string; device?: string }
 interface GPUAdapterLike { info?: GPUAdapterInfoLike; requestDevice?: () => Promise<unknown> }
 interface NavigatorWithGPU extends Navigator { gpu?: { requestAdapter: () => Promise<GPUAdapterLike | null> } }
@@ -17,9 +28,18 @@ export async function checkLocalAICompatibility(): Promise<AICompatibility> {
       adapter: "Local test provider",
     };
   }
+  const memory = getDeviceMemoryGB();
+  if (!isLocalAIAvailable(memory)) {
+    return {
+      state: "unsupported",
+      title: "Folio AI is unavailable on this device",
+      message: `Local AI needs at least ${MINIMUM_AI_DEVICE_MEMORY_GB} GB of reported system memory. AI stays disabled here so Folio remains responsive.`,
+      deviceMemoryGB: memory,
+    };
+  }
   const gpu = (navigator as NavigatorWithGPU).gpu;
   if (!gpu?.requestAdapter) {
-    return { state: "unsupported", title: "AI isn't compatible with your device", message: "Your browser does not expose WebGPU. Try a current supported browser (Chrome or Edge 113+, or Safari 26+ where available) and a device with a supported GPU. Folio itself remains fully usable; there is no cloud fallback." };
+    return { state: "unsupported", title: "AI isn't compatible with your device", message: "Your browser does not expose WebGPU. Try a current supported browser (Chrome or Edge 113+, or Safari 26+ where available) and a device with a supported GPU. Folio itself remains fully usable; there is no cloud fallback.", deviceMemoryGB: memory };
   }
   try {
     // The registry check is lazy to the Folio AI page. It loads WebLLM's small
@@ -28,13 +48,12 @@ export async function checkLocalAICompatibility(): Promise<AICompatibility> {
     const webllm = await import("@mlc-ai/web-llm");
     const modelRecord = webllm.prebuiltAppConfig.model_list.find(model => model.model_id === FOLIO_AI_CONFIG.modelId);
     if (!modelRecord) {
-      return { state: "unsupported", title: "Configured model is not in this WebLLM build", message: `The installed WebLLM ${webllm.modelVersion} registry does not include ${FOLIO_AI_CONFIG.modelId}. No model was downloaded and no cloud provider will be used.` };
+      return { state: "unsupported", title: "Configured model is not in this WebLLM build", message: `The installed WebLLM ${webllm.modelVersion} registry does not include ${FOLIO_AI_CONFIG.modelId}. No model was downloaded and no cloud provider will be used.`, deviceMemoryGB: memory };
     }
     const adapter = await gpu.requestAdapter();
     if (!adapter) {
-      return { state: "unsupported", title: "AI isn't compatible with your device", message: "WebGPU is present, but the browser could not provide a GPU adapter. Check hardware acceleration, GPU drivers, and browser permissions. Folio remains fully usable; there is no cloud fallback." };
+      return { state: "unsupported", title: "AI isn't compatible with your device", message: "WebGPU is present, but the browser could not provide a GPU adapter. Check hardware acceleration, GPU drivers, and browser permissions. Folio remains fully usable; there is no cloud fallback.", deviceMemoryGB: memory };
     }
-    const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
     const info = adapter.info;
     const label = info?.description || info?.vendor || info?.architecture || undefined;
     // deviceMemory is intentionally a warning only: browsers expose a coarse
@@ -44,6 +63,6 @@ export async function checkLocalAICompatibility(): Promise<AICompatibility> {
     }
     return { state: "supported", title: "WebGPU is available", message: "The model will run locally in this browser. Your prompts and replies stay on this device.", adapter: label, deviceMemoryGB: memory };
   } catch {
-    return { state: "unsupported", title: "Could not access WebGPU", message: "The browser could not initialize a GPU adapter. Check browser permissions, hardware acceleration, and GPU drivers, then retry the compatibility check." };
+    return { state: "unsupported", title: "Could not access WebGPU", message: "The browser could not initialize a GPU adapter. Check browser permissions, hardware acceleration, and GPU drivers, then retry the compatibility check.", deviceMemoryGB: memory };
   }
 }
