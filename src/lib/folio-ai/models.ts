@@ -23,38 +23,38 @@ export interface FolioAIModelInfo {
 export const FOLIO_AI_MODELS: FolioAIModelInfo[] = [
   {
     tier: "lightweight",
-    modelId: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC",
-    modelName: "Qwen2.5 0.5B Instruct · Q4F16",
-    approximateDownloadBytes: 420_000_000,
-    requiredGpuMemoryMB: 944.62,
+    modelId: "Llama-3.2-3B-Instruct-q4f16_1-MLC",
+    modelName: "Llama 3.2 3B Instruct · Q4F16",
+    approximateDownloadBytes: 1_800_000_000,
+    requiredGpuMemoryMB: 2_500,
     contextWindowTokens: 4_096,
-    description: "Smallest verified Folio model. Fast on modest hardware and lighter on memory, with shorter, simpler answers.",
-    advantage: "Fastest loading and lowest memory use; best choice for memory-constrained devices.",
+    description: "Fast local model for quick task updates and lightweight workspace actions.",
+    advantage: "Responsive quick-add and prioritization on lower-spec devices.",
     limitation: "Less capable at complex reasoning, multi-step plans, and long-form answers.",
     verifiedInWebLLM: true,
   },
   {
     tier: "balanced",
     modelId: FOLIO_AI_CONFIG.modelId,
-    modelName: "Qwen2.5 1.5B Instruct · Q4F16",
-    approximateDownloadBytes: 880_000_000,
-    requiredGpuMemoryMB: 1_629.75,
-    contextWindowTokens: 4_096,
-    description: "Recommended default. A solid balance of response quality, speed, and resource use on capable devices.",
-    advantage: "Good instruction following and planning for everyday Folio tasks without heavy GPU demands.",
-    limitation: "Needs roughly 1.6 GB of GPU memory; large tool plans can still be challenging.",
-    verifiedInWebLLM: true,
-  },
-  {
-    tier: "high",
-    modelId: "Qwen2.5-3B-Instruct-q4f16_1-MLC",
     modelName: "Qwen2.5 3B Instruct · Q4F16",
     approximateDownloadBytes: 1_800_000_000,
     requiredGpuMemoryMB: 2_504.76,
     contextWindowTokens: 4_096,
-    description: "Largest verified Folio model. Best response quality and instruction-following on capable GPUs.",
-    advantage: "Most reliable at complex, multi-step workspace instructions and richer summaries.",
-    limitation: "Largest download and ~2.5 GB GPU memory; slower on integrated GPUs and low-power devices.",
+    description: "Default structured workhorse for reliable JSON and everyday Folio planning.",
+    advantage: "Strong instruction following and multi-step workspace planning.",
+    limitation: "Needs roughly 2.5 GB of GPU memory; larger models require more resources.",
+    verifiedInWebLLM: true,
+  },
+  {
+    tier: "high",
+    modelId: "DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC",
+    modelName: "DeepSeek-R1 Distill 7B · Q4F16",
+    approximateDownloadBytes: 4_800_000_000,
+    requiredGpuMemoryMB: 5_000,
+    contextWindowTokens: 4_096,
+    description: "High-capacity specialist for complex roadmaps and broad project breakdowns.",
+    advantage: "Deeper multi-step reasoning and milestone decomposition.",
+    limitation: "Large download and memory footprint; suitable for capable workstation-class devices.",
     verifiedInWebLLM: true,
   },
 ];
@@ -73,7 +73,7 @@ export interface DeviceProfile {
   adapterLabel?: string;
   deviceMemoryGB?: number;
   hardwareConcurrency?: number;
-  /** Coarse, honest resource hint: true when deviceMemory is below 4 GB. */
+  /** Coarse, honest resource hint: true when deviceMemory is below 8 GB. */
   memoryConstrained: boolean;
 }
 
@@ -84,7 +84,7 @@ export function profileDevice(): DeviceProfile {
     webgpu: Boolean((navigator as Navigator & { gpu?: unknown }).gpu),
     deviceMemoryGB: memory,
     hardwareConcurrency: navigator.hardwareConcurrency,
-    memoryConstrained: memory !== undefined && memory < 4,
+    memoryConstrained: memory !== undefined && memory < 8,
   };
 }
 
@@ -102,7 +102,7 @@ export function recommendModel(profile: DeviceProfile): ModelRecommendation {
   if (memory === undefined) {
     // Unknown system memory: stay conservative but useful.
     recommendedTier = "balanced";
-  } else if (memory < 4) {
+  } else if (memory < 8) {
     recommendedTier = "lightweight";
   } else if (memory >= 12) {
     recommendedTier = "high";
@@ -112,7 +112,7 @@ export function recommendModel(profile: DeviceProfile): ModelRecommendation {
   const recommendedModel = MODEL_BY_TIER[recommendedTier];
   const reason =
     recommendedTier === "lightweight"
-      ? "This device looks memory-constrained (less than 4 GB of browser-reported system memory). The lightweight model offers the most stable local experience."
+      ? "This device reports less than 8 GB of system memory. The fast model is a more suitable starting point for a laptop."
       : recommendedTier === "high"
         ? "This device reports enough memory (12+ GB) to run the high-performance model with good speed and the strongest instruction-following."
         : "This model offers a good balance of response quality, speed, and resource usage on your device.";

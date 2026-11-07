@@ -40,6 +40,7 @@ export interface AITaskRecord {
   stage: string;
   partialContent: string;
   tokenCount: number;
+  usageTokenCount: number;
   plan: { actions: { id: string; params: Record<string, unknown> }[] } | null;
   results: AIActionResult[] | null;
   errorMessage: string | null;
@@ -54,10 +55,8 @@ export interface AIUsage {
   plan: "free";
   modelId: string;
   usageDate: string;
-  completed: number;
-  reserved: number;
-  limit: number;
-  available: number;
+  usedPercent: number;
+  limitReached: boolean;
   resetAt: string;
 }
 

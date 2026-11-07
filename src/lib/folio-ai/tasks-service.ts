@@ -33,6 +33,7 @@ export function mapTaskRow(row: typeof folioAiTasks.$inferSelect): AITaskRecord 
     stage: row.stage,
     partialContent: row.partialContent,
     tokenCount: row.tokenCount,
+    usageTokenCount: row.usageTokenCount,
     plan: (row.plan as AITaskRecord["plan"]) ?? null,
     results: (row.results as AIActionResult[] | null) ?? null,
     errorMessage: row.errorMessage ?? null,
@@ -147,7 +148,8 @@ export async function reconcileStaleAITasks(
           await tx
             .update(folioAiDailyUsage)
             .set({
-              reservedMessageCount: sql`greatest(${folioAiDailyUsage.reservedMessageCount} - 1, 0)`,
+              reservedTokenCount: sql`greatest(${folioAiDailyUsage.reservedTokenCount} - ${resRow.reservedTokenCount}, 0)`,
+              usedTokenCount: sql`${folioAiDailyUsage.usedTokenCount} + ${resRow.usedTokenCount}`,
               updatedAt: now,
             })
             .where(
@@ -329,6 +331,7 @@ export async function createOrReuseAITask(
             stage,
             partialContent: preservedContent,
             tokenCount: preservedTokens,
+            usageTokenCount: 0,
             plan: null,
             results: null,
             errorMessage: null,
@@ -423,6 +426,7 @@ export async function createOrReuseAITask(
         stage: "Queued · preparing workspace context…",
         partialContent: "",
         tokenCount: 0,
+        usageTokenCount: 0,
         startedAt: now,
         heartbeatAt: now,
         createdAt: now,
@@ -445,6 +449,7 @@ export interface UpdateAITaskInput {
   stage?: string;
   partialContent?: string;
   tokenCount?: number;
+  usageTokens?: number;
   plan?: { actions: { id: string; params: Record<string, unknown> }[] } | null;
   results?: AIActionResult[] | null;
   errorMessage?: string | null;
@@ -503,6 +508,13 @@ export async function updateAITaskProgress(
       typeof patch.tokenCount === "number" && Number.isFinite(patch.tokenCount)
         ? Math.max(task.tokenCount, Math.floor(patch.tokenCount))
         : task.tokenCount;
+    const nextUsageTokenCount =
+      typeof patch.usageTokens === "number" && Number.isFinite(patch.usageTokens)
+        ? Math.min(
+            FOLIO_AI_CONFIG.maxReservedTokensPerGeneration,
+            Math.max(task.usageTokenCount, Math.floor(patch.usageTokens)),
+          )
+        : task.usageTokenCount;
     const nextPlan = patch.plan !== undefined ? patch.plan : (task.plan as AITaskRecord["plan"]);
     const nextResults = patch.results !== undefined ? patch.results : (task.results as AIActionResult[] | null);
     const nextStage =
@@ -538,7 +550,10 @@ export async function updateAITaskProgress(
           const renewedExpiry = new Date(now.getTime() + FOLIO_AI_CONFIG.reservationLeaseMilliseconds);
           await tx
             .update(folioAiUsageReservations)
-            .set({ expiresAt: renewedExpiry })
+            .set({
+              expiresAt: renewedExpiry,
+              usedTokenCount: Math.min(resRow.reservedTokenCount, nextUsageTokenCount),
+            })
             .where(eq(folioAiUsageReservations.id, resRow.id));
         } else if (isTerminalOrWaiting && resRow.status === "reserved") {
           const resOutcome =
@@ -547,10 +562,15 @@ export async function updateAITaskProgress(
               : nextStatus === "cancelled"
                 ? "cancelled"
                 : "failed";
+          const usedTokens = Math.max(
+            resRow.usedTokenCount,
+            Math.min(resRow.reservedTokenCount, nextUsageTokenCount),
+          );
           await tx
             .update(folioAiUsageReservations)
             .set({
               status: resOutcome,
+              usedTokenCount: usedTokens,
               completedAt: resOutcome === "completed" ? now : null,
             })
             .where(eq(folioAiUsageReservations.id, resRow.id));
@@ -563,10 +583,8 @@ export async function updateAITaskProgress(
           await tx
             .update(folioAiDailyUsage)
             .set({
-              reservedMessageCount: sql`greatest(${folioAiDailyUsage.reservedMessageCount} - 1, 0)`,
-              ...(resOutcome === "completed"
-                ? { completedMessageCount: sql`${folioAiDailyUsage.completedMessageCount} + 1` }
-                : {}),
+              reservedTokenCount: sql`greatest(${folioAiDailyUsage.reservedTokenCount} - ${resRow.reservedTokenCount}, 0)`,
+              usedTokenCount: sql`${folioAiDailyUsage.usedTokenCount} + ${usedTokens}`,
               updatedAt: now,
             })
             .where(
@@ -591,6 +609,7 @@ export async function updateAITaskProgress(
         stage: nextStage,
         partialContent: nextPartialContent,
         tokenCount: nextTokenCount,
+        usageTokenCount: nextUsageTokenCount,
         plan: nextPlan ?? null,
         results: nextResults ?? null,
         errorMessage:
@@ -666,17 +685,15 @@ async function readUsageInTx(tx: Tx, userId: string, now: Date): Promise<AIUsage
     .from(folioAiDailyUsage)
     .where(and(eq(folioAiDailyUsage.userId, userId), eq(folioAiDailyUsage.usageDate, date)))
     .limit(1);
-  const completed = row?.completedMessageCount ?? 0;
-  const reserved = row?.reservedMessageCount ?? 0;
-  const limit = FOLIO_AI_CONFIG.dailyMessageLimit;
+  const usedTokens = row?.usedTokenCount ?? 0;
+  const reservedTokens = row?.reservedTokenCount ?? 0;
+  const limit = FOLIO_AI_CONFIG.dailyTokenLimit;
   return {
     plan: "free",
     modelId: FOLIO_AI_CONFIG.modelId,
     usageDate: date,
-    completed,
-    reserved,
-    limit,
-    available: Math.max(0, limit - completed - reserved),
+    usedPercent: Math.min(100, Math.round(((usedTokens + reservedTokens) / limit) * 100)),
+    limitReached: limit - usedTokens - reservedTokens < FOLIO_AI_CONFIG.maxReservedTokensPerGeneration,
     resetAt,
   };
 }

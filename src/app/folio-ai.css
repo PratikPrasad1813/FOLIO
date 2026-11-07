@@ -207,3 +207,23 @@
 .fa-task-error-copy strong { display:block; font-size:10.5px; font-weight:640; margin-bottom:2px; }
 .fa-task-error-copy p { margin:0; font-size:9.8px; line-height:1.5; color:var(--text-soft); }
 .fa-task-error-actions { display:flex; align-items:center; justify-content:flex-end; gap:7px; flex-wrap:wrap; }
+.fa-local-model-selector { display:flex; flex-direction:column; gap:8px; margin:11px 0; }
+.fa-local-model-selector .fa-settings-field { margin:0; }
+.fa-local-route-toggle { display:flex; align-items:center; gap:7px; color:var(--text-soft); font-size:9.5px; font-weight:550; }
+.fa-local-route-toggle input { accent-color:var(--accent); }
+.fa-local-model-current { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); }
+.fa-local-model-current > div { display:flex; flex-direction:column; min-width:0; gap:3px; }
+.fa-local-model-current small { color:var(--faint); font-size:8px; }
+.fa-local-model-current strong { color:var(--heading); font-size:9.5px; }
+.fa-local-model-current span { color:var(--muted); font-size:8.5px; line-height:1.4; }
+.fa-local-model-current > button { flex-shrink:0; }
+.fa-local-model-options { display:flex; flex-direction:column; max-height:310px; gap:6px; overflow-y:auto; }
+.fa-local-model-option { display:flex; flex-direction:column; gap:4px; padding:8px 9px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text-soft); text-align:left; }
+.fa-local-model-option:hover:not(:disabled), .fa-local-model-option.is-selected { border-color:var(--accent); background:var(--accent-soft); }
+.fa-local-model-option:disabled { opacity:.6; }
+.fa-local-model-option-title { display:flex; align-items:center; justify-content:space-between; gap:8px; color:var(--heading); font-size:9px; }
+.fa-local-model-option-title svg { color:var(--tone-green); flex-shrink:0; }
+.fa-local-model-option > span:not(.fa-local-model-option-title) { color:var(--text-soft); font-size:8px; }
+.fa-local-model-option small { color:var(--muted); font-size:8px; line-height:1.4; }
+.fa-local-model-cache { display:flex; align-items:center; gap:4px; color:var(--accent-strong) !important; }
+.fa-local-model-note { color:var(--faint); font-size:8px; line-height:1.45; }

@@ -30,8 +30,8 @@ async function request(path, token, method = "GET", body, origin = BASE) {
 async function reserve(token, generationId = randomUUID(), inputCharacters = 17) {
   return request("/api/ai/usage/reservations", token, "POST", { generationId, inputCharacters });
 }
-async function finish(token, reservationId, outcome) {
-  return request(`/api/ai/usage/reservations/${reservationId}`, token, "PATCH", { outcome });
+async function finish(token, reservationId, outcome, usedTokens) {
+  return request(`/api/ai/usage/reservations/${reservationId}`, token, "PATCH", { outcome, ...(usedTokens === undefined ? {} : { usedTokens }) });
 }
 
 try {
@@ -43,7 +43,8 @@ try {
   const userA = await request("/api/ai/usage", a.token);
   assertEqual(userA.status, 200, "Authenticated usage route");
   assertEqual(userA.body.usage.plan, "free", "Free plan returned");
-  assertEqual(userA.body.usage.limit, 50, "Fifty-message daily limit returned");
+  assertEqual(userA.body.usage.usedPercent, 0, "Fresh account sees percentage-only usage");
+  assertOk(!["usedTokens", "reservedTokens", "available", "completed", "reserved", "limit"].some(key => key in userA.body.usage), "Usage API never exposes token totals or remaining amounts");
   const expectedReset = new Date(Date.parse(`${userA.body.usage.usageDate}T00:00:00.000Z`) + 86_400_000).toISOString();
   assertEqual(userA.body.usage.resetAt, expectedReset, "Reset is next UTC midnight calculated by the server");
   assertEqual((await request("/api/ai/usage", `${randomBytes(32).toString("hex")}invalid`)).status, 401, "Invalid sessions fail closed");
@@ -54,7 +55,8 @@ try {
   assertEqual((await request("/api/ai/usage", a.token, "GET", undefined, "https://attacker.invalid")).status, 403, "Cross-origin usage reads rejected");
 
   // A retry with the same generation id reuses one slot. Another account cannot
-  // release the reservation, and a failed local model response is not counted.
+  // release the reservation, and a failed local model response charges only
+  // the tokens it consumed.
   const idempotencyKey = randomUUID();
   const first = await reserve(a.token, idempotencyKey);
   assertEqual(first.status, 201, "First generation reserves a slot");
@@ -63,25 +65,24 @@ try {
   assertEqual(repeat.body.reused, true, "Retry returns the same reservation");
   assertEqual(repeat.body.reservation.id, first.body.reservation.id, "Retry does not create a second slot");
   assertEqual((await request(`/api/ai/usage/reservations/${first.body.reservation.id}`, b.token, "PATCH", { outcome: "completed" })).status, 404, "Another account cannot finalize a reservation");
-  const failed = await finish(a.token, first.body.reservation.id, "failed");
-  assertEqual(failed.body.usage.completed, 0, "Failed generation is not counted");
-  assertEqual(failed.body.usage.reserved, 0, "Failed generation releases the reservation");
+  const failed = await finish(a.token, first.body.reservation.id, "failed", 3200);
+  assertEqual(failed.body.usage.usedPercent, 6, "Failed generation accounts for tokens already consumed");
+  assertOk(!("usedTokens" in failed.body.usage), "Settled token count remains private");
 
   const cancelledReservation = await reserve(a.token);
   const cancelled = await finish(a.token, cancelledReservation.body.reservation.id, "cancelled");
-  assertEqual(cancelled.body.usage.completed, 0, "Cancelled generation is not counted");
-  assertEqual(cancelled.body.usage.reserved, 0, "Cancelled generation releases capacity");
+  assertEqual(cancelled.body.usage.usedPercent, 6, "Cancellation releases unused reservation capacity");
 
   // Stale browser tabs have a lease; the next usage read releases expired slots.
   const expiredReservation = await reserve(a.token);
   await db.execute(sql`update folio_ai_usage_reservations set expires_at = now() - interval '1 second' where id = ${expiredReservation.body.reservation.id} and user_id = ${a.id}`);
   const afterExpiry = await request("/api/ai/usage", a.token);
-  assertEqual(afterExpiry.body.usage.reserved, 0, "Expired reservations are reaped");
+  assertOk(afterExpiry.body.usage.usedPercent >= 6, "Expired reservations are reaped without exposing reserved token counts");
   assertEqual((await finish(a.token, expiredReservation.body.reservation.id, "completed")).status, 409, "Expired generation cannot later consume usage");
 
   // Two different sessions for the same account race for the final slot.
   const usageDate = userA.body.usage.usageDate;
-  await db.execute(sql`insert into folio_ai_daily_usage (user_id, usage_date, completed_message_count, reserved_message_count) values (${a.id}, ${usageDate}, 49, 0) on conflict (user_id, usage_date) do update set completed_message_count = 49, reserved_message_count = 0`);
+  await db.execute(sql`insert into folio_ai_daily_usage (user_id, usage_date, completed_message_count, reserved_message_count, used_token_count, reserved_token_count) values (${a.id}, ${usageDate}, 0, 0, 43856, 0) on conflict (user_id, usage_date) do update set completed_message_count = 0, reserved_message_count = 0, used_token_count = 43856, reserved_token_count = 0`);
   const [raceA, raceB] = await Promise.all([reserve(a.token), reserve(sessionTokenA2)]);
   const accepted = [raceA, raceB].filter(result => (result.status === 201 || result.status === 200) && !result.body.alreadyCompleted);
   const limited = [raceA, raceB].filter(result => result.status === 429);
@@ -89,24 +90,23 @@ try {
   assertEqual(limited.length, 1, "Concurrent request receives the account limit response");
   const finalSlot = accepted[0].body.reservation;
   const usageFromOtherSession = await request("/api/ai/usage", sessionTokenA2);
-  assertEqual(usageFromOtherSession.body.usage.reserved, 1, "Usage is immediately account-wide across sessions");
-  const completed = await finish(a.token, finalSlot.id, "completed");
-  assertEqual(completed.body.usage.completed, 50, "Only successfully completed local generation increments usage");
+  assertEqual(usageFromOtherSession.body.usage.usedPercent, 100, "Reserved capacity is reflected as a percentage across sessions");
+  const completed = await finish(a.token, finalSlot.id, "completed", 3000);
+  assertEqual(completed.body.usage.usedPercent, 94, "Completion settles actual local token usage");
   assertEqual((await finish(a.token, finalSlot.id, "completed")).body.idempotent, true, "Completion retries are idempotent");
-  assertEqual((await request("/api/ai/usage", a.token)).body.usage.completed, 50, "Duplicate completion cannot exceed daily count");
-  assertEqual((await reserve(a.token)).status, 429, "Daily allowance enforced after fifty completions");
-  assertEqual((await request("/api/ai/usage", b.token)).body.usage.completed, 0, "Different user's account counter remains isolated");
+  assertEqual((await request("/api/ai/usage", a.token)).body.usage.usedPercent, 94, "Duplicate completion cannot inflate daily percentage");
+  assertEqual((await reserve(a.token)).status, 429, "Daily allowance enforces reservation capacity based on token usage");
+  assertEqual((await request("/api/ai/usage", b.token)).body.usage.usedPercent, 0, "Different user's account counter remains isolated");
   console.log("✓ Reservation retries, failure/cancellation, expiry, cross-user isolation, and account-wide concurrent sessions");
 
   // Prior UTC date is not trusted as today's usage period. Isolate the current
   // day's test counter from the already-verified limit case on this disposable user.
-  await db.execute(sql`update folio_ai_daily_usage set completed_message_count = 0, reserved_message_count = 0 where user_id = ${a.id} and usage_date = ${usageDate}`);
+  await db.execute(sql`update folio_ai_daily_usage set completed_message_count = 0, reserved_message_count = 0, used_token_count = 0, reserved_token_count = 0 where user_id = ${a.id} and usage_date = ${usageDate}`);
   const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-  await db.execute(sql`insert into folio_ai_daily_usage (user_id, usage_date, completed_message_count, reserved_message_count) values (${a.id}, ${yesterday}, 50, 0) on conflict (user_id, usage_date) do update set completed_message_count = 50, reserved_message_count = 0`);
+  await db.execute(sql`insert into folio_ai_daily_usage (user_id, usage_date, completed_message_count, reserved_message_count, used_token_count, reserved_token_count) values (${a.id}, ${yesterday}, 0, 0, 50000, 0) on conflict (user_id, usage_date) do update set completed_message_count = 0, reserved_message_count = 0, used_token_count = 50000, reserved_token_count = 0`);
   const currentDay = (await request("/api/ai/usage", a.token)).body.usage;
   assertEqual(currentDay.usageDate, new Date().toISOString().slice(0, 10), "UTC day is derived server side");
-  assertEqual(currentDay.completed, 0, "Yesterday's allowance does not affect today");
-  assertEqual(currentDay.available, 50, "Today's allowance resets at UTC midnight");
+  assertEqual(currentDay.usedPercent, 0, "Yesterday's allowance does not affect today's percentage");
   console.log("✓ UTC reset policy verified");
   console.log(`PASS: ${checks} Neon-backed usage assertions.`);
 } finally {

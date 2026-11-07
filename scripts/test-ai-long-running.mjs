@@ -172,6 +172,7 @@ try {
         stage: `Generating response · ${elapsedSec}s elapsed`,
         partialContent: `Section ${elapsedSec / 30}: detailed analysis...`,
         tokenCount: elapsedSec * 2,
+        usageTokens: elapsedSec * 2,
       },
       tickNow,
     );
@@ -198,12 +199,12 @@ try {
       stage: "Completed",
       partialContent: "Complete 6-minute architecture review with all 12 sections.",
       tokenCount: 740,
+      usageTokens: 740,
     },
     new Date(startClock.getTime() + 370_000),
   );
   assert.equal(finishedLong.task.status, "completed");
-  assert.equal(finishedLong.usage.completed, 1);
-  assert.equal(finishedLong.usage.reserved, 0);
+  assert.equal(finishedLong.usage.usedPercent, 1);
 
   // Test stale-worker detection: if a worker stops heartbeating for > staleTaskTimeoutMilliseconds,
   // reconcileStaleAITasks transitions it to failed, preserves partialContent, and frees the reservation.
@@ -310,8 +311,8 @@ try {
     window.__FOLIO_AI_TEST_PROVIDER__ = {
       providerId: "webllm",
       inferenceLocation: "local",
-      modelId: "Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
-      modelName: "Qwen2.5 1.5B Instruct · Q4F16",
+      modelId: "Qwen2.5-3B-Instruct-q4f16_1-MLC",
+      modelName: "Qwen2.5 3B Instruct · Q4F16",
       async initialize(onProgress) {
         onProgress({ progress: 1, text: "Model ready on this device.", cached: true });
         return { cached: true };

@@ -378,30 +378,32 @@ export const savedFilters = pgTable("folio_saved_filters", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [uniqueIndex("folio_saved_filters_unique_idx").on(t.userId, t.kind, t.nameKey)]);
 
-// Only aggregate usage metadata is stored. Prompts and generated content never
-// leave the browser and never enter these account-level daily counters.
+// Daily quota rows contain only aggregate token and reservation counts.
 export const folioAiDailyUsage = pgTable("folio_ai_daily_usage", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   usageDate: date("usage_date", { mode: "string" }).notNull(),
   completedMessageCount: integer("completed_message_count").notNull().default(0),
   reservedMessageCount: integer("reserved_message_count").notNull().default(0),
+  usedTokenCount: integer("used_token_count").notNull().default(0),
+  reservedTokenCount: integer("reserved_token_count").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
   uniqueIndex("folio_ai_daily_usage_user_date_idx").on(t.userId, t.usageDate),
   index("folio_ai_daily_usage_date_idx").on(t.usageDate),
   check("folio_ai_daily_usage_counts_nonnegative_chk", sql`${t.completedMessageCount} >= 0 AND ${t.reservedMessageCount} >= 0`),
+  check("folio_ai_daily_usage_tokens_nonnegative_chk", sql`${t.usedTokenCount} >= 0 AND ${t.reservedTokenCount} >= 0`),
 ]);
 
-// A reservation holds one of the 50 daily slots while inference runs locally.
-// A generation UUID makes both reservation and completion idempotent across
-// retries/tabs. No prompt or response body is stored.
+// Reservations protect a daily local-token budget across tabs and devices.
 export const folioAiUsageReservations = pgTable("folio_ai_usage_reservations", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   generationId: uuid("generation_id").notNull(),
   usageDate: date("usage_date", { mode: "string" }).notNull(),
+  reservedTokenCount: integer("reserved_token_count").notNull().default(0),
+  usedTokenCount: integer("used_token_count").notNull().default(0),
   status: text("status").notNull().default("reserved"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -411,6 +413,7 @@ export const folioAiUsageReservations = pgTable("folio_ai_usage_reservations", {
   index("folio_ai_reservations_expiry_idx").on(t.userId, t.status, t.expiresAt),
   index("folio_ai_reservations_user_date_idx").on(t.userId, t.usageDate),
   check("folio_ai_reservations_status_chk", sql`${t.status} in ('reserved', 'completed', 'failed', 'cancelled', 'expired')`),
+  check("folio_ai_reservations_tokens_nonnegative_chk", sql`${t.reservedTokenCount} >= 0 AND ${t.usedTokenCount} >= 0`),
 ]);
 
 // Personalized assistant identity and model preference, stored per authenticated
@@ -486,6 +489,7 @@ export const folioAiTasks = pgTable("folio_ai_tasks", {
   stage: text("stage").notNull().default("Queued"),
   partialContent: text("partial_content").notNull().default(""),
   tokenCount: integer("token_count").notNull().default(0),
+  usageTokenCount: integer("usage_token_count").notNull().default(0),
   plan: jsonb("plan"),
   results: jsonb("results"),
   errorMessage: text("error_message"),

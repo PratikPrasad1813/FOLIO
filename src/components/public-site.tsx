@@ -452,11 +452,11 @@ const FAQ = [
   ],
   [
     "Is Folio completely free to use?",
-    "Folio has no subscriptions, paywalls, or premium tiers in this version. The local AI preview includes an account-wide allowance of 50 completed messages per day running directly on your device.",
+    "Folio has no subscriptions, paywalls, or premium tiers in this version. The local AI preview includes an account-wide daily token allowance. Inference runs on your device and the usage panel shows only a percentage.",
   ],
   [
     "How does Folio AI protect my privacy?",
-    "Folio AI runs 100% locally inside your browser using WebLLM and WebGPU. Your conversation prompts, drafts, and responses never leave your machine and are never sent to external AI servers. In addition, when AI prepares workspace actions (like creating tasks or organizing a project), it produces a transparent plan that you review and confirm before anything changes.",
+    "Folio AI runs model inference locally in your browser using WebLLM and WebGPU; prompts are not sent to a third-party AI provider. Conversation history and task progress sync to your Folio account so you can resume across devices, and account-wide daily token usage is tracked for the usage limit. Proposed workspace actions remain visible for your review and confirmation.",
   ],
   [
     "How does Google Calendar integration work?",
@@ -853,13 +853,13 @@ export function LandingPage() {
                 <li>
                   <CheckCircleIcon />
                   <span>
-                    <strong>100% on-device inference:</strong> Your prompts and workspace content never leave your browser.
+                    <strong>On-device model inference:</strong> Your prompts are processed locally and are not sent to a third-party AI provider. Conversation history syncs with your Folio account.
                   </span>
                 </li>
                 <li>
                   <CheckCircleIcon />
                   <span>
-                    <strong>Zero cloud fallback:</strong> No hidden API calls or third-party tracking.
+                    <strong>No hosted AI fallback:</strong> Model failures never silently send your prompt to a hosted AI provider.
                   </span>
                 </li>
                 <li>

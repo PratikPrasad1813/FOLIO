@@ -626,7 +626,7 @@ export function DocsChapterContent({ chapterId }: { chapterId: ChapterId }) {
                      └─────────────────────┘
 
 Google OAuth / Calendar API ◄──── encrypted server-side integration
-Browser WebGPU + WebLLM      ◄──── optional local inference; no model API call
+Browser WebGPU + WebLLM      ◄──── local inference; account history and quota sync through Folio APIs
 
 ┌──────────────────────── Tauri v2 desktop ───────────────────────────────┐
 │ Rust host + native WebView (WebView2 / WKWebView / WebKitGTK)           │
@@ -916,7 +916,7 @@ Output JSON only:
   "assumptions": ["..."] }`}/>
 
               <SectionTitle id="local-models">On-device models, Ollama, and WebGPU</SectionTitle>
-              <p className="leading-8">Folio’s current WebLLM configuration selects <code>Qwen2.5-1.5B-Instruct-q4f16_1-MLC</code>, loaded only after the user starts local AI. Its configured context window is 4,096 tokens, input is capped at 4,000 characters, output at 2,048 tokens, and the product’s daily completed-message limit is 50. Model availability and performance depend on browser WebGPU support, device memory, driver stability, and downloaded model cache size. Larger Qwen 2.5 3B/7B, Llama 3.2 3B, or DeepSeek-R1-Distill variants are alternative deployment experiments, not guaranteed models in the current prebuilt WebLLM registry.</p>
+              <p className="leading-8">Folio’s default WebLLM model is <code>Qwen2.5-3B-Instruct-q4f16_1-MLC</code>, loaded only after the user starts local AI. Its configured context window is 4,096 tokens, input is capped at 4,000 characters, output at 2,048 tokens, and its daily token allowance is 50,000; the UI exposes usage as a percentage only. The selectable roster includes fast, structured, reasoning, and coding models. Actual availability and performance depend on the installed WebLLM registry, WebGPU support, device memory, driver stability, and browser cache. Inference stays on-device, while conversation history and task progress sync to the Folio account.</p>
               <p className="mt-4 leading-8">A local Ollama-compatible OpenAI endpoint can be used as an integration option in a development environment when a provider adapter is configured to call it. Typical local URL is <code>http://localhost:11434/v1</code>; do not expose that endpoint publicly without authentication and network controls. A browser page cannot safely assume it may call localhost: browser mixed-content, CORS, private-network and permission policies vary. The current repository’s default Folio AI provider is WebLLM/WebGPU, not an Ollama HTTP client.</p>
               <CodeBlock language="local model comparison" code={`Path                 Inference location    Privacy / tradeoff
 WebLLM + WebGPU      User's browser         Prompt/model inference local;
@@ -926,10 +926,11 @@ Ollama + local API   User's device service  Local if bound to loopback;
 Hosted model API     Provider's servers     Strong availability/model choice;
                                            workspace context leaves device
 
-Current Folio default: WebLLM (Qwen2.5 1.5B Instruct, quantized).
-3B/7B and alternate families require compatible compiled model artifacts,
-memory testing, registry availability, and explicit product configuration.`}/>
-              <p className="leading-8">Choose local inference when privacy, offline inference, and device control are priorities; choose a hosted API only after explicit user consent, provider/data-retention review, secret isolation, and request minimization. A local model is not automatically safer from malicious prompt content or inaccurate output. Evaluate outputs, keep destructive operations confirmed, and never treat model confidence as authorization.</p>
+Current Folio default: WebLLM (Qwen2.5 3B Instruct, quantized).
+Conversation/task history and quota metadata sync to Folio; model inference
+and downloaded weights remain on the device. Roster entries require compatible
+compiled model artifacts, memory, and registry availability.`}/>
+              <p className="leading-8">Choose local inference when device-side processing and avoiding third-party model providers are priorities; Folio account sync and quota checks still require network access. A local model is not automatically safer from malicious prompt content or inaccurate output. Evaluate outputs, keep destructive operations confirmed, and never treat model confidence as authorization.</p>
               <h4 className="mt-7 text-base font-semibold text-white">Evaluation and graceful degradation</h4>
               <p className="mt-3 leading-8">A model adapter should expose a narrow interface for initialization, progress, generation, interruption, reset, and unload. Keep model loading behind an explicit user action because downloading hundreds of megabytes consumes bandwidth and storage. Report download progress, whether assets were cached, WebGPU initialization errors, and cancellation clearly; release the worker when the user unloads the model or the browser route no longer needs it. Never silently fall back to a remote provider after a local model fails, since that changes the privacy contract.</p>
               <p className="mt-3 leading-8">Evaluate generated plans against a fixed set of representative requests: vague goals, tasks with dependencies, already-completed work, sensitive content, requests to act on an unknown project, and malicious instructions embedded in task descriptions. Measure schema-valid output, useful decomposition, hallucinated dates, and whether unsafe operations are presented as proposals. Keep evaluation samples synthetic or consented, and avoid retaining raw prompts longer than the feature requires.</p>

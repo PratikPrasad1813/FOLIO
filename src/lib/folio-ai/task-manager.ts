@@ -1,6 +1,6 @@
 "use client";
 
-import { FOLIO_AI_CONFIG } from "@/lib/folio-ai/config";
+import { estimateTokenCount, FOLIO_AI_CONFIG } from "@/lib/folio-ai/config";
 import { extractActionPlan } from "@/lib/folio-ai/actions";
 import { parseNaturalLanguageIntent, type WorkspaceSummaryContext } from "@/lib/folio-ai/intent-pipeline";
 import type { LocalAIProvider, LocalChatMessage } from "@/lib/folio-ai/provider";
@@ -209,6 +209,7 @@ async function patchTaskOnServer(
     stage?: string;
     partialContent?: string;
     tokenCount?: number;
+    usageTokens?: number;
     plan?: { actions: { id: string; params: Record<string, unknown> }[] } | null;
     results?: AIActionResult[] | null;
     errorMessage?: string | null;
@@ -321,6 +322,7 @@ async function runTaskLifecycle(
   const taskId = snapshot.task.id;
   let accumulatedText = initialPartial;
   let tokenCount = initialTokens;
+  let usageTokenCount = 0;
   let completedLocally = false;
 
   const resetStallWatchdog = () => {
@@ -343,12 +345,12 @@ async function runTaskLifecycle(
       return "Reasoning on device…";
     }
     if (elapsedMs >= FOLIO_AI_CONFIG.extendedRunningThresholdMilliseconds) {
-      return `Generating response · ${tokenCount.toLocaleString()} chunks streamed · saving checkpoints`;
+      return "Generating response · saving checkpoints";
     }
     if (elapsedMs >= FOLIO_AI_CONFIG.longRunningThresholdMilliseconds) {
-      return `Generating response · ${tokenCount.toLocaleString()} chunks streamed`;
+      return "Generating response";
     }
-    return `Streaming response · ${tokenCount.toLocaleString()} chunk${tokenCount === 1 ? "" : "s"}`;
+    return "Streaming response";
   };
 
   const sendHeartbeat = async () => {
@@ -360,6 +362,7 @@ async function runTaskLifecycle(
       stage,
       partialContent: accumulatedText,
       tokenCount,
+      usageTokenCount,
       heartbeatAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -372,6 +375,7 @@ async function runTaskLifecycle(
         stage,
         partialContent: accumulatedText,
         tokenCount,
+        usageTokens: usageTokenCount,
       });
       if (synced.cancelled) {
         controller.abort("user-stop");
@@ -395,6 +399,7 @@ async function runTaskLifecycle(
           stage: snapshot.task.stage,
           partialContent: accumulatedText,
           tokenCount,
+          usageTokens: usageTokenCount,
         },
         true,
       ).catch(() => {});
@@ -432,6 +437,7 @@ async function runTaskLifecycle(
         stage,
         partialContent: accumulatedText,
         tokenCount,
+        usageTokenCount,
         updatedAt: new Date().toISOString(),
       };
       latestByConversationId.set(snapshot.task.conversationId, snapshot);
@@ -449,11 +455,20 @@ async function runTaskLifecycle(
           },
         ]
       : options.contextMessages;
+    const estimatedPromptTokens = messagesToSend.reduce(
+      (total, message) => total + estimateTokenCount(message.content),
+      0,
+    );
+    usageTokenCount = estimatedPromptTokens;
 
     const result = await provider.generate(messagesToSend, controller.signal, token => {
       resetStallWatchdog();
       accumulatedText += token;
       tokenCount += 1;
+      usageTokenCount = Math.min(
+        FOLIO_AI_CONFIG.maxReservedTokensPerGeneration,
+        estimatedPromptTokens + estimateTokenCount(accumulatedText),
+      );
       if (!paintFrame) {
         paintFrame = requestAnimationFrame(flushToSnapshot);
       }
@@ -466,9 +481,11 @@ async function runTaskLifecycle(
     }
 
     completedLocally = true;
-    if ( result.outputTokens && result.outputTokens > tokenCount ) {
-      tokenCount = result.outputTokens;
-    }
+    tokenCount = result.outputTokens || estimateTokenCount(result.text);
+    usageTokenCount = Math.min(
+      FOLIO_AI_CONFIG.maxReservedTokensPerGeneration,
+      (result.promptTokens ?? estimatedPromptTokens) + tokenCount,
+    );
 
     let parsedPlan = extractActionPlan(finalText);
     if (!parsedPlan && options.prompt) {
@@ -490,6 +507,7 @@ async function runTaskLifecycle(
       stage: "Saving response…",
       partialContent: finalText,
       tokenCount,
+      usageTokenCount,
       plan: parsedPlan ? { actions: parsedPlan } : null,
       errorMessage: null,
       updatedAt: new Date().toISOString(),
@@ -506,6 +524,7 @@ async function runTaskLifecycle(
           stage: finalStage,
           partialContent: finalText,
           tokenCount,
+          usageTokens: usageTokenCount,
           plan: parsedPlan ? { actions: parsedPlan } : null,
         },
         true,
@@ -541,12 +560,12 @@ async function runTaskLifecycle(
     const errorMessage = isUserCancel
       ? null
       : isStall
-        ? "The AI worker stopped producing output for 5 minutes. Partial output was saved and your allowance was not charged."
+        ? "The AI worker stopped producing output for 5 minutes. Partial output was saved and estimated local token usage was counted."
         : error instanceof Error
           ? error.message
           : "Generation could not be completed.";
     const nextStage = isUserCancel
-      ? "Cancelled by user · not counted"
+      ? "Cancelled by user · usage updated"
       : accumulatedText.trim()
         ? "Execution failed · partial response saved"
         : "Execution failed";
@@ -559,6 +578,13 @@ async function runTaskLifecycle(
           stage: nextStage,
           partialContent: accumulatedText,
           tokenCount,
+          usageTokens: Math.max(
+            usageTokenCount,
+            Math.min(
+              FOLIO_AI_CONFIG.maxReservedTokensPerGeneration,
+              estimateTokenCount(accumulatedText),
+            ),
+          ),
           errorMessage,
         },
         true,
@@ -574,6 +600,7 @@ async function runTaskLifecycle(
         stage: nextStage,
         partialContent: accumulatedText,
         tokenCount,
+        usageTokenCount,
         errorMessage,
         completedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -613,14 +640,14 @@ export async function cancelActiveAITask(taskId?: string): Promise<void> {
   if (taskId) {
     await patchTaskOnServer(taskId, {
       status: "cancelled",
-      stage: "Cancelled by user · not counted",
+      stage: "Cancelled by user · usage updated",
     });
     const existing = Array.from(latestByConversationId.values()).find(s => s.task.id === taskId);
     if (existing) {
       existing.task = {
         ...existing.task,
         status: "cancelled",
-        stage: "Cancelled by user · not counted",
+        stage: "Cancelled by user · usage updated",
         completedAt: new Date().toISOString(),
       };
       latestByConversationId.set(existing.task.conversationId, existing);
@@ -641,6 +668,7 @@ export async function retryPendingTaskSync(taskId: string): Promise<LiveTaskSnap
     stage: targetStage,
     partialContent: snapshot.task.partialContent,
     tokenCount: snapshot.task.tokenCount,
+    usageTokens: snapshot.task.usageTokenCount,
     plan: parsedPlan ? { actions: parsedPlan } : null,
   });
 

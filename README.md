@@ -70,7 +70,7 @@ Rather than scattering your focus across disjointed apps—one for notes, one fo
 
 ### Key Tenets
 - **Self-Managed Security:** Authentication and workspace records remain under your control. Sessions use opaque SHA-256 tokens in secure, HTTP-only, SameSite=Lax cookies with `scrypt` password hashing.
-- **Privacy by Design:** On-device AI executes in your browser using WebGPU and WebLLM. Conversation drafts, prompts, and context never leave your machine.
+- **Local AI with transparent sync:** Models run in your browser using WebGPU and WebLLM. Prompts, responses, and task progress sync to your Folio account for conversation history and cross-device resumption; daily quota accounting is token-based and the UI displays only a usage percentage.
 - **Complete Data Ownership:** At any point, export your entire workspace as readable JSON or permanently delete your account with guaranteed zero orphaned records across all 25 PostgreSQL tables.
 - **Calm, Human Design:** Polished typography (`Instrument Serif` & `DM Sans`), thoughtful light/dark themes, subtle animations, and zero spam.
 
@@ -201,12 +201,12 @@ All screenshots are captured from the actual running application using Playwrigh
 - Stages: *Just an idea*, *Exploring*, and *Ready to start*.
 - One-click **"Make it a project"** converts an idea into a full project with notes intact.
 
-### Local-First On-Device AI (WebLLM)
+### On-Device AI Inference (WebLLM)
 - Powered by `@mlc-ai/web-llm` running directly inside the browser using WebGPU.
-- **Zero Cloud Leakage:** Prompts, responses, and workspace context never leave your device.
+- **No third-party AI processing:** Prompt inference happens on-device; conversations and task progress sync with your Folio account for history and resumption.
 - **Verified Action Plans:** When AI prepares workspace changes, you inspect the exact proposed plan before confirming execution.
 - **Reliable Long-Running Tasks (No 3-Minute Cutoff):** Complex prompts and multi-step workspace plans are never killed by a fixed 180-second timer. A background task manager (`src/lib/folio-ai/task-manager.ts`) and PostgreSQL task table (`folio_ai_tasks`) persist task status (`queued`, `running`, `waiting`, `completed`, `failed`, `cancelled`), execution stages, periodic heartbeats, reservation lease renewals, and intermediate partial output across in-app navigation and page refreshes.
-- 50 messages/day allowance tracked via database reservations.
+- 50,000-token daily allowance tracked via account-wide database reservations; the UI displays usage as a percentage only, never a remaining-token count.
 
 ### Contextual Notifications & Quiet Hours
 - Customizable reminder timings (15m, 30m, 1h, 1d before, custom local time).
@@ -519,4 +519,5 @@ If you discover a potential security vulnerability, please report it responsibly
 
 ## License Information
 
-This repository currently does not include a standalone open-source license file. All rights are reserved by the project author unless explicitly stated otherwise. Check the repository for updates on licensing.
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details.

@@ -4,6 +4,7 @@ import { getAITaskById, updateAITaskProgress } from "@/lib/folio-ai/tasks-servic
 import { AI_TASK_STATUSES, type AIActionResult, type AITaskStatus } from "@/lib/folio-ai/types";
 import { AIUsageError } from "@/lib/folio-ai/usage";
 import { SearchInputError } from "@/lib/search-types";
+import { FOLIO_AI_CONFIG } from "@/lib/folio-ai/config";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       "stage",
       "partialContent",
       "tokenCount",
+      "usageTokens",
       "plan",
       "results",
       "errorMessage",
@@ -75,6 +77,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       tokenCount = Math.floor(body.tokenCount);
     }
 
+    let usageTokens: number | undefined;
+    if (body.usageTokens !== undefined) {
+      if (typeof body.usageTokens !== "number" || !Number.isSafeInteger(body.usageTokens) || body.usageTokens < 0 || body.usageTokens > FOLIO_AI_CONFIG.maxReservedTokensPerGeneration) {
+        throw new SearchInputError("Invalid local token usage.");
+      }
+      usageTokens = body.usageTokens;
+    }
+
     let plan: { actions: { id: string; params: Record<string, unknown> }[] } | null | undefined;
     if (body.plan !== undefined) {
       if (body.plan !== null && (typeof body.plan !== "object" || Array.isArray(body.plan))) {
@@ -104,6 +114,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       stage,
       partialContent,
       tokenCount,
+      usageTokens,
       plan,
       results,
       errorMessage,

@@ -56,10 +56,10 @@ try {
   if (await lingering.count()) await lingering.first().click().catch(() => {});
   await pageA.getByRole("heading", { name: "AI usage", exact: true }).waitFor();
   await pageA.getByText("Free plan", { exact: true }).waitFor();
-  await pageA.getByText(/\/ 50 messages today/).waitFor();
+  await pageA.getByText(/% used today/).waitFor();
   const privacy = pageA.locator(".fa-chat-foot");
   await privacy.waitFor();
-  ok((await privacy.innerText()).includes("stay on this device"), "Local-only prompt privacy is explained");
+  ok((await privacy.innerText()).includes("runs on this device"), "On-device inference and account sync are explained");
   ok((await pageA.locator(".fa-phase-note").innerText()).includes("approved, secure steps"), "Preview explains real, secure Folio actions");
   if (await pageA.locator(".fa-recommend").count()) {
     ok((await pageA.locator(".fa-recommend").first().innerText()).includes("Recommended:"), "Device-based model recommendation is displayed");
@@ -76,8 +76,8 @@ try {
     const loadButton = pageA.getByRole("button", { name: /load local model|load model anyway/i });
     ok(await loadButton.isEnabled(), "Supported local model can be explicitly loaded");
   }
-  ok((await pageA.locator(".fa-model-stats").innerText()).includes("880 MB"), "Model download size is displayed");
-  ok((await pageA.locator(".fa-model-stats").innerText()).includes("1.6 GB"), "Estimated GPU memory is displayed");
+  ok((await pageA.locator(".fa-model-stats").innerText()).includes("1.8 GB"), "Model download size is displayed");
+  ok((await pageA.locator(".fa-model-stats").innerText()).includes("2.4 GB"), "Estimated GPU memory is displayed");
 
   // Two authenticated sessions for one Neon account share metadata-only usage.
   const generationId = randomUUID();
@@ -92,7 +92,7 @@ try {
   await pageB.getByRole("heading", { name: "Folio AI", exact: true }).waitFor();
   await pageB.getByText("Free plan", { exact: true }).waitFor();
   await pageA.evaluate(() => { const channel = new BroadcastChannel("folio-ai-account-usage"); channel.postMessage({ updated: true }); channel.close(); });
-  await pageB.getByText(/1 reserved in another tab or generation/).waitFor({ timeout: 5000 });
+  await pageB.waitForFunction(() => document.querySelector(".fa-usage-top strong")?.textContent?.trim().startsWith("12"));
   checks++;
   const cancelled = await pageB.evaluate(async id => {
     const response = await fetch(`/api/ai/usage/reservations/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ outcome: "cancelled" }) });
@@ -101,10 +101,12 @@ try {
   assert.equal(cancelled.status, 200);
   checks++;
   await pageA.evaluate(() => { const channel = new BroadcastChannel("folio-ai-account-usage"); channel.postMessage({ updated: true }); channel.close(); });
-  await pageA.getByText("50 remaining", { exact: true }).waitFor({ timeout: 5000 });
+  await pageA.waitForFunction(() => document.querySelector(".fa-usage-top strong")?.textContent?.trim().startsWith("0"));
   checks++;
   const usage = await pageA.evaluate(async () => (await (await fetch("/api/ai/usage")).json()).usage);
-  assert.equal(usage.completed, 0); assert.equal(usage.reserved, 0); checks += 2;
+  assert.equal(usage.usedPercent, 0);
+  assert.ok(!["usedTokens", "reservedTokens", "available", "completed", "reserved", "limit"].some(key => key in usage));
+  checks += 2;
   ok(browserErrors.length === 0, `No UI exceptions: ${browserErrors.join("; ")}`);
 
   await pageA.locator(".theme-toggle").click();

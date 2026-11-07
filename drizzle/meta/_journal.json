@@ -78,6 +78,13 @@
       "when": 1793945159005,
       "tag": "0010_desktop_auth_handoff",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794050941089,
+      "tag": "0011_folio_ai_token_budget",
+      "breakpoints": true
     }
   ]
 }

@@ -76,6 +76,7 @@ export class WebLLMProvider implements LocalAIProvider {
     signal.addEventListener("abort", interrupt, { once: true });
     let text = "";
     let outputTokens = 0;
+    let promptTokens: number | undefined;
     try {
       const stream = await engine.chat.completions.create({
         messages,
@@ -90,9 +91,10 @@ export class WebLLMProvider implements LocalAIProvider {
         const token = chunk.choices[0]?.delta?.content;
         if (typeof token === "string" && token) { text += token; onToken(token); }
         if (chunk.usage?.completion_tokens) outputTokens = chunk.usage.completion_tokens;
+        if (chunk.usage?.prompt_tokens) promptTokens = chunk.usage.prompt_tokens;
       }
       if (signal.aborted) throw new DOMException("Generation stopped.", "AbortError");
-      return { text: text.trim(), outputTokens };
+      return { text: text.trim(), outputTokens, promptTokens };
     } catch (error) {
       if (signal.aborted) throw new DOMException("Generation stopped.", "AbortError");
       throw error;
