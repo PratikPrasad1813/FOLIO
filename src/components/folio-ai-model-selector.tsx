@@ -45,23 +45,9 @@ export function FolioAIModelSelector({
         <p className="fa-local-model-note">No local models are compatible with this device.</p>
       ) : (
         <>
-          <label className="fa-settings-field">
-            <span>Model routing</span>
-            <span className="fa-local-route-toggle">
-              <input
-                type="checkbox"
-                checked={autoRoute}
-                disabled={busy}
-                onChange={event => onAutoRouteChange(event.target.checked)}
-              />
-              <Sparkles size={14} />
-              Smart auto-route by prompt
-            </span>
-          </label>
-
           <div className="fa-local-model-current">
             <div>
-              <small>{autoRoute ? "Default / automatic fallback" : "Selected model"}</small>
+              <small>{autoRoute ? "Smart selection" : "Selected model"}</small>
               <strong>{selectedModel.name}</strong>
               <span>{selectedModel.tagline}</span>
             </div>
@@ -78,7 +64,20 @@ export function FolioAIModelSelector({
           </div>
 
           {expanded && (
-            <div id="fa-local-model-options" className="fa-local-model-options" role="list">
+            <div id="fa-local-model-options" className="fa-local-model-options">
+              <label className="fa-settings-field">
+                <span>Model routing</span>
+                <span className="fa-local-route-toggle">
+                  <input
+                    type="checkbox"
+                    checked={autoRoute}
+                    disabled={busy}
+                    onChange={event => onAutoRouteChange(event.target.checked)}
+                  />
+                  <Sparkles size={14} />
+                  Smart auto-route by prompt
+                </span>
+              </label>
               {models.map(model => {
                 const selected = model.id === selectedModel.id;
                 const cached = downloadedModelIds.has(model.webLlmModelId);

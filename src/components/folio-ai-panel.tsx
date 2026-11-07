@@ -5,7 +5,7 @@ import { dateKey } from "@/lib/types";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   AlertTriangle, BrainCircuit, Check, CheckCircle2, ChevronDown, Clock3, Copy, Cpu, Download,
-  Gauge, History, MessageSquare, Moon, Play, Plus, RotateCcw, Send, ShieldCheck, Sparkles, Square, Trash2, WifiOff, X, Wand2,
+  Gauge, MessageSquare, Moon, Play, Plus, RotateCcw, Send, ShieldCheck, Sparkles, Square, Trash2, WifiOff, X, Wand2,
 } from "lucide-react";
 import { Modal, Spinner } from "@/components/ui";
 import { FOLIO_AI_CONFIG, approximateHumanSize, estimateTokenCount } from "@/lib/folio-ai/config";
@@ -40,6 +40,7 @@ import {
 } from "@/lib/folio-ai/models";
 import {
   DEFAULT_LOCAL_MODEL_ID, getCompatibleLocalModels, getLocalModelByWebLLMId,
+  MAX_LOCAL_MODEL_BUNDLE_BYTES,
   type LocalModelSpec,
 } from "@/lib/folio-ai/model-catalog";
 import { WebLLMProvider } from "@/lib/folio-ai/webllm-provider";
@@ -135,7 +136,7 @@ function modelInfoFromLocalSpec(spec: LocalModelSpec): FolioAIModelInfo {
     : spec.category === "structured"
       ? "balanced"
       : "high";
-  const approximateDownloadBytes = Number.parseFloat(spec.sizeDisplay.replace(/[^\d.]/g, "")) * 1_000_000_000;
+  const approximateDownloadBytes = spec.approximateDownloadBytes;
   return {
     tier,
     modelId: spec.webLlmModelId,
@@ -1276,10 +1277,9 @@ export function FolioAIPanel() {
   const progressPercent = Math.round(progress.progress * 100);
   const displayModel = activeModel ?? selectedModel;
   const pendingBatchModels = compatibleLocalModels.filter(model => !cacheStatus[model.webLlmModelId]);
-  const batchDownloadBytes = pendingBatchModels.reduce((total, model) => {
-    const size = Number.parseFloat(model.sizeDisplay.replace(/[^\d.]/g, ""));
-    return total + (Number.isFinite(size) ? size * 1_000_000_000 : 0);
-  }, 0);
+  const batchDownloadBytes = pendingBatchModels.reduce((total, model) => total + model.approximateDownloadBytes, 0);
+  const compatibleModelDownloadBytes = compatibleLocalModels.reduce((total, model) => total + model.approximateDownloadBytes, 0);
+  const modelBundleWithinLimit = compatibleModelDownloadBytes <= MAX_LOCAL_MODEL_BUNDLE_BYTES;
 
   const reassuranceText = useMemo(() => {
     if (!generating) return null;
@@ -1305,38 +1305,42 @@ export function FolioAIPanel() {
   return (
     <section className="folio-ai-page" aria-label="Folio AI workspace assistant">
       <header className="fa-page-header">
-        <div className="fa-page-title"><span className="fa-brand-icon"><BrainCircuit size={21} /></span><div><span className="eyebrow">PRIVATE BY DESIGN</span><h1>Folio AI</h1><p>Your private, on-device assistant.</p></div></div>
-        <div className="fa-page-actions"><button type="button" className="pj-btn is-ghost is-sm" onClick={() => setSettingsOpen(true)}><Cpu size={14} />Model &amp; assistant</button><div className="fa-plan-pill"><span />Free · Local AI</div></div>
+        <div className="fa-page-title"><span className="fa-brand-icon"><BrainCircuit size={21} /></span><div><span className="eyebrow">YOUR PRIVATE WORKSPACE COMPANION</span><h1>Folio AI</h1><p>A calmer way to move your work forward.</p></div></div>
+        <div className="fa-page-actions"><button type="button" className="pj-btn is-ghost is-sm" onClick={() => setSettingsOpen(true)}><Cpu size={14} />Preferences</button><div className="fa-plan-pill"><span />Runs on this device</div></div>
       </header>
 
       <div className="fa-layout">
+        <aside className="fa-history-sidebar" aria-label="Conversation navigation">
+          <div className="fa-history-brand"><span className="fa-brand-icon"><BrainCircuit size={18} /></span><span>folio<span>·</span> ai</span></div>
+          <button type="button" className="fa-new-conversation" disabled={generating || Boolean(pendingSyncTask) || Boolean(runningPlan)} onClick={() => setClearConfirm(true)}>
+            <Plus size={15} />New conversation
+          </button>
+          <div className="fa-history-heading"><span>RECENT</span><MessageSquare size={13} /></div>
+          <nav className="fa-history-list" aria-label="Recent conversations">
+            {history.conversations.length ? history.conversations.slice(0, 12).map(conversation => (
+              <button
+                type="button"
+                key={conversation.id}
+                className={`fa-history-item${conversation.id === history.activeId ? " is-active" : ""}`}
+                title={conversation.title}
+                disabled={generating || Boolean(runningPlan)}
+                onClick={() => {
+                  if (conversation.id !== history.activeId) {
+                    loadedConversation.current = null;
+                    history.setActiveId(conversation.id);
+                  }
+                }}
+              >
+                <MessageSquare size={13} /><span>{conversation.title || "New conversation"}</span>
+              </button>
+            )) : <p className="fa-history-empty">{history.loading ? "Loading your conversations…" : "Your conversations will appear here."}</p>}
+          </nav>
+          <div className="fa-history-footer"><ShieldCheck size={14} /><span><strong>Private by design</strong><small>AI runs locally on your device.</small></span></div>
+        </aside>
         <section className="fa-chat-card" aria-label="Folio AI conversation">
           <header className="fa-chat-header">
             <div className="fa-model-state"><AIAvatar state={assistantState} size={34} /><div><strong>{prefs?.assistantName ?? "Folio AI"}</strong><small>{modelState === "ready" ? `${displayModel?.modelName ?? ""} · running on this device` : "Nothing loads until you choose"}</small></div></div>
             <div className="fa-chat-tools">
-              {history.conversations.length > 1 && (
-                <label className="fa-conv-select-wrap" aria-label="Switch conversation">
-                  <History size={13} />
-                  <select
-                    className="fa-conv-select"
-                    value={history.activeId ?? ""}
-                    disabled={generating || Boolean(runningPlan)}
-                    onChange={e => {
-                      const nextId = e.target.value;
-                      if (nextId && nextId !== history.activeId) {
-                        loadedConversation.current = null;
-                        history.setActiveId(nextId);
-                      }
-                    }}
-                  >
-                    {history.conversations.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
               <button type="button" className="fa-tool" disabled={!messages.length || generating || Boolean(pendingSyncTask) || Boolean(runningPlan)} onClick={() => setClearConfirm(true)}><Trash2 size={14} /><span>New chat</span></button>
               {modelState === "ready" && <button type="button" className="fa-tool" disabled={generating || Boolean(runningPlan)} onClick={() => void unloadLocalProvider().then(() => { providerRef.current = null; setActiveModel(null); setModelState("idle"); setProgress({ progress: 0, text: "", cached: false }); })}><X size={14} /><span>Unload model</span></button>}
               <span className="fa-local-lock"><ShieldCheck size={13} />On device</span>
@@ -1375,8 +1379,9 @@ export function FolioAIPanel() {
           {messages.length === 0 ? (
             <div className="fa-welcome">
               <span className="fa-welcome-art"><AIAvatar state={assistantState} size={44} /></span>
-              <h2>Hi! I’m {prefs?.assistantName ?? "Folio AI"}.</h2>
-              <p>I can help you understand your workspace, organize your work, and plan your day.</p>
+              <span className="fa-welcome-kicker">A LITTLE SPACE TO THINK</span>
+              <h2>What would you like to move forward?</h2>
+              <p>Ask a question, find a little clarity, or turn an idea into a plan.</p>
               <div className="fa-phase-note"><ShieldCheck size={15} /><span>Runs on your device. Workspace changes wait for your review.</span></div>
               <div className="fa-prompts">{EXAMPLES.map(({ text, icon: Icon }) => <button type="button" key={text} disabled={modelState === "loading" || Boolean(pendingSyncTask) || Boolean(runningPlan)} onClick={() => { if (modelState === "ready") void sendMessage(text); else setDraft(text); }}><Icon size={15} /><span>{text}</span><ChevronDown size={13} className="fa-prompt-arrow" /></button>)}</div>
             </div>
@@ -1564,13 +1569,6 @@ export function FolioAIPanel() {
 
           <section className="fa-model-card" aria-labelledby="fa-model-title">
             <div className="fa-side-heading"><span><Download size={15} /></span><div><h2 id="fa-model-title">Model &amp; performance</h2><p>Recommended for this device</p></div></div>
-            {recommendation && compatibility.state !== "unsupported" && (
-              <details className="fa-advanced-details fa-recommend-details">
-                <summary><CheckCircle2 size={14} />Why this model?</summary>
-                <p>{recommendation.reason}</p>
-              </details>
-            )}
-            <div className="fa-model-name">{displayModel?.modelName ?? "No model selected"}</div>
             {displayModel && <details className="fa-advanced-details fa-model-info"><summary>Model details</summary><div className="fa-model-stats"><span><small>First download</small><strong>{approximateHumanSize(displayModel.approximateDownloadBytes)}</strong></span><span><small>Estimated GPU memory</small><strong>~{(displayModel.requiredGpuMemoryMB / 1024).toFixed(1)} GB</strong></span><span><small>Context window</small><strong>{displayModel.contextWindowTokens.toLocaleString()} tokens</strong></span>{cacheStatus[displayModel.modelId] !== undefined && <span><small>Cache</small><strong>{cacheStatus[displayModel.modelId] ? "Cached" : "Not cached"}</strong></span>}</div></details>}
 
             <FolioAIModelSelector
@@ -1611,15 +1609,16 @@ export function FolioAIPanel() {
                 <button
                   type="button"
                   className="pj-btn is-secondary is-sm fa-batch-download"
-                  disabled={modelState === "loading" || generating || Boolean(runningPlan)}
+                  disabled={!modelBundleWithinLimit || modelState === "loading" || generating || Boolean(runningPlan)}
                   onClick={() => void downloadCompatibleModels()}
                 >
                   {modelState === "loading" ? <Spinner size={14} /> : <Download size={14} />}
                   {pendingBatchModels.length
-                    ? `Download ${pendingBatchModels.length} compatible models · ${approximateHumanSize(batchDownloadBytes)}`
-                    : "All compatible models downloaded"}
+                    ? `Download all models · ${approximateHumanSize(batchDownloadBytes)}`
+                    : "All models are downloaded"}
                 </button>
-                <p className="fa-batch-note">One sequence, one model at a time. Only models suited to this device are included.</p>
+                <p className="fa-batch-note">Two local models · about {approximateHumanSize(compatibleModelDownloadBytes)} total. Downloaded one at a time.</p>
+                {!modelBundleWithinLimit && <p className="fa-model-error" role="alert">This model bundle exceeds Folio’s 2 GB download limit.</p>}
                 {batchState && (
                   <div className="fa-batch-status" role="status" aria-live="polite">
                     {batchState.total > 0 && batchState.completed < batchState.total && (
@@ -1634,15 +1633,15 @@ export function FolioAIPanel() {
             <button type="button" className="pj-link fa-settings-link" onClick={() => setSettingsOpen(true)}>Assistant identity &amp; more <ChevronDown size={12} /></button>
           </section>
 
-          <section className="fa-usage-card" aria-labelledby="fa-usage-title">
-            <div className="fa-side-heading"><span><Gauge size={15} /></span><div><h2 id="fa-usage-title">AI usage</h2><p>Account-wide · UTC daily reset</p></div></div>
+          <details className="fa-usage-card fa-usage-details">
+            <summary className="fa-side-heading"><span><Gauge size={15} /></span><div><h2>AI usage</h2><p>{usage ? `${usedPercent}% used today` : "Daily account allowance"}</p></div><ChevronDown size={14} /></summary>
             {usageLoading && !usage ? <div className="fa-usage-loading"><Spinner size={14} />Syncing account usage…</div> : usage ? <>
               <div className="fa-usage-top"><span>Daily local AI usage</span><strong>{usedPercent}<small>% used today</small></strong></div>
               <div className="fa-usage-track" role="progressbar" aria-label="Daily Folio AI usage percentage" aria-valuemin={0} aria-valuemax={100} aria-valuenow={usedPercent}><i style={{ width: `${usedPercent}%` }} /></div>
               <div className="fa-usage-subline"><span>Usage allowance resets daily</span></div>
               <div className="fa-reset"><Moon size={13} /><span>Allowance resets <strong>{usageTime(usage.resetAt)}</strong></span></div>
             </> : <div className="fa-usage-error"><WifiOff size={15} /><span>{usageError || "Could not sync account usage."}</span><button className="pj-link" onClick={() => void refreshUsage()}>Retry</button></div>}
-          </section>
+          </details>
 
           <details className="fa-capabilities fa-advanced-details"><summary><Sparkles size={14} />What Folio AI can do</summary><p>Organize projects, tasks, ideas, calendar events, and reminders after you review a plan. Folio AI never touches the database directly or runs arbitrary SQL.</p><div className="fa-cap-status"><Check size={13} />On-device inference · account-synced history</div><div className="fa-cap-status is-future"><ShieldCheck size={12} />Destructive changes always need confirmation</div></details>
         </aside>

@@ -8,73 +8,37 @@ export interface LocalModelSpec {
   tagline: string;
   category: LocalModelCategory;
   sizeDisplay: string;
+  approximateDownloadBytes: number;
   minRamGb: number;
   webLlmModelId: string;
   strengths: readonly string[];
 }
 
 export const DEFAULT_LOCAL_MODEL_ID = "smollm2-1.7b";
+export const MAX_LOCAL_MODEL_BUNDLE_BYTES = 2_000_000_000;
 
 export const LOCAL_MODELS: Readonly<Record<string, LocalModelSpec>> = {
-  "qwen-2.5-3b": {
-    id: "qwen-2.5-3b",
-    name: "Qwen 2.5 3B · Workhorse",
-    tagline: "Structured output and dependable daily task planning",
-    category: "structured",
-    sizeDisplay: "~1.8 GB",
-    minRamGb: 6,
-    webLlmModelId: "Qwen2.5-3B-Instruct-q4f16_1-MLC",
-    strengths: ["Structured JSON", "Task and subtask planning", "Balanced speed"],
-  },
-  "llama-3.2-3b": {
-    id: "llama-3.2-3b",
-    name: "Llama 3.2 3B · Speed",
-    tagline: "Quick task cleanup and lightweight workspace actions",
+  "llama-3.2-1b": {
+    id: "llama-3.2-1b",
+    name: "Llama 3.2 1B · Quick",
+    tagline: "A compact model for quick questions and task updates",
     category: "fast",
-    sizeDisplay: "~1.8 GB",
+    sizeDisplay: "~0.7 GB",
+    approximateDownloadBytes: 710_817_850,
     minRamGb: 4,
-    webLlmModelId: "Llama-3.2-3B-Instruct-q4f16_1-MLC",
-    strengths: ["Quick-add tasks", "Priority suggestions", "Lower resource use"],
+    webLlmModelId: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
+    strengths: ["Quick replies", "Task updates", "Compact download"],
   },
   "smollm2-1.7b": {
     id: "smollm2-1.7b",
-    name: "SmolLM2 1.7B · Lightweight",
-    tagline: "A smaller model for modest hardware",
-    category: "fast",
-    sizeDisplay: "~1.1 GB",
+    name: "SmolLM2 1.7B · Everyday",
+    tagline: "A capable local model for planning and everyday workspace help",
+    category: "structured",
+    sizeDisplay: "~1.0 GB",
+    approximateDownloadBytes: 973_038_265,
     minRamGb: 4,
     webLlmModelId: "SmolLM2-1.7B-Instruct-q4f16_1-MLC",
-    strengths: ["Smaller download", "Simple task extraction", "Laptop-friendly"],
-  },
-  "deepseek-r1-7b": {
-    id: "deepseek-r1-7b",
-    name: "DeepSeek-R1 Distill 7B · Deep Thinker",
-    tagline: "Detailed decomposition for broad, multi-step goals",
-    category: "reasoning",
-    sizeDisplay: "~4.8 GB",
-    minRamGb: 12,
-    webLlmModelId: "DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC",
-    strengths: ["Milestone decomposition", "Long-range planning", "Dependency analysis"],
-  },
-  "qwen-2.5-coder-7b": {
-    id: "qwen-2.5-coder-7b",
-    name: "Qwen 2.5 Coder 7B · Engineering",
-    tagline: "Technical projects, engineering plans, and development tasks",
-    category: "coder",
-    sizeDisplay: "~4.8 GB",
-    minRamGb: 12,
-    webLlmModelId: "Qwen2.5-Coder-7B-Instruct-q4f16_1-MLC",
-    strengths: ["Technical task breakdown", "API and schema planning", "Development sprints"],
-  },
-  "gemma-2-2b": {
-    id: "gemma-2-2b",
-    name: "Gemma 2 2B · Creative",
-    tagline: "Polish rough ideas into clear project proposals",
-    category: "creative",
-    sizeDisplay: "~1.8 GB",
-    minRamGb: 6,
-    webLlmModelId: "gemma-2-2b-it-q4f16_1-MLC",
-    strengths: ["Idea refinement", "Natural writing", "Project descriptions"],
+    strengths: ["Workspace planning", "Task breakdowns", "Everyday questions"],
   },
 };
 

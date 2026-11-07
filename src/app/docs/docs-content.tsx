@@ -916,7 +916,7 @@ Output JSON only:
   "assumptions": ["..."] }`}/>
 
               <SectionTitle id="local-models">On-device models, Ollama, and WebGPU</SectionTitle>
-              <p className="leading-8">Folio chooses a device-aware WebLLM model, starting with SmolLM2 1.7B when system memory is unknown or limited. The configured Qwen2.5 3B model remains the balanced default for devices with enough reported memory. Its configured context window is 4,096 tokens, input is capped at 4,000 characters, output at 2,048 tokens, and its daily token allowance is 50,000; the UI exposes usage as a percentage only. A one-click batch downloads compatible models sequentially into browser storage. Devices reporting under 4 GB do not expose Folio AI; model choices above the reported memory tier are hidden. Mobile browsers also need WebGPU. Inference stays on-device, while conversation history and task progress sync to the Folio account.</p>
+              <p className="leading-8">Folio offers two compact WebLLM models: Llama 3.2 1B for quick replies and SmolLM2 1.7B for fuller workspace planning. Download both sequentially in one action; their combined model files are about 1.7 GB and stay within the 2 GB bundle limit. Folio recommends Llama on devices with unknown or limited memory and SmolLM2 on devices reporting at least 8 GB; devices reporting under 4 GB do not expose Folio AI. The configured context window is 4,096 tokens, input is capped at 4,000 characters, output at 2,048 tokens, and the daily token allowance is 50,000; the UI exposes usage as a percentage only. Mobile browsers also need WebGPU. Inference stays on-device, while conversation history and task progress sync to the Folio account.</p>
               <p className="mt-4 leading-8">A local Ollama-compatible OpenAI endpoint can be used as an integration option in a development environment when a provider adapter is configured to call it. Typical local URL is <code>http://localhost:11434/v1</code>; do not expose that endpoint publicly without authentication and network controls. A browser page cannot safely assume it may call localhost: browser mixed-content, CORS, private-network and permission policies vary. The current repository’s default Folio AI provider is WebLLM/WebGPU, not an Ollama HTTP client.</p>
               <CodeBlock language="local model comparison" code={`Path                 Inference location    Privacy / tradeoff
 WebLLM + WebGPU      User's browser         Prompt/model inference local;
@@ -926,8 +926,8 @@ Ollama + local API   User's device service  Local if bound to loopback;
 Hosted model API     Provider's servers     Strong availability/model choice;
                                            workspace context leaves device
 
-Current Folio default: device-aware WebLLM (SmolLM2 1.7B when memory is unknown or limited;
-Qwen2.5 3B as the balanced model).
+Current Folio default: device-aware WebLLM (Llama 3.2 1B for unknown or limited
+system memory; SmolLM2 1.7B for everyday planning).
 Conversation/task history and quota metadata sync to Folio; model inference
 and downloaded weights remain on the device. Roster entries require compatible
 compiled model artifacts, memory, and registry availability.`}/>

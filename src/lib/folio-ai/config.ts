@@ -7,11 +7,11 @@
  */
 export const FOLIO_AI_CONFIG = {
   provider: "webllm" as const,
-  modelId: "Qwen2.5-3B-Instruct-q4f16_1-MLC",
-  modelName: "Qwen2.5 3B Instruct · Q4F16",
+  modelId: "SmolLM2-1.7B-Instruct-q4f16_1-MLC",
+  modelName: "SmolLM2 1.7B Instruct · Q4F16",
   webLLMVersion: "0.2.87",
-  approximateDownloadBytes: 1_800_000_000,
-  requiredGpuMemoryMB: 2_504.76,
+  approximateDownloadBytes: 973_038_265,
+  requiredGpuMemoryMB: 1_774.19,
   contextWindowTokens: 4_096,
   maxInputCharacters: 4_000,
   maxOutputTokens: 2_048,
