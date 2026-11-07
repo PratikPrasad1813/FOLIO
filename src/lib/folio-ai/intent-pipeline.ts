@@ -206,13 +206,28 @@ function parseAndValidatePlanJson(raw: string): { id: string; params: Record<str
 
     // Normalize IDs before validation
     const normalizedList = actionList.map(item => {
-      if (item && typeof item === "object" && typeof (item as Record<string, unknown>).id === "string") {
-        return {
-          ...(item as Record<string, unknown>),
-          id: normalizeActionId((item as Record<string, unknown>).id as string),
-        };
+      if (!item || typeof item !== "object" || typeof (item as Record<string, unknown>).id !== "string") {
+        return item;
       }
-      return item;
+
+      const record = item as Record<string, unknown>;
+      const id = normalizeActionId(record.id as string);
+      const params = record.params && typeof record.params === "object" && !Array.isArray(record.params)
+        ? { ...(record.params as Record<string, unknown>) }
+        : record.params;
+      if (
+        (id === "create_project" || id === "update_project") &&
+        params &&
+        typeof params === "object" &&
+        !Array.isArray(params)
+      ) {
+        const projectParams = params as Record<string, unknown>;
+        if (projectParams.name === undefined) {
+          const alias = projectParams.title ?? projectParams.projectName;
+          if (typeof alias === "string") projectParams.name = alias;
+        }
+      }
+      return { ...record, id, params };
     });
 
     return validateActionPlan(normalizedList);
@@ -244,7 +259,7 @@ export function parseNaturalLanguageIntent(
   // e.g., "Create a project with five tasks."
   const isCreateProject =
     !isAddTasksToExisting &&
-    /\b(create|start|make|set up|new)\b.*\bproject\b/i.test(lower) &&
+    /\b(create|start|make|set up|add|new)\b.*\bproject\b/i.test(lower) &&
     !/\b(convert|turn)\b/i.test(lower);
 
   if (isCreateProject) {
@@ -253,7 +268,7 @@ export function parseNaturalLanguageIntent(
     const nameMatch =
       text.match(/(?:called|named|titled)\s+["'“]?([^"'”\n,.]+?)["'”]?\s*(?:with|\.|\,|$)/i) ??
       text.match(/project\s+["'“]([^"'”\n]+?)["'”]/i) ??
-      text.match(/(?:create|start|make|new)\s+(?:a\s+)?project\s+([A-Z][A-Za-z0-9\s-]+?)(?:\s+with|\.|\,|$)/);
+      text.match(/(?:create|start|make|add|new)\s+(?:a\s+)?project\s+([A-Z][A-Za-z0-9\s-]+?)(?:\s+with|\.|\,|$)/);
 
     if (nameMatch) {
       projectName = nameMatch[1].trim();

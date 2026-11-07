@@ -80,6 +80,7 @@ Rules:
 - Only use action ids you know: create_project, update_project, archive_project, restore_project, delete_project, create_task, create_tasks, update_task, complete_task, reopen_task, delete_task, delete_tasks, create_idea, update_idea, delete_idea, convert_idea, search_workspace, workspace_summary, task_report, project_report, list_calendar_events, create_calendar_event, update_calendar_event, delete_calendar_event, list_reminders, create_reminder, cancel_reminder, delete_reminder.
 - Include dates as YYYY-MM-DD. For calendar events use ISO datetimes.
 - For destructive or bulk operations, still emit the plan; Folio AI will show a confirmation preview before anything is executed.
+- For create_project and update_project, use "name" for the project name (not "title").
 - Never claim an action succeeded before the backend confirms it. After execution the app will tell you the real results.
 - Never emit more than one action plan block per message. If you are only answering a question, do not emit a block.
 - Never expose or request credentials, tokens, or database details.
@@ -119,9 +120,18 @@ function visibleError(error: unknown): string {
 
 function stripActionBlock(content: string): string {
   const start = content.indexOf(AI_ACTION_PLAN_OPEN);
-  const end = content.lastIndexOf(AI_ACTION_PLAN_CLOSE);
-  if (start < 0 || end < 0 || end <= start) return content;
-  return `${content.slice(0, start).trim()}${content.slice(end + AI_ACTION_PLAN_CLOSE.length).trim() ? `\n\n${content.slice(end + AI_ACTION_PLAN_CLOSE.length).trim()}` : ""}`.trim();
+  if (start >= 0) {
+    const end = content.lastIndexOf(AI_ACTION_PLAN_CLOSE);
+    const before = content.slice(0, start).trim();
+    if (end < start) return before;
+    const after = content.slice(end + AI_ACTION_PLAN_CLOSE.length).trim();
+    return `${before}${after ? `\n\n${after}` : ""}`.trim();
+  }
+
+  const barePlan = content.search(/\{\s*["']actions["']\s*:/);
+  const close = content.indexOf(AI_ACTION_PLAN_CLOSE);
+  const protocolStart = barePlan >= 0 ? Math.min(barePlan, close >= 0 ? close : barePlan) : close;
+  return protocolStart >= 0 ? content.slice(0, protocolStart).trim() : content;
 }
 
 function formatElapsed(seconds: number): string {
@@ -1276,7 +1286,7 @@ export function FolioAIPanel() {
 
   async function copyMessage(message: AIMessage) {
     try {
-      await navigator.clipboard.writeText(message.content);
+      await navigator.clipboard.writeText(stripActionBlock(message.content));
       setCopyId(message.id);
       window.setTimeout(() => setCopyId(null), 1500);
     } catch {
@@ -1797,6 +1807,13 @@ export function FolioAIPanel() {
                 <Sparkles size={13} />
                 {qualityOfferDismissed ? "Explore quality models" : "Optional quality models"}
               </button>
+            )}
+            {compactModelsInstalled && compatibleQualityModels.length === 0 && (
+              <p className="fa-batch-note" role="status">
+                {compatibility.deviceMemoryGB === undefined
+                  ? "Quality upgrades are hidden because this browser does not report device memory."
+                  : "No quality upgrades meet this device’s reported memory and WebGPU requirements."}
+              </p>
             )}
             <button type="button" className="pj-link fa-settings-link" onClick={() => setSettingsOpen(true)}>Assistant identity &amp; more <ChevronDown size={12} /></button>
           </section>

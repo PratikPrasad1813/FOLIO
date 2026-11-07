@@ -158,6 +158,16 @@ try {
   const validatedDep = validateActionPlan(planWithDep);
   equal(validatedDep[1].params.projectId, "$project.id", "Dependent placeholder $project.id is valid");
 
+  // 1.6 Common "add a project" wording and model-generated title aliases
+  const addProjectIntent = parseNaturalLanguageIntent("add a project called 'Folio - Rebuild'");
+  ok(addProjectIntent && addProjectIntent.actions.length === 1, "Parses the common 'add a project called' request");
+  equal(addProjectIntent.actions[0].params.name, "Folio - Rebuild", "Extracts the exact requested project name");
+  const modelProjectPlan = repairAndExtractActionPlan(
+    `[AI_ACTION_PLAN]\n{"actions":[{"id":"create_project","params":{"title":"Folio - Rebuild","description":"Creates a new project."}}]}\n[/AI_ACTION_PLAN]`,
+  );
+  ok(modelProjectPlan !== null, "Accepts a model project plan that uses title instead of name");
+  equal(modelProjectPlan[0].params.name, "Folio - Rebuild", "Normalizes the model's project title to Folio's name field");
+
   console.log("✓ Robust multi-strategy action extraction and JSON repair verified");
 
   console.log("\n--- SECTION 2: The 12 Real Workspace Workflows ---");

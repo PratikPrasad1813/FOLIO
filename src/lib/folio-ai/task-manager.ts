@@ -577,8 +577,17 @@ async function runTaskLifecycle(
       error instanceof Error &&
       /(?:context|prompt).{0,40}(?:length|window|limit|size|exceed|too (?:long|large))|(?:maximum|max).{0,30}(?:context|sequence|token|length)|too many tokens/i.test(error.message);
 
-    const nextStatus: AITaskStatus = isUserCancel ? "cancelled" : "failed";
-    const errorMessage = isUserCancel
+    const recoveredActions = !isUserCancel && options.prompt
+      ? parseNaturalLanguageIntent(options.prompt, options.workspaceContext)?.actions ?? null
+      : null;
+    const recoveredPlan = recoveredActions?.length ? { actions: recoveredActions } : null;
+    const recoveredContent = "I prepared the requested Folio action for your review below.";
+    const nextStatus: AITaskStatus = isUserCancel
+      ? "cancelled"
+      : recoveredPlan
+        ? "waiting"
+        : "failed";
+    const errorMessage = isUserCancel || recoveredPlan
       ? null
       : isStall
         ? "The AI worker stopped producing output for 5 minutes. Partial output was saved and estimated local token usage was counted."
@@ -589,6 +598,8 @@ async function runTaskLifecycle(
           : "Generation could not be completed.";
     const nextStage = isUserCancel
       ? "Cancelled by user · usage updated"
+      : recoveredPlan
+        ? "Action plan ready · waiting for your review"
       : isContextLimit
         ? "Request too long · split into smaller prompts"
       : accumulatedText.trim()
@@ -601,7 +612,7 @@ async function runTaskLifecycle(
         {
           status: nextStatus,
           stage: nextStage,
-          partialContent: accumulatedText,
+          partialContent: recoveredPlan ? recoveredContent : accumulatedText,
           tokenCount,
           usageTokens: Math.max(
             usageTokenCount,
@@ -611,6 +622,7 @@ async function runTaskLifecycle(
             ),
           ),
           errorMessage,
+          plan: recoveredPlan,
         },
         true,
       );
@@ -623,9 +635,10 @@ async function runTaskLifecycle(
         ...snapshot.task,
         status: nextStatus,
         stage: nextStage,
-        partialContent: accumulatedText,
+        partialContent: recoveredPlan ? recoveredContent : accumulatedText,
         tokenCount,
         usageTokenCount,
+        plan: recoveredPlan,
         errorMessage,
         completedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
