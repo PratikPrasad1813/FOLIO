@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ChevronDown, Download, Globe2 } from "lucide-react";
+import { DESKTOP_DOWNLOADS, getDesktopDownloadHref } from "@/lib/desktop-downloads";
 
 type DesktopPlatform = "windows" | "macos" | "linux" | "unknown";
 type PlatformLogoProps = { size?: number; className?: string };
@@ -10,29 +11,24 @@ type PlatformIconComponent = (props: PlatformLogoProps) => React.JSX.Element;
 
 const RELEASES = {
   latest: "https://github.com/PratikPrasad1813/FOLIO/releases/latest",
-  windowsExe: "https://github.com/PratikPrasad1813/FOLIO/releases/latest/download/Folio_1.0.0_x64-setup.exe",
-  windowsMsi: "https://github.com/PratikPrasad1813/FOLIO/releases/latest/download/Folio_1.0.0_x64_en-US.msi",
-  macos: "https://github.com/PratikPrasad1813/FOLIO/releases/latest/download/Folio_1.0.0_universal.dmg",
-  linuxDeb: "https://github.com/PratikPrasad1813/FOLIO/releases/latest/download/folio_1.0.0_amd64.deb",
-  linuxAppImage: "https://github.com/PratikPrasad1813/FOLIO/releases/latest/download/Folio_1.0.0_amd64.AppImage",
 } as const;
 
 const RECOMMENDATIONS: Record<
   DesktopPlatform,
   { label: string; href: string; Icon: PlatformIconComponent | typeof Download }
 > = {
-  windows: { label: "Download for Windows (.exe)", href: RELEASES.windowsExe, Icon: WindowsLogo },
-  macos: { label: "Download for macOS (.dmg)", href: RELEASES.macos, Icon: AppleLogo },
-  linux: { label: "Download for Linux (.deb)", href: RELEASES.linuxDeb, Icon: LinuxLogo },
-  unknown: { label: "Download Desktop App", href: RELEASES.latest, Icon: Download },
+  windows: { label: "Download for Windows (.exe)", href: getDesktopDownloadHref("windows-exe"), Icon: WindowsLogo },
+  macos: { label: "Download for macOS (.dmg)", href: getDesktopDownloadHref("macos-dmg"), Icon: AppleLogo },
+  linux: { label: "Download for Linux (.deb)", href: getDesktopDownloadHref("linux-deb"), Icon: LinuxLogo },
+  unknown: { label: "Download Desktop App", href: "/download", Icon: Download },
 };
 
 const DOWNLOAD_OPTIONS = [
-  { label: "Windows installer (.exe)", detail: "64-bit Windows", href: RELEASES.windowsExe, Icon: WindowsLogo },
-  { label: "Windows package (.msi)", detail: "64-bit Windows", href: RELEASES.windowsMsi, Icon: WindowsLogo },
-  { label: "macOS universal disk image (.dmg)", detail: "Apple Silicon and Intel", href: RELEASES.macos, Icon: AppleLogo },
-  { label: "Linux package (.deb)", detail: "Debian and Ubuntu, x86_64", href: RELEASES.linuxDeb, Icon: LinuxLogo },
-  { label: "Linux image (.AppImage)", detail: "Portable x86_64 package", href: RELEASES.linuxAppImage, Icon: LinuxLogo },
+  { ...DESKTOP_DOWNLOADS["windows-exe"], href: getDesktopDownloadHref("windows-exe"), Icon: WindowsLogo },
+  { ...DESKTOP_DOWNLOADS["windows-msi"], href: getDesktopDownloadHref("windows-msi"), Icon: WindowsLogo },
+  { ...DESKTOP_DOWNLOADS["macos-dmg"], href: getDesktopDownloadHref("macos-dmg"), Icon: AppleLogo },
+  { ...DESKTOP_DOWNLOADS["linux-deb"], href: getDesktopDownloadHref("linux-deb"), Icon: LinuxLogo },
+  { ...DESKTOP_DOWNLOADS["linux-appimage"], href: getDesktopDownloadHref("linux-appimage"), Icon: LinuxLogo },
 ] as const;
 
 function WindowsLogo({ size = 17, className }: PlatformLogoProps) {
@@ -132,14 +128,14 @@ export function HeroDownload() {
   return (
     <div className="flex flex-wrap items-center justify-center gap-2.5">
       <div className="relative flex items-stretch" ref={dropdownRef}>
-        <a
+        <Link
           href={recommendation.href}
           className="lp-button is-primary !gap-2.5 !rounded-r-none !border-r !border-violet-600 !border-r-white/20 !bg-violet-600 !px-4 !text-white shadow-[0_8px_28px_rgba(109,40,217,0.28)] transition hover:!bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-400 sm:!px-5"
           aria-label={recommendation.label}
         >
           <PlatformIcon size={17} aria-hidden="true" />
           <span>{recommendation.label}</span>
-        </a>
+        </Link>
         <button
           type="button"
           className="inline-flex min-h-[47px] items-center justify-center rounded-r-md border border-l-0 border-violet-500/60 bg-violet-700 px-3 text-white transition hover:bg-violet-600 focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-400"
@@ -159,7 +155,7 @@ export function HeroDownload() {
               Desktop downloads
             </p>
             {DOWNLOAD_OPTIONS.map(({ label, detail, href, Icon }) => (
-              <a
+              <Link
                 key={label}
                 href={href}
                 onClick={() => setOpen(false)}
@@ -171,7 +167,7 @@ export function HeroDownload() {
                   <span className="mt-0.5 block text-[10px] text-slate-400">{detail}</span>
                 </span>
                 <Download size={13} className="shrink-0 text-slate-500" aria-hidden="true" />
-              </a>
+              </Link>
             ))}
             <div className="my-1 border-t border-slate-700" />
             <Link
