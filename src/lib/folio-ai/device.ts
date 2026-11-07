@@ -13,7 +13,7 @@ export function isLocalAIAvailable(memoryGB = getDeviceMemoryGB()): boolean {
 }
 
 interface GPUAdapterInfoLike { description?: string; vendor?: string; architecture?: string; device?: string }
-interface GPUAdapterLike { info?: GPUAdapterInfoLike; requestDevice?: () => Promise<unknown> }
+interface GPUAdapterLike { info?: GPUAdapterInfoLike; features?: Iterable<string>; requestDevice?: () => Promise<unknown> }
 interface NavigatorWithGPU extends Navigator { gpu?: { requestAdapter: () => Promise<GPUAdapterLike | null> } }
 
 export async function checkLocalAICompatibility(): Promise<AICompatibility> {
@@ -56,12 +56,13 @@ export async function checkLocalAICompatibility(): Promise<AICompatibility> {
     }
     const info = adapter.info;
     const label = info?.description || info?.vendor || info?.architecture || undefined;
+    const webgpuFeatures = Array.from(adapter.features ?? []);
     // deviceMemory is intentionally a warning only: browsers expose a coarse
     // system-memory bucket, not free VRAM, so it cannot establish compatibility.
     if (memory && memory < 8) {
-      return { state: "caution", title: "WebGPU is available · limited memory", message: `The ${FOLIO_AI_CONFIG.modelName} model needs about ${FOLIO_AI_CONFIG.requiredGpuMemoryMB.toLocaleString()} MB of GPU memory. Browser memory estimates are coarse; you can still try loading it. If the device runs out of resources, close other GPU-heavy tabs and retry.`, adapter: label, deviceMemoryGB: memory };
+      return { state: "caution", title: "WebGPU is available · limited memory", message: `The ${FOLIO_AI_CONFIG.modelName} model needs about ${FOLIO_AI_CONFIG.requiredGpuMemoryMB.toLocaleString()} MB of GPU memory. Browser memory estimates are coarse; you can still try loading it. If the device runs out of resources, close other GPU-heavy tabs and retry.`, adapter: label, deviceMemoryGB: memory, webgpuFeatures };
     }
-    return { state: "supported", title: "WebGPU is available", message: "The model will run locally in this browser. Your prompts and replies stay on this device.", adapter: label, deviceMemoryGB: memory };
+    return { state: "supported", title: "WebGPU is available", message: "The model will run locally in this browser. Your prompts and replies stay on this device.", adapter: label, deviceMemoryGB: memory, webgpuFeatures };
   } catch {
     return { state: "unsupported", title: "Could not access WebGPU", message: "The browser could not initialize a GPU adapter. Check browser permissions, hardware acceleration, and GPU drivers, then retry the compatibility check.", deviceMemoryGB: memory };
   }

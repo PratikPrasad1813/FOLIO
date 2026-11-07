@@ -5,6 +5,7 @@ import { ensureSchema } from "@/db/migrate";
 import type { AIPreferences, AssistantPresentation, AssistantStyle } from "@/lib/folio-ai/types";
 import { ASSISTANT_PRESENTATIONS, ASSISTANT_STYLES } from "@/lib/folio-ai/types";
 import { MODEL_BY_ID, MODEL_PREFERENCES, type ModelPreference } from "@/lib/folio-ai/models";
+import { getLocalModelByWebLLMId } from "@/lib/folio-ai/model-catalog";
 
 export const DEFAULT_AI_PREFERENCES: AIPreferences = {
   assistantName: "Folio AI",
@@ -57,7 +58,10 @@ export async function getAIPreferences(userId: string): Promise<AIPreferencesRes
         presentation: (row.presentation as AssistantPresentation) || "neutral",
         style: (row.style as AssistantStyle) || "friendly",
         modelPreference: (row.modelPreference as ModelPreference) || "automatic",
-        selectedModelId: row.selectedModelId && MODEL_BY_ID[row.selectedModelId]
+        selectedModelId: row.selectedModelId && (
+          MODEL_BY_ID[row.selectedModelId] ||
+          getLocalModelByWebLLMId(row.selectedModelId)
+        )
           ? row.selectedModelId
           : null,
       },

@@ -1,6 +1,6 @@
 "use client";
 
-import { estimateTokenCount, FOLIO_AI_CONFIG } from "@/lib/folio-ai/config";
+import { estimateTokenCount, FOLIO_AI_CONFIG, maxReservedTokensForModel } from "@/lib/folio-ai/config";
 import { extractActionPlan } from "@/lib/folio-ai/actions";
 import { parseNaturalLanguageIntent, type WorkspaceSummaryContext } from "@/lib/folio-ai/intent-pipeline";
 import type { LocalAIProvider, LocalChatMessage } from "@/lib/folio-ai/provider";
@@ -320,10 +320,12 @@ async function runTaskLifecycle(
 ) {
   const { snapshot, controller, provider } = runner;
   const taskId = snapshot.task.id;
+  const taskTokenLimit = maxReservedTokensForModel(snapshot.task.modelId);
   let accumulatedText = initialPartial;
   let tokenCount = initialTokens;
   let usageTokenCount = 0;
   let completedLocally = false;
+  let providerStage: string | null = null;
 
   const resetStallWatchdog = () => {
     snapshot.lastActivityAtMs = Date.now();
@@ -334,6 +336,7 @@ async function runTaskLifecycle(
   };
 
   const computeRunningStage = () => {
+    if (providerStage) return providerStage;
     const elapsedMs = Date.now() - snapshot.startedAtMs;
     if (tokenCount === 0) {
       if (elapsedMs >= FOLIO_AI_CONFIG.extendedRunningThresholdMilliseconds) {
@@ -461,18 +464,33 @@ async function runTaskLifecycle(
     );
     usageTokenCount = estimatedPromptTokens;
 
-    const result = await provider.generate(messagesToSend, controller.signal, token => {
-      resetStallWatchdog();
-      accumulatedText += token;
-      tokenCount += 1;
-      usageTokenCount = Math.min(
-        FOLIO_AI_CONFIG.maxReservedTokensPerGeneration,
-        estimatedPromptTokens + estimateTokenCount(accumulatedText),
-      );
-      if (!paintFrame) {
-        paintFrame = requestAnimationFrame(flushToSnapshot);
-      }
-    });
+    const result = await provider.generate(
+      messagesToSend,
+      controller.signal,
+      token => {
+        resetStallWatchdog();
+        accumulatedText += token;
+        tokenCount += 1;
+        usageTokenCount = Math.min(
+          taskTokenLimit,
+          Math.max(usageTokenCount, estimatedPromptTokens + estimateTokenCount(accumulatedText)),
+        );
+        if (!paintFrame) {
+          paintFrame = requestAnimationFrame(flushToSnapshot);
+        }
+      },
+      stage => {
+        providerStage = stage;
+        snapshot.task = { ...snapshot.task, stage, updatedAt: new Date().toISOString() };
+        snapshotsByTaskId.set(taskId, snapshot);
+        latestByConversationId.set(snapshot.task.conversationId, snapshot);
+        emitChange();
+      },
+      tokens => {
+        usageTokenCount = Math.min(taskTokenLimit, Math.max(usageTokenCount, Math.floor(tokens)));
+        resetStallWatchdog();
+      },
+    );
 
     flushToSnapshot();
     const finalText = (initialPartial ? `${initialPartial}${result.text}` : result.text).trim();
@@ -483,7 +501,7 @@ async function runTaskLifecycle(
     completedLocally = true;
     tokenCount = result.outputTokens || estimateTokenCount(result.text);
     usageTokenCount = Math.min(
-      FOLIO_AI_CONFIG.maxReservedTokensPerGeneration,
+      taskTokenLimit,
       (result.promptTokens ?? estimatedPromptTokens) + tokenCount,
     );
 
@@ -588,7 +606,7 @@ async function runTaskLifecycle(
           usageTokens: Math.max(
             usageTokenCount,
             Math.min(
-              FOLIO_AI_CONFIG.maxReservedTokensPerGeneration,
+              taskTokenLimit,
               estimateTokenCount(accumulatedText),
             ),
           ),

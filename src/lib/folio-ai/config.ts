@@ -17,6 +17,7 @@ export const FOLIO_AI_CONFIG = {
   maxOutputTokens: 2_048,
   dailyTokenLimit: 50_000,
   maxReservedTokensPerGeneration: 6_144,
+  maxReservedTokensPerOrchestratedGeneration: 16_384,
   approximateCharactersPerToken: 4,
   maxContextMessages: 8,
   maxContextCharacters: 6_000,
@@ -29,6 +30,14 @@ export const FOLIO_AI_CONFIG = {
   usageRefreshMilliseconds: 20_000,
   historyMessageLimit: 40,
 } as const;
+
+export const MULTI_MODEL_WORKFLOW_ID = "folio-multi-model-v1";
+
+export function maxReservedTokensForModel(modelId?: string): number {
+  return modelId === MULTI_MODEL_WORKFLOW_ID
+    ? FOLIO_AI_CONFIG.maxReservedTokensPerOrchestratedGeneration
+    : FOLIO_AI_CONFIG.maxReservedTokensPerGeneration;
+}
 
 export function approximateHumanSize(bytes: number): string {
   if (bytes >= 1_000_000_000) return `${(bytes / 1_000_000_000).toFixed(1)} GB`;

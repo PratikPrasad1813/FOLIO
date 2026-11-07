@@ -5,10 +5,14 @@ import { dateKey } from "@/lib/types";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   AlertTriangle, BrainCircuit, Check, CheckCircle2, ChevronDown, Clock3, Copy, Cpu, Download,
-  Gauge, MessageSquare, Moon, Play, Plus, RotateCcw, Send, ShieldCheck, Sparkles, Square, Trash2, WifiOff, X, Wand2,
+  Ellipsis, Gauge, GitBranch, MessageSquare, Moon, Play, Plus, RotateCcw, Send, ShieldCheck, Sparkles, Square, Trash2, WifiOff, X, Wand2,
 } from "lucide-react";
 import { Modal, Spinner } from "@/components/ui";
-import { FOLIO_AI_CONFIG, approximateHumanSize, estimateTokenCount } from "@/lib/folio-ai/config";
+import { MenuButton, MenuItem, MenuLabel, MenuSeparator } from "@/components/menu";
+import {
+  FOLIO_AI_CONFIG, MULTI_MODEL_WORKFLOW_ID,
+  approximateHumanSize, estimateTokenCount,
+} from "@/lib/folio-ai/config";
 import {
   checkLocalAICompatibility,
   isLocalAIAvailable,
@@ -39,12 +43,14 @@ import {
   type FolioAIModelInfo, type ModelPreference, type ModelTier,
 } from "@/lib/folio-ai/models";
 import {
-  DEFAULT_LOCAL_MODEL_ID, getCompatibleLocalModels, getLocalModelByWebLLMId,
+  ALL_LOCAL_MODEL_LIST, DEFAULT_LOCAL_MODEL_ID, getCompatibleLocalModels,
+  getCompatibleQualityModels, getLocalModelByWebLLMId,
   MAX_LOCAL_MODEL_BUNDLE_BYTES,
   type LocalModelSpec,
 } from "@/lib/folio-ai/model-catalog";
 import { WebLLMProvider } from "@/lib/folio-ai/webllm-provider";
-import { routeTaskPrompt } from "@/lib/folio-ai/task-router";
+import { assessPromptComplexity, routeTaskPrompt } from "@/lib/folio-ai/task-router";
+import { createQualityWorkflow, isQualityWorkflowAvailable, MultiModelWorkflowProvider } from "@/lib/folio-ai/multi-model-provider";
 import { FolioAIModelSelector } from "@/components/folio-ai-model-selector";
 import { FolioAIMarkdown } from "@/components/folio-ai-markdown";
 import {
@@ -54,7 +60,13 @@ import {
 } from "@/lib/folio-ai/types";
 import { useAiConversations, type AiPersistedMessage } from "@/lib/use-ai-conversations";
 
-const SYSTEM_PROMPT = (prefs: AIPreferences) => `You are ${prefs.assistantName}, Folio AI, a thoughtful planning companion that runs privately on the user's device. Your presentation is ${prefs.presentation === "custom" ? "chosen by the user" : prefs.presentation}, and your communication style is ${prefs.style}. You help organize the user's actual Folio workspace (projects, tasks, ideas, calendar, reminders) using only the official action protocol.
+const SYSTEM_PROMPT = (prefs: AIPreferences) => `You are ${prefs.assistantName}, Folio AI: a quietly confident, thoughtful companion for making progress on the user's work. You run privately on the user's device. Your presentation is ${prefs.presentation === "custom" ? "chosen by the user" : prefs.presentation}, and your communication style is ${prefs.style}. You help organize the user's actual Folio workspace (projects, tasks, ideas, calendar, reminders) using only the official action protocol.
+
+Voice:
+- Be warm, clear, grounded, and observant. Sound human without pretending to have feelings or personal experiences.
+- Notice the user's actual goal and offer the smallest useful next step. Ask one focused question when something important is unclear.
+- Keep simple answers to a few natural sentences. Use Markdown sparingly for real structure; do not use a heading for a short reply, and never leave raw formatting markers in the answer.
+- Avoid filler, canned enthusiasm, repeated summaries, and overly formal or robotic phrasing. Be encouraging without being sugary.
 
 You can perform real Folio actions by emitting one and only one action plan block at the very end of your reply:
 
@@ -361,6 +373,9 @@ export function FolioAIPanel() {
   const [limitReached, setLimitReached] = useState(false);
   const [copyId, setCopyId] = useState<string | null>(null);
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [qualityLibraryOpen, setQualityLibraryOpen] = useState(false);
+  const [deleteConversationId, setDeleteConversationId] = useState<string | null>(null);
+  const [deletingConversation, setDeletingConversation] = useState(false);
   const [showScrollToLatest, setShowScrollToLatest] = useState(false);
   const [plans, setPlans] = useState<
     Record<
@@ -397,6 +412,7 @@ export function FolioAIPanel() {
   const [activeModel, setActiveModel] = useState<FolioAIModelInfo | null>(initialProviderState.model);
   const [cacheStatus, setCacheStatus] = useState<Record<string, boolean>>({});
   const [autoRoute, setAutoRoute] = useState(true);
+  const [qualityOfferDismissed, setQualityOfferDismissed] = useState(false);
 
   const providerRef = useRef<Awaited<ReturnType<typeof getLocalProvider>> | null>(
     initialProviderState.provider,
@@ -643,6 +659,7 @@ export function FolioAIPanel() {
     try {
       const savedAutoRoute = window.localStorage.getItem("folio-ai-auto-route");
       if (savedAutoRoute !== null) setAutoRoute(savedAutoRoute === "true");
+      setQualityOfferDismissed(window.localStorage.getItem("folio-ai-quality-offer-dismissed") === "true");
     } catch (error) {
       console.warn("Folio AI could not read local model routing preference:", error);
     }
@@ -703,6 +720,30 @@ export function FolioAIPanel() {
     () => getCompatibleLocalModels(compatibility.deviceMemoryGB),
     [compatibility.deviceMemoryGB],
   );
+  const compatibleQualityModels = useMemo(
+    () => getCompatibleQualityModels(compatibility.deviceMemoryGB, compatibility.webgpuFeatures),
+    [compatibility.deviceMemoryGB, compatibility.webgpuFeatures],
+  );
+  const selectableLocalModels = useMemo(() => {
+    const availableIds = new Set(compatibleLocalModels.map(model => model.webLlmModelId));
+    for (const model of compatibleQualityModels) {
+      if (cacheStatus[model.webLlmModelId] || prefs?.selectedModelId === model.webLlmModelId) {
+        availableIds.add(model.webLlmModelId);
+      }
+    }
+    return ALL_LOCAL_MODEL_LIST.filter(model => availableIds.has(model.webLlmModelId));
+  }, [cacheStatus, compatibleLocalModels, compatibleQualityModels, prefs?.selectedModelId]);
+  const compactModelsInstalled =
+    compatibleLocalModels.length > 0 &&
+    compatibleLocalModels.every(model => cacheStatus[model.webLlmModelId]);
+  const installedQualityModels = useMemo(
+    () => compatibleQualityModels.filter(model => cacheStatus[model.webLlmModelId]),
+    [compatibleQualityModels, cacheStatus],
+  );
+  const qualityWorkflowStages = useMemo(
+    () => createQualityWorkflow(installedQualityModels),
+    [installedQualityModels],
+  );
   const deviceMemoryGB = compatibility.deviceMemoryGB;
   const aiUnavailableForMemory = deviceMemoryGB !== undefined && !isLocalAIAvailable(deviceMemoryGB);
 
@@ -715,22 +756,23 @@ export function FolioAIPanel() {
 
   const selectedModel = useMemo<FolioAIModelInfo | null>(() => {
     const fallbackSpec =
-      compatibleLocalModels.find(model => model.webLlmModelId === recommendation?.recommendedModel.modelId) ??
-      compatibleLocalModels.find(model => model.id === DEFAULT_LOCAL_MODEL_ID) ??
-      compatibleLocalModels[0];
+      selectableLocalModels.find(model => model.webLlmModelId === prefs?.selectedModelId) ??
+      selectableLocalModels.find(model => model.webLlmModelId === recommendation?.recommendedModel.modelId) ??
+      selectableLocalModels.find(model => model.id === DEFAULT_LOCAL_MODEL_ID) ??
+      selectableLocalModels[0];
     if (!fallbackSpec) return null;
     if (!prefs) return modelInfoFromLocalSpec(fallbackSpec);
     if (prefs.selectedModelId) {
-      const localModel = compatibleLocalModels.find(model => model.webLlmModelId === prefs.selectedModelId);
+      const localModel = selectableLocalModels.find(model => model.webLlmModelId === prefs.selectedModelId);
       if (localModel) return modelInfoFromLocalSpec(localModel);
     }
     if (prefs.modelPreference !== "automatic") {
       const preferredModel = MODEL_BY_TIER[prefs.modelPreference as ModelTier];
-      const compatiblePreference = compatibleLocalModels.find(model => model.webLlmModelId === preferredModel.modelId);
+      const compatiblePreference = selectableLocalModels.find(model => model.webLlmModelId === preferredModel.modelId);
       if (compatiblePreference) return modelInfoFromLocalSpec(compatiblePreference);
     }
     return modelInfoFromLocalSpec(fallbackSpec);
-  }, [prefs, recommendation, compatibleLocalModels]);
+  }, [prefs, recommendation, selectableLocalModels]);
 
   useEffect(() => {
     if (!selectedModel || (compatibility.state !== "supported" && compatibility.state !== "caution")) return;
@@ -741,14 +783,14 @@ export function FolioAIPanel() {
     const run = async () => {
       const webllm = await import("@mlc-ai/web-llm");
       const status: Record<string, boolean> = {};
-      for (const model of compatibleLocalModels) {
+      for (const model of [...compatibleLocalModels, ...compatibleQualityModels]) {
         status[model.webLlmModelId] = await webllm.hasModelInCache(model.webLlmModelId, webllm.prebuiltAppConfig).catch(() => false);
       }
       if (!cancelled) setCacheStatus(status);
     };
     void run();
     return () => { cancelled = true; };
-  }, [compatibility.state, selectedModel, compatibleLocalModels]);
+  }, [compatibility.state, selectedModel, compatibleLocalModels, compatibleQualityModels]);
 
   const assistantState = generating ? "thinking" : runningPlan ? "processing" : modelState === "ready" ? "idle" : modelState === "error" ? "error" : "idle";
 
@@ -762,23 +804,26 @@ export function FolioAIPanel() {
     } finally { setChecking(false); }
   }
 
-  async function loadModel() {
-    if (modelState === "loading" || modelState === "ready") return;
-    if (!selectedModel) return;
+  async function loadModel(modelOverride?: LocalModelSpec) {
+    if (!modelOverride && (modelState === "loading" || modelState === "ready")) return;
+    const modelToLoad = modelOverride
+      ? modelInfoFromLocalSpec(modelOverride)
+      : selectedModel;
+    if (!modelToLoad) return;
     setBatchState(null);
     setModelState("loading"); setModelError(null); setProgress({ progress: 0, text: "Loading the local AI engine…", cached: false });
     try {
-      const provider = await getLocalProvider(selectedModel);
+      const provider = await getLocalProvider(modelToLoad);
       providerRef.current = provider;
-      setActiveModel(selectedModel);
+      setActiveModel(modelToLoad);
       const result = await provider.initialize(setProgress);
-      markProviderReady(selectedModel, true);
-      setCacheStatus(status => ({ ...status, [selectedModel.modelId]: true }));
+      markProviderReady(modelToLoad, true);
+      setCacheStatus(status => ({ ...status, [modelToLoad.modelId]: true }));
       if (!mountedRef.current) return;
       setProgress(old => ({ ...old, progress: 1, text: result.cached ? "Cached model ready on this device." : "Model ready on this device.", cached: result.cached }));
       setModelState("ready");
     } catch (error) {
-      markProviderReady(selectedModel, false);
+      markProviderReady(modelToLoad, false);
       const details = classifyLoadError(error);
       console.error("Folio AI local model failed:", details.kind, error);
       if (!mountedRef.current) return;
@@ -786,11 +831,11 @@ export function FolioAIPanel() {
     }
   }
 
-  async function downloadCompatibleModels() {
+  async function downloadModels(models: readonly LocalModelSpec[], finalLabel: string) {
     if (modelState === "loading" || generating || runningPlan) return;
-    const queue = compatibleLocalModels.filter(model => !cacheStatus[model.webLlmModelId]);
+    const queue = models.filter(model => !cacheStatus[model.webLlmModelId]);
     if (!queue.length) {
-      setBatchState({ completed: 0, total: 0, current: "All compatible models are already downloaded.", progress: 1, errors: [] });
+      setBatchState({ completed: 0, total: 0, current: "All selected models are already downloaded.", progress: 1, errors: [] });
       return;
     }
 
@@ -836,15 +881,23 @@ export function FolioAIPanel() {
     setBatchState({
       completed: queue.length,
       total: queue.length,
-      current: errors.length ? "Some models could not be downloaded." : "All compatible models are ready in browser storage.",
+      current: errors.length ? "Some models could not be downloaded." : finalLabel,
       progress: 1,
       errors,
     });
     setModelState("idle");
   }
 
-  async function switchModel(model: FolioAIModelInfo, preference: ModelPreference) {
-    if (!prefs) return;
+  async function downloadCompatibleModels() {
+    await downloadModels(compatibleLocalModels, "All compatible compact models are ready in browser storage.");
+  }
+
+  async function downloadAllQualityModels() {
+    await downloadModels(compatibleQualityModels, "All compatible quality models are ready in browser storage.");
+  }
+
+  async function switchModel(model: FolioAIModelInfo, preference: ModelPreference): Promise<boolean> {
+    if (!prefs) return false;
     try {
       const response = await fetch("/api/ai/preferences", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ modelPreference: preference, selectedModelId: preference === "automatic" ? null : model.modelId }) });
       const body = await response.json();
@@ -854,8 +907,27 @@ export function FolioAIPanel() {
       providerRef.current = null;
       setModelState("idle"); setProgress({ progress: 0, text: "", cached: false }); setModelError(null);
       setSettingsOpen(false);
+      return true;
     } catch (error) {
       setPrefsError(visibleError(error));
+      return false;
+    }
+  }
+
+  async function installQualityModel(model: LocalModelSpec) {
+    if (modelState === "loading" || generating || pendingSyncTask || runningPlan) return;
+    setAutoRoute(false);
+    const installedPreference = await switchModel(modelInfoFromLocalSpec(model), "high");
+    if (!installedPreference) return;
+    await loadModel(model);
+  }
+
+  function continueWithCompactModels() {
+    setQualityOfferDismissed(true);
+    try {
+      window.localStorage.setItem("folio-ai-quality-offer-dismissed", "true");
+    } catch (error) {
+      console.warn("Folio AI could not save the quality-model offer preference:", error);
     }
   }
 
@@ -992,11 +1064,23 @@ export function FolioAIPanel() {
       return;
     }
 
-    const route = autoRoute ? routeTaskPrompt(text) : null;
+    const route = autoRoute ? routeTaskPrompt(text, selectableLocalModels) : null;
+    const useMultiModelWorkflow = !resumeOptions && autoRoute &&
+      isQualityWorkflowAvailable(
+        qualityWorkflowStages,
+        assessPromptComplexity(text) === "high" &&
+          compatibleQualityModels.length > 1 &&
+          installedQualityModels.length === compatibleQualityModels.length,
+      );
     const routedModel = route
-      ? compatibleLocalModels.find(model => model.id === route.model.id)
+      ? selectableLocalModels.find(model => model.id === route.model.id)
       : undefined;
-    const generationModel = routedModel ? modelInfoFromLocalSpec(routedModel) : selectedModel;
+    const workflowLead = useMultiModelWorkflow ? qualityWorkflowStages[0]?.model : undefined;
+    const generationModel = workflowLead
+      ? modelInfoFromLocalSpec(workflowLead)
+      : routedModel
+        ? modelInfoFromLocalSpec(routedModel)
+        : selectedModel;
     if (!generationModel) {
       setGenerationError("Choose a local model before sending a message.");
       return;
@@ -1022,7 +1106,29 @@ export function FolioAIPanel() {
 
     // Load the routed model on demand; WebLLM reuses its local cache when available.
     let provider = providerRef.current ?? getLoadedProviderState().provider;
-    if (!provider || provider.modelId !== generationModel.modelId || modelState !== "ready") {
+    if (useMultiModelWorkflow) {
+      try {
+        setBatchState(null);
+        setModelState("loading");
+        await unloadLocalProvider();
+        provider = new MultiModelWorkflowProvider(qualityWorkflowStages);
+        await provider.initialize(setProgress);
+        providerRef.current = provider;
+        setActiveModel({
+          ...generationModel,
+          modelId: MULTI_MODEL_WORKFLOW_ID,
+          modelName: `Multi-model workflow · ${qualityWorkflowStages.length} models`,
+          description: "Plans, reviews, writes, then prepares requested Folio actions locally.",
+          advantage: "Runs installed quality models in sequence, one model at a time.",
+          limitation: "Complex requests use more of your daily AI allowance.",
+        });
+        setModelState("ready");
+      } catch (error) {
+        setModelState("error");
+        setGenerationError(visibleError(error));
+        return;
+      }
+    } else if (!provider || provider.modelId !== generationModel.modelId || modelState !== "ready") {
       if (generationModel) {
         try {
           setBatchState(null);
@@ -1068,7 +1174,7 @@ export function FolioAIPanel() {
           resumeOptions?.task.conversationId ??
           activeConversationIdRef.current ??
           history.activeId,
-        modelId,
+        modelId: useMultiModelWorkflow ? MULTI_MODEL_WORKFLOW_ID : modelId,
         provider,
         contextMessages,
         workspaceContext: workspaceSummary ?? undefined,
@@ -1131,6 +1237,41 @@ export function FolioAIPanel() {
       loadedConversation.current = created.id;
       activeConversationIdRef.current = created.id;
     }
+  }
+
+  async function branchConversation(id: string) {
+    if (generating || pendingSyncTask || runningPlan) return;
+    loadedConversation.current = null;
+    try {
+      await (await getLocalProvider(selectedModel ?? MODEL_BY_TIER.balanced)).resetConversation();
+    } catch (error) {
+      console.warn("Model context reset failed:", error);
+    }
+    await history.branch(id);
+  }
+
+  async function deleteConversation() {
+    if (!deleteConversationId || deletingConversation) return;
+    const id = deleteConversationId;
+    const wasActive = id === history.activeId;
+    const hasOtherConversation = history.conversations.some(conversation => conversation.id !== id);
+    setDeletingConversation(true);
+    const deleted = await history.remove(id);
+    setDeletingConversation(false);
+    if (!deleted) return;
+    setDeleteConversationId(null);
+    if (!wasActive) return;
+    setMessages([]);
+    messagesRef.current = [];
+    setTasksById({});
+    actionHistoryRef.current = [];
+    setPlans({});
+    setDraft("");
+    setGenerationError("");
+    setLimitReached(false);
+    loadedConversation.current = null;
+    activeConversationIdRef.current = null;
+    if (!hasOtherConversation) await history.create();
   }
 
   async function copyMessage(message: AIMessage) {
@@ -1318,21 +1459,36 @@ export function FolioAIPanel() {
           <div className="fa-history-heading"><span>RECENT</span><MessageSquare size={13} /></div>
           <nav className="fa-history-list" aria-label="Recent conversations">
             {history.conversations.length ? history.conversations.slice(0, 12).map(conversation => (
-              <button
-                type="button"
-                key={conversation.id}
-                className={`fa-history-item${conversation.id === history.activeId ? " is-active" : ""}`}
-                title={conversation.title}
-                disabled={generating || Boolean(runningPlan)}
-                onClick={() => {
-                  if (conversation.id !== history.activeId) {
-                    loadedConversation.current = null;
-                    history.setActiveId(conversation.id);
-                  }
-                }}
-              >
-                <MessageSquare size={13} /><span>{conversation.title || "New conversation"}</span>
-              </button>
+              <div className="fa-history-row" key={conversation.id}>
+                <button
+                  type="button"
+                  className={`fa-history-item${conversation.id === history.activeId ? " is-active" : ""}`}
+                  title={conversation.title}
+                  disabled={generating || Boolean(pendingSyncTask) || Boolean(runningPlan)}
+                  onClick={() => {
+                    if (conversation.id !== history.activeId) {
+                      loadedConversation.current = null;
+                      history.setActiveId(conversation.id);
+                    }
+                  }}
+                >
+                  <MessageSquare size={13} /><span>{conversation.title || "New conversation"}</span>
+                </button>
+                <MenuButton
+                  label={`Actions for ${conversation.title || "New conversation"}`}
+                  trigger={<Ellipsis size={15} />}
+                  triggerClassName="fa-history-menu-trigger"
+                  width={196}
+                  disabled={generating || Boolean(pendingSyncTask) || Boolean(runningPlan)}
+                >
+                  {close => <>
+                    <MenuLabel>{conversation.title || "Conversation"}</MenuLabel>
+                    <MenuItem icon={<GitBranch size={14} />} onSelect={() => { close(); void branchConversation(conversation.id); }}>Branch into new chat</MenuItem>
+                    <MenuSeparator />
+                    <MenuItem icon={<Trash2 size={14} />} danger onSelect={() => { close(); setDeleteConversationId(conversation.id); }}>Delete conversation</MenuItem>
+                  </>}
+                </MenuButton>
+              </div>
             )) : <p className="fa-history-empty">{history.loading ? "Loading your conversations…" : "Your conversations will appear here."}</p>}
           </nav>
           <div className="fa-history-footer"><ShieldCheck size={14} /><span><strong>Private by design</strong><small>AI runs locally on your device.</small></span></div>
@@ -1523,15 +1679,17 @@ export function FolioAIPanel() {
             </div>
           )}
 
-          {(generationError || limitReached || usageError || pendingSyncTask) && (
+          {(generationError || history.error || limitReached || usageError || pendingSyncTask) && (
             <div className={`fa-alert ${limitReached ? "is-limit" : "is-error"}`} role={limitReached ? "status" : "alert"}>
               <AlertTriangle size={16} />
               <span>
                 {limitReached
                   ? "Your daily Folio AI usage allowance is fully used. It resets at the displayed time. You can continue using the rest of Folio normally."
-                  : pendingSyncTask
-                    ? "Your local response is ready; account usage has not synced yet. Retry usage sync when online."
-                    : generationError || usageError}
+                  : generationError || history.error
+                    ? generationError || history.error
+                    : pendingSyncTask
+                      ? "Your local response is ready; account usage has not synced yet. Retry usage sync when online."
+                      : usageError}
               </span>
               {pendingSyncTask && (
                 <button type="button" className="pj-btn is-secondary is-sm" onClick={() => void retryUsageSync()}>
@@ -1577,7 +1735,7 @@ export function FolioAIPanel() {
                 compatibleLocalModels[0]?.id ??
                 DEFAULT_LOCAL_MODEL_ID
               }
-              models={compatibleLocalModels}
+              models={selectableLocalModels}
               autoRoute={autoRoute}
               downloadedModelIds={new Set(
                 Object.entries(cacheStatus)
@@ -1630,6 +1788,16 @@ export function FolioAIPanel() {
                 )}
               </>
             )}
+            {compatibleQualityModels.length > 0 && compactModelsInstalled && (
+              <button
+                type="button"
+                className="pj-btn is-secondary is-sm fa-quality-open"
+                onClick={() => { setQualityLibraryOpen(true); setQualityOfferDismissed(false); }}
+              >
+                <Sparkles size={13} />
+                {qualityOfferDismissed ? "Explore quality models" : "Optional quality models"}
+              </button>
+            )}
             <button type="button" className="pj-link fa-settings-link" onClick={() => setSettingsOpen(true)}>Assistant identity &amp; more <ChevronDown size={12} /></button>
           </section>
 
@@ -1663,7 +1831,7 @@ export function FolioAIPanel() {
                   compatibleLocalModels[0]?.id ??
                   DEFAULT_LOCAL_MODEL_ID
                 }
-                models={compatibleLocalModels}
+                models={selectableLocalModels}
                 autoRoute={autoRoute}
                 downloadedModelIds={new Set(
                   Object.entries(cacheStatus)
@@ -1707,6 +1875,104 @@ export function FolioAIPanel() {
         <Modal title="Start a new conversation?" subtitle="Your current chat is saved and stays in your history." onClose={() => setClearConfirm(false)} className="fa-clear-modal">
           <div className="fa-clear-content"><span><MessageSquare size={22} /></span><p>Start a fresh conversation and reset the local model context? This chat stays in your history — reopen or delete it any time. Your account-wide AI usage percentage stays unchanged.</p></div>
           <div className="modal-footer"><button className="pj-btn is-secondary" onClick={() => setClearConfirm(false)}>Keep chatting</button><button className="pj-btn is-primary" onClick={() => { void startNewConversation(); setClearConfirm(false); }}><Plus size={14} />New conversation</button></div>
+        </Modal>
+      )}
+      {qualityLibraryOpen && (
+        <Modal
+          title="Optional quality models"
+          subtitle="Keep your compact models or install additional models that fit this device."
+          onClose={() => setQualityLibraryOpen(false)}
+          className="fa-quality-modal"
+          initialFocus="panel"
+        >
+          <div className="fa-quality-modal-body">
+            <p className="fa-quality-modal-intro">
+              These downloads are optional and stay on this device. Choose models individually or install every model recommended for your device. Folio will download one at a time to limit memory use.
+            </p>
+            <div className="fa-quality-modal-list">
+              {compatibleQualityModels.map(model => {
+                const cached = cacheStatus[model.webLlmModelId] === true;
+                const selected = prefs?.selectedModelId === model.webLlmModelId;
+                const inUse = selected && modelState === "ready" && activeModel?.modelId === model.webLlmModelId;
+                return (
+                  <article className="fa-quality-modal-card" key={model.id}>
+                    <div className="fa-quality-modal-top">
+                      <div><h3>{model.name}</h3><p>{model.tagline}</p></div>
+                      <span>{model.sizeDisplay}</span>
+                    </div>
+                    <div className="fa-quality-pros-cons">
+                      <div><strong>Good at</strong><ul>{model.strengths.map(item => <li key={item}>{item}</li>)}</ul></div>
+                      <div><strong>Trade-offs</strong><ul>{(model.tradeoffs ?? []).map(item => <li key={item}>{item}</li>)}</ul></div>
+                    </div>
+                    <div className="fa-quality-modal-footer">
+                      <small>{model.minRamGb} GB+ system memory suggested</small>
+                      <button
+                        type="button"
+                        className={`pj-btn ${inUse ? "is-secondary" : "is-primary"} is-sm`}
+                        disabled={inUse || modelState === "loading" || generating || Boolean(pendingSyncTask) || Boolean(runningPlan)}
+                        onClick={() => void installQualityModel(model)}
+                      >
+                        {modelState === "loading" && selected ? <Spinner size={13} /> : cached ? <CheckCircle2 size={13} /> : <Download size={13} />}
+                        {inUse ? "In use" : cached ? "Select & use" : "Download & use"}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+            {batchState && modelState === "loading" && (
+              <div className="fa-batch-status" role="status" aria-live="polite">
+                <span>{batchState.current}{batchState.total ? ` · ${batchState.completed + 1} of ${batchState.total}` : ""}</span>
+                <div className="fa-progress-track"><i style={{ width: `${Math.max(2, ((batchState.completed + batchState.progress) / Math.max(batchState.total, 1)) * 100)}%` }} /></div>
+                {batchState.errors.length > 0 && <ul>{batchState.errors.map(error => <li key={error}>{error}</li>)}</ul>}
+              </div>
+            )}
+            {modelState === "loading" && !batchState && (
+              <div className="fa-progress" role="status" aria-live="polite">
+                <div className="fa-progress-copy"><span>{progress.text || "Preparing the selected quality model…"}</span><strong>{Math.round(progress.progress * 100)}%</strong></div>
+                <div className="fa-progress-track"><i style={{ width: `${Math.max(2, progress.progress * 100)}%` }} /></div>
+              </div>
+            )}
+            {modelState === "error" && modelError && (
+              <div className="fa-model-error" role="alert">{modelError.message}</div>
+            )}
+            {batchState && modelState !== "loading" && batchState.errors.length > 0 && (
+              <div className="fa-model-error" role="alert"><strong>Some downloads need attention</strong><ul>{batchState.errors.map(error => <li key={error}>{error}</li>)}</ul></div>
+            )}
+            {batchState && modelState !== "loading" && !batchState.errors.length && (
+              <p className="fa-quality-modal-note" role="status">{batchState.current}</p>
+            )}
+            <div className="fa-quality-modal-actions">
+              <button
+                type="button"
+                className="pj-btn is-primary"
+                disabled={modelState === "loading" || generating || Boolean(pendingSyncTask) || Boolean(runningPlan) || compatibleQualityModels.every(model => cacheStatus[model.webLlmModelId])}
+                onClick={() => void downloadAllQualityModels()}
+              >
+                {modelState === "loading" ? <Spinner size={14} /> : <Download size={14} />}
+                {compatibleQualityModels.every(model => cacheStatus[model.webLlmModelId])
+                  ? "All compatible quality models installed"
+                  : `Install all · ${approximateHumanSize(compatibleQualityModels.filter(model => !cacheStatus[model.webLlmModelId]).reduce((total, model) => total + model.approximateDownloadBytes, 0))}`}
+              </button>
+              <button type="button" className="pj-btn is-secondary" onClick={() => { continueWithCompactModels(); setQualityLibraryOpen(false); }}>
+                Continue with current models
+              </button>
+            </div>
+            <p className="fa-quality-modal-note">
+              Installing a single model makes it your selected assistant. When all compatible quality models are installed, Folio can route complex prompts through them as a staged local workflow; workspace actions still wait for your review.
+            </p>
+          </div>
+        </Modal>
+      )}
+      {deleteConversationId && (
+        <Modal
+          title="Delete this conversation?"
+          subtitle="This permanently removes the conversation and its saved messages."
+          onClose={() => { if (!deletingConversation) setDeleteConversationId(null); }}
+          className="fa-clear-modal"
+        >
+          <div className="fa-clear-content"><span className="is-danger"><Trash2 size={20} /></span><p>You can’t undo this. Other conversations and your Folio workspace won’t be affected.</p></div>
+          <div className="modal-footer"><button className="pj-btn is-secondary" disabled={deletingConversation} onClick={() => setDeleteConversationId(null)}>Keep conversation</button><button className="pj-btn is-danger-ghost fa-delete-confirm" disabled={deletingConversation} onClick={() => void deleteConversation()}>{deletingConversation ? <Spinner size={14} /> : <Trash2 size={14} />}{deletingConversation ? "Deleting…" : "Delete conversation"}</button></div>
         </Modal>
       )}
     </section>

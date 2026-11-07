@@ -15,10 +15,12 @@ export class WebLLMProvider implements LocalAIProvider {
   private worker: Worker | null = null;
   private initialization: Promise<{ cached: boolean }> | null = null;
   private progress: (value: AIProgress) => void = () => {};
+  private readonly maxTokens: number;
 
-  constructor(model: FolioAIModelInfo) {
+  constructor(model: FolioAIModelInfo, maxTokens: number = FOLIO_AI_CONFIG.maxOutputTokens) {
     this.modelId = model.modelId;
     this.modelName = model.modelName;
+    this.maxTokens = maxTokens;
   }
 
   initialize(onProgress: (value: AIProgress) => void): Promise<{ cached: boolean }> {
@@ -84,7 +86,7 @@ export class WebLLMProvider implements LocalAIProvider {
         stream_options: { include_usage: true },
         temperature: 0.65,
         top_p: 0.9,
-        max_tokens: FOLIO_AI_CONFIG.maxOutputTokens,
+        max_tokens: this.maxTokens,
       });
       for await (const chunk of stream) {
         if (signal.aborted) throw new DOMException("Generation stopped.", "AbortError");

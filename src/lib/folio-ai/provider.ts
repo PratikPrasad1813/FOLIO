@@ -7,7 +7,13 @@ export interface AIInferenceProvider {
   readonly modelId: string;
   readonly modelName: string;
   initialize(onProgress: (progress: AIProgress) => void): Promise<{ cached: boolean }>;
-  generate(messages: LocalChatMessage[], signal: AbortSignal, onToken: (token: string) => void): Promise<{ text: string; outputTokens: number; promptTokens?: number }>;
+  generate(
+    messages: LocalChatMessage[],
+    signal: AbortSignal,
+    onToken: (token: string) => void,
+    onStage?: (stage: string) => void,
+    onUsage?: (tokens: number) => void,
+  ): Promise<{ text: string; outputTokens: number; promptTokens?: number }>;
   interrupt(): Promise<void>;
   resetConversation(): Promise<void>;
   unload(): Promise<void>;

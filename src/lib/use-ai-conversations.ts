@@ -159,17 +159,37 @@ export function useAiConversations() {
     }
   }, []);
 
-  const remove = useCallback(async (id: string) => {
+  const remove = useCallback(async (id: string): Promise<boolean> => {
     try {
-      await searchRequest(`/api/ai/conversations?id=${id}`, { method: "DELETE" });
-      if (!mounted.current) return;
+      await searchRequest(`/api/ai/conversations/${id}`, { method: "DELETE" });
+      if (!mounted.current) return false;
       setConversations(current => {
         const next = current.filter(c => c.id !== id);
         setActiveId(active => (active === id ? next[0]?.id ?? null : active));
         return next;
       });
+      setError("");
+      return true;
     } catch (err) {
       if (mounted.current) setError(err instanceof Error ? err.message : "Couldn’t delete that conversation.");
+      return false;
+    }
+  }, [setActiveId]);
+
+  const branch = useCallback(async (id: string): Promise<AiConversation | null> => {
+    try {
+      const body = await searchRequest<{ conversation: AiConversation }>(
+        `/api/ai/conversations/${id}/branch`,
+        { method: "POST" },
+      );
+      if (!mounted.current) return null;
+      setConversations(current => [body.conversation, ...current.filter(c => c.id !== body.conversation.id)]);
+      setActiveId(body.conversation.id);
+      setError("");
+      return body.conversation;
+    } catch (err) {
+      if (mounted.current) setError(err instanceof Error ? err.message : "Couldn’t branch that conversation.");
+      return null;
     }
   }, [setActiveId]);
 
@@ -218,6 +238,7 @@ export function useAiConversations() {
     load,
     rename,
     remove,
+    branch,
     append,
   };
 }

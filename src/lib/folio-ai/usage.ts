@@ -100,7 +100,13 @@ export async function readAIUsage(userId: string, now = new Date()): Promise<AIU
 export interface ReserveResult { reservation: AIReservation; usage: AIUsage; alreadyCompleted: boolean; reused: boolean }
 interface ReserveFailure { failure: { message: string; status: number; code: string }; usage: AIUsage }
 
-export async function reserveAIMessage(userId: string, generationId: string, _inputCharacters: number, now = new Date()): Promise<ReserveResult> {
+export async function reserveAIMessage(
+  userId: string,
+  generationId: string,
+  _inputCharacters: number,
+  now = new Date(),
+  reservedTokenCount: number = RESERVED_TOKEN_COUNT,
+): Promise<ReserveResult> {
   await ensureSchema();
   const date = utcDate(now);
   const outcome = await db.transaction(async (tx: Tx) => {
@@ -117,7 +123,7 @@ export async function reserveAIMessage(userId: string, generationId: string, _in
       return { reservation: { id: existing.id, generationId, usageDate: existing.usageDate, expiresAt: existing.expiresAt.toISOString() }, usage: usage.usage, alreadyCompleted: false, reused: true } as ReserveResult;
     }
     if (existing) return { failure: { message: "This generation request has expired or was already closed. Start a new message.", status: 409, code: "reservation_closed" }, usage: usage.usage } as ReserveFailure;
-    if (usage.usedTokens + usage.reservedTokens + RESERVED_TOKEN_COUNT > DAILY_TOKEN_LIMIT) {
+    if (usage.usedTokens + usage.reservedTokens + reservedTokenCount > DAILY_TOKEN_LIMIT) {
       return { failure: { message: "There isn’t enough of your daily Folio AI usage allowance for this request. It resets at the displayed time. You can continue using the rest of Folio normally.", status: 429, code: "daily_token_limit_reached" }, usage: usage.usage } as ReserveFailure;
     }
     const expiresAt = new Date(now.getTime() + FOLIO_AI_CONFIG.reservationLeaseMilliseconds);
@@ -125,22 +131,22 @@ export async function reserveAIMessage(userId: string, generationId: string, _in
       userId,
       generationId,
       usageDate: date,
-      reservedTokenCount: RESERVED_TOKEN_COUNT,
+      reservedTokenCount,
       usedTokenCount: 0,
       expiresAt,
       status: "reserved",
     }).returning();
     await tx.update(schema.folioAiDailyUsage)
-      .set({ reservedTokenCount: sql`${schema.folioAiDailyUsage.reservedTokenCount} + ${RESERVED_TOKEN_COUNT}`, updatedAt: now })
+      .set({ reservedTokenCount: sql`${schema.folioAiDailyUsage.reservedTokenCount} + ${reservedTokenCount}`, updatedAt: now })
       .where(and(eq(schema.folioAiDailyUsage.userId, userId), eq(schema.folioAiDailyUsage.usageDate, date)));
     return {
       reservation: { id: reservation.id, generationId, usageDate: date, expiresAt: expiresAt.toISOString() },
       usage: {
         ...usage.usage,
         usedPercent: Math.min(100, Math.round(
-          ((usage.usedTokens + usage.reservedTokens + RESERVED_TOKEN_COUNT) / DAILY_TOKEN_LIMIT) * 100,
+          ((usage.usedTokens + usage.reservedTokens + reservedTokenCount) / DAILY_TOKEN_LIMIT) * 100,
         )),
-        limitReached: usage.available - RESERVED_TOKEN_COUNT < RESERVED_TOKEN_COUNT,
+        limitReached: usage.available - reservedTokenCount < RESERVED_TOKEN_COUNT,
       },
       alreadyCompleted: false,
       reused: false,

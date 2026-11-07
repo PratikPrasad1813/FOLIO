@@ -80,6 +80,7 @@ export interface AICompatibility {
   message: string;
   adapter?: string;
   deviceMemoryGB?: number;
+  webgpuFeatures?: string[];
 }
 
 export type AIInitErrorKind = "unsupported" | "resource" | "download" | "initialization";

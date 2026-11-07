@@ -1,6 +1,6 @@
 import {
+  ALL_LOCAL_MODEL_LIST,
   DEFAULT_LOCAL_MODEL_ID,
-  LOCAL_MODELS,
   type LocalModelCategory,
   type LocalModelSpec,
 } from "@/lib/folio-ai/model-catalog";
@@ -34,23 +34,25 @@ export function assessPromptComplexity(prompt: string): PromptComplexity {
     : "low";
 }
 
-function modelForCategory(category: LocalModelCategory): LocalModelSpec {
-  const model = Object.values(LOCAL_MODELS).find(candidate => candidate.category === category);
-  if (!model) throw new Error(`No local model is configured for the "${category}" category.`);
-  return model;
+function modelForCategory(category: LocalModelCategory, models: readonly LocalModelSpec[]): LocalModelSpec {
+  const model = models.find(candidate => candidate.category === category);
+  if (model) return model;
+  const qualityFallback = models.find(candidate => candidate.id.startsWith("qwen2.5-"));
+  return qualityFallback ?? models.find(candidate => candidate.id === DEFAULT_LOCAL_MODEL_ID) ?? models[0];
 }
 
-export function routeTaskPrompt(prompt: string): TaskRoute {
+export function routeTaskPrompt(prompt: string, models: readonly LocalModelSpec[] = ALL_LOCAL_MODEL_LIST): TaskRoute {
+  if (!models.length) throw new Error("No local model is available for prompt routing.");
   const normalized = prompt.trim();
   if (!normalized) {
-    const model = LOCAL_MODELS[DEFAULT_LOCAL_MODEL_ID];
+    const model = models.find(candidate => candidate.id === DEFAULT_LOCAL_MODEL_ID) ?? models[0];
     return { model, complexity: "low", reason: "general", rationale: "Using the default structured model." };
   }
 
   const complexity = assessPromptComplexity(normalized);
   if (TECHNICAL_TERMS.test(normalized)) {
     return {
-      model: modelForCategory("coder"),
+      model: modelForCategory("coder", models),
       complexity,
       reason: "technical",
       rationale: "Technical and engineering language is best matched to the coding specialist.",
@@ -58,7 +60,7 @@ export function routeTaskPrompt(prompt: string): TaskRoute {
   }
   if (STRATEGIC_TERMS.test(normalized) || complexity === "high") {
     return {
-      model: modelForCategory("reasoning"),
+      model: modelForCategory("reasoning", models),
       complexity: "high",
       reason: "strategic",
       rationale: "This request appears to need multi-step planning and decomposition.",
@@ -66,13 +68,13 @@ export function routeTaskPrompt(prompt: string): TaskRoute {
   }
   if (QUICK_ACTION_TERMS.test(normalized) && normalized.length < 120) {
     return {
-      model: modelForCategory("fast"),
+      model: modelForCategory("fast", models),
       complexity: "low",
       reason: "quick-action",
       rationale: "This is a short workspace action, so a fast model is preferred.",
     };
   }
-  const model = LOCAL_MODELS[DEFAULT_LOCAL_MODEL_ID];
+  const model = models.find(candidate => candidate.id === DEFAULT_LOCAL_MODEL_ID) ?? models[0];
   return {
     model,
     complexity,

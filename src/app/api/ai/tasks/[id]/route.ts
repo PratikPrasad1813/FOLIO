@@ -4,7 +4,7 @@ import { getAITaskById, updateAITaskProgress } from "@/lib/folio-ai/tasks-servic
 import { AI_TASK_STATUSES, type AIActionResult, type AITaskStatus } from "@/lib/folio-ai/types";
 import { AIUsageError } from "@/lib/folio-ai/usage";
 import { SearchInputError } from "@/lib/search-types";
-import { FOLIO_AI_CONFIG } from "@/lib/folio-ai/config";
+import { maxReservedTokensForModel } from "@/lib/folio-ai/config";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +29,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const user = await requireAIUser(request);
     const { id } = await context.params;
     if (!UUID.test(id)) throw new SearchInputError("Invalid task ID.");
+    const task = await getAITaskById(user.id, id);
+    if (!task) throw new SearchInputError("AI task not found.", 404);
 
     const body = await parseSmallJson(request, 200_000);
     const allowedKeys = [
@@ -79,7 +81,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
     let usageTokens: number | undefined;
     if (body.usageTokens !== undefined) {
-      if (typeof body.usageTokens !== "number" || !Number.isSafeInteger(body.usageTokens) || body.usageTokens < 0 || body.usageTokens > FOLIO_AI_CONFIG.maxReservedTokensPerGeneration) {
+      if (typeof body.usageTokens !== "number" || !Number.isSafeInteger(body.usageTokens) || body.usageTokens < 0 || body.usageTokens > maxReservedTokensForModel(task.modelId)) {
         throw new SearchInputError("Invalid local token usage.");
       }
       usageTokens = body.usageTokens;

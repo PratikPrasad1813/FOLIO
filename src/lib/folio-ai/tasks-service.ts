@@ -8,7 +8,7 @@ import {
   folioAiTasks,
   folioAiUsageReservations,
 } from "@/db/schema";
-import { FOLIO_AI_CONFIG } from "@/lib/folio-ai/config";
+import { FOLIO_AI_CONFIG, maxReservedTokensForModel } from "@/lib/folio-ai/config";
 import { AIUsageError, readAIUsage, reserveAIMessage } from "@/lib/folio-ai/usage";
 import type { AIActionResult, AIReservation, AITaskRecord, AITaskStatus, AIUsage } from "@/lib/folio-ai/types";
 
@@ -223,8 +223,16 @@ export async function createOrReuseAITask(
     };
   }
 
+  const modelId = (input.modelId || FOLIO_AI_CONFIG.modelId).slice(0, 120);
+
   // 2. Reserve account usage slot (atomic & idempotent by generationId).
-  const reserveResult = await reserveAIMessage(userId, input.generationId, input.prompt.length, now);
+  const reserveResult = await reserveAIMessage(
+    userId,
+    input.generationId,
+    input.prompt.length,
+    now,
+    maxReservedTokensForModel(modelId),
+  );
   if (reserveResult.alreadyCompleted) {
     throw new AIUsageError(
       "This message was already accounted for. Start a new message to continue.",
@@ -233,8 +241,6 @@ export async function createOrReuseAITask(
       reserveResult.usage,
     );
   }
-
-  const modelId = (input.modelId || FOLIO_AI_CONFIG.modelId).slice(0, 120);
 
   return db.transaction(async tx => {
     await lockUser(tx, userId);
@@ -511,7 +517,7 @@ export async function updateAITaskProgress(
     const nextUsageTokenCount =
       typeof patch.usageTokens === "number" && Number.isFinite(patch.usageTokens)
         ? Math.min(
-            FOLIO_AI_CONFIG.maxReservedTokensPerGeneration,
+            maxReservedTokensForModel(task.modelId),
             Math.max(task.usageTokenCount, Math.floor(patch.usageTokens)),
           )
         : task.usageTokenCount;
