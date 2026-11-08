@@ -266,8 +266,8 @@ export function WorkspaceConcierge({
             <BrainCircuit size={15} />
           </span>
           <span>
-            <strong>Local-First Folio AI</strong>
-            <small>On-device WebGPU assistant with reviewed actions.</small>
+            <strong>Folio AI with Gemini</strong>
+            <small>Hosted Gemini assistant with reviewed actions.</small>
           </span>
         </button>
       </div>

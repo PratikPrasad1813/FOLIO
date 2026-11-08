@@ -55,29 +55,14 @@ try {
   const lingering = pageA.locator(".fa-onboarding-modal .close-button");
   if (await lingering.count()) await lingering.first().click().catch(() => {});
   await pageA.getByRole("heading", { name: "AI usage", exact: true }).waitFor();
-  await pageA.getByText("Free plan", { exact: true }).waitFor();
   await pageA.getByText(/% used today/).waitFor();
   const privacy = pageA.locator(".fa-chat-foot");
   await privacy.waitFor();
-  ok((await privacy.innerText()).includes("runs on this device"), "On-device inference and account sync are explained");
-  ok((await pageA.locator(".fa-phase-note").innerText()).includes("approved, secure steps"), "Preview explains real, secure Folio actions");
-  if (await pageA.locator(".fa-recommend").count()) {
-    ok((await pageA.locator(".fa-recommend").first().innerText()).includes("Recommended:"), "Device-based model recommendation is displayed");
-  }
+  ok((await privacy.innerText()).includes("processed by Google AI Studio"), "Hosted Gemini processing and account history are explained");
+  ok((await pageA.locator(".fa-phase-note").innerText()).includes("wait for your review"), "Preview explains that Folio changes require review");
+  ok((await pageA.locator(".fa-model-state").innerText()).includes("Folio AI"), "Hosted assistant identity is displayed");
+  ok(await pageA.locator(".fa-compatibility,.fa-model-stats,.fa-recommend").count() === 0, "AI page has no local-model compatibility or download UI");
   await pageA.locator(".fa-usage-track").waitFor();
-
-  await pageA.waitForFunction(() => !document.querySelector(".fa-compatibility strong")?.textContent?.includes("Checking this device"));
-  const compatibility = await pageA.locator(".fa-compatibility strong").innerText();
-  if (compatibility.includes("isn't compatible") || compatibility.includes("could not") || compatibility.includes("Could not") || compatibility.includes("does not include")) {
-    ok(true, "Browser correctly rejects a missing adapter/model registry even if navigator.gpu exists");
-    ok(await pageA.getByRole("button", { name: /Download & load local model/ }).isDisabled(), "Unsupported device cannot initialize the model");
-  } else {
-    ok(compatibility.includes("WebGPU is available"), "A usable WebGPU adapter is detected");
-    const loadButton = pageA.getByRole("button", { name: /load local model|load model anyway/i });
-    ok(await loadButton.isEnabled(), "Supported local model can be explicitly loaded");
-  }
-  ok((await pageA.locator(".fa-model-stats").innerText()).includes("1.8 GB"), "Model download size is displayed");
-  ok((await pageA.locator(".fa-model-stats").innerText()).includes("2.4 GB"), "Estimated GPU memory is displayed");
 
   // Two authenticated sessions for one Neon account share metadata-only usage.
   const generationId = randomUUID();
@@ -90,7 +75,7 @@ try {
   // Sync another open AI page using the existing same-origin usage channel.
   await pageB.goto(`${BASE}/ai`);
   await pageB.getByRole("heading", { name: "Folio AI", exact: true }).waitFor();
-  await pageB.getByText("Free plan", { exact: true }).waitFor();
+  await pageB.getByRole("heading", { name: "AI usage", exact: true }).waitFor();
   await pageA.evaluate(() => { const channel = new BroadcastChannel("folio-ai-account-usage"); channel.postMessage({ updated: true }); channel.close(); });
   await pageB.waitForFunction(() => document.querySelector(".fa-usage-top strong")?.textContent?.trim().startsWith("12"));
   checks++;

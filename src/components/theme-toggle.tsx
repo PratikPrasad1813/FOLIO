@@ -37,5 +37,24 @@ export function useTheme() { return { theme: useSyncExternalStore(subscribe, sna
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const next = theme === "dark" ? "light" : "dark";
-  return <button type="button" className="icon-button theme-toggle" aria-label={`Switch to ${next} theme`} title={`Switch to ${next} theme`} onClick={() => setTheme(next)}><Moon size={17} strokeWidth={1.8} className="theme-icon-moon" aria-hidden="true" /><Sun size={17} strokeWidth={1.8} className="theme-icon-sun" aria-hidden="true" /></button>;
+  return (
+    <button
+      type="button"
+      className="icon-button theme-toggle glass-theme-toggle"
+      role="switch"
+      aria-checked={theme === "dark"}
+      aria-label={`Switch to ${next} theme`}
+      title={`Switch to ${next} theme`}
+      onClick={() => setTheme(next)}
+    >
+      <span className="glass-theme-track" aria-hidden="true">
+        <span className="glass-theme-symbol is-light"><Sun size={13} strokeWidth={1.8} /></span>
+        <span className="glass-theme-symbol is-dark"><Moon size={12} strokeWidth={1.8} /></span>
+        <span className="glass-theme-thumb">
+          <span className="glass-theme-thumb-light"><Sun size={13} strokeWidth={1.8} /></span>
+          <span className="glass-theme-thumb-dark"><Moon size={12} strokeWidth={1.8} /></span>
+        </span>
+      </span>
+    </button>
+  );
 }

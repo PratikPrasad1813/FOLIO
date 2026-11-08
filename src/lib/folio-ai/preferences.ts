@@ -4,8 +4,6 @@ import { folioAiPreferences } from "@/db/schema";
 import { ensureSchema } from "@/db/migrate";
 import type { AIPreferences, AssistantPresentation, AssistantStyle } from "@/lib/folio-ai/types";
 import { ASSISTANT_PRESENTATIONS, ASSISTANT_STYLES } from "@/lib/folio-ai/types";
-import { MODEL_BY_ID, MODEL_PREFERENCES, type ModelPreference } from "@/lib/folio-ai/models";
-import { getLocalModelByWebLLMId } from "@/lib/folio-ai/model-catalog";
 
 export const DEFAULT_AI_PREFERENCES: AIPreferences = {
   assistantName: "Folio AI",
@@ -32,15 +30,6 @@ export function sanitizePreferences(input: Record<string, unknown>): Partial<AIP
     if (!ASSISTANT_STYLES.includes(value)) throw new Error("Choose a valid communication style.");
     patch.style = value;
   }
-  if ("modelPreference" in input) {
-    const value = input.modelPreference as ModelPreference;
-    if (!MODEL_PREFERENCES.includes(value)) throw new Error("Choose Automatic or a compatible model tier.");
-    patch.modelPreference = value;
-  }
-  if ("selectedModelId" in input) {
-    const value = input.selectedModelId;
-    patch.selectedModelId = typeof value === "string" && value ? value : null;
-  }
   return patch;
 }
 
@@ -57,13 +46,8 @@ export async function getAIPreferences(userId: string): Promise<AIPreferencesRes
         assistantName: row.assistantName || DEFAULT_AI_PREFERENCES.assistantName,
         presentation: (row.presentation as AssistantPresentation) || "neutral",
         style: (row.style as AssistantStyle) || "friendly",
-        modelPreference: (row.modelPreference as ModelPreference) || "automatic",
-        selectedModelId: row.selectedModelId && (
-          MODEL_BY_ID[row.selectedModelId] ||
-          getLocalModelByWebLLMId(row.selectedModelId)
-        )
-          ? row.selectedModelId
-          : null,
+        modelPreference: "automatic",
+        selectedModelId: null,
       },
       initialized: true,
     };
@@ -89,8 +73,8 @@ export async function saveAIPreferences(userId: string, patch: Partial<AIPrefere
     assistantName: next.assistantName,
     presentation: next.presentation,
     style: next.style,
-    modelPreference: next.modelPreference,
-    selectedModelId: next.selectedModelId,
+    modelPreference: "automatic",
+    selectedModelId: null,
     updatedAt: new Date(),
   }).onConflictDoUpdate({
     target: folioAiPreferences.userId,
@@ -98,8 +82,8 @@ export async function saveAIPreferences(userId: string, patch: Partial<AIPrefere
       assistantName: next.assistantName,
       presentation: next.presentation,
       style: next.style,
-      modelPreference: next.modelPreference,
-      selectedModelId: next.selectedModelId,
+      modelPreference: "automatic",
+      selectedModelId: null,
       updatedAt: new Date(),
     },
   });

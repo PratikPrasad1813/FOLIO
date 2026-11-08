@@ -493,6 +493,7 @@ export const folioAiTasks = pgTable("folio_ai_tasks", {
   plan: jsonb("plan"),
   results: jsonb("results"),
   errorMessage: text("error_message"),
+  providerRequestStartedAt: timestamp("provider_request_started_at", { withTimezone: true }),
   startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
   heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp("completed_at", { withTimezone: true }),

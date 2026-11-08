@@ -3,7 +3,7 @@
 <div align="center">
   <h2>A little clarity. A lot of possibility.</h2>
   <p><strong>A calm, private workspace for the things you’re working toward.</strong></p>
-  <p>Bring projects, tasks, ideas, and your schedule into one thoughtful space—with optional AI that runs on your device.</p>
+  <p>Bring projects, tasks, ideas, and your schedule into one thoughtful space—with optional Google Gemini AI.</p>
   <p>
     <a href="#core-features">Explore Folio</a> ·
     <a href="#quickstart--local-installation">Get started</a> ·
@@ -13,7 +13,7 @@
     <a href="https://github.com/PratikPrasad1813/Folio"><img src="https://img.shields.io/badge/Repository-Folio-25232c?style=for-the-badge&logo=github&logoColor=white" alt="Folio on GitHub" /></a>
     <a href="https://nextjs.org"><img src="https://img.shields.io/badge/Next.js-16-25232c?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js 16" /></a>
     <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/PostgreSQL-15%2B-5b7195?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL 15 or later" /></a>
-    <a href="https://webllm.mlc.ai"><img src="https://img.shields.io/badge/AI-On%20device-8572b5?style=for-the-badge" alt="On-device WebGPU AI" /></a>
+    <a href="https://ai.google.dev/gemini-api/docs"><img src="https://img.shields.io/badge/AI-Google%20Gemini-8572b5?style=for-the-badge" alt="Google Gemini AI" /></a>
   </p>
 </div>
 
@@ -40,7 +40,7 @@
    - [Google Calendar Bidirectional Sync](#google-calendar-bidirectional-sync)
    - [Idea Board with One-Click Conversion](#idea-board-with-one-click-conversion)
    - [Task Insights & Velocity Metrics](#task-insights--velocity-metrics)
-   - [Local-First On-Device AI (WebLLM)](#local-first-on-device-ai-webllm)
+   - [Google Gemini AI](#google-gemini-ai)
    - [Contextual Notifications & Quiet Hours](#contextual-notifications--quiet-hours)
    - [Complete Secure Account Deletion](#complete-secure-account-deletion)
    - [VIP Transactional Email Design System](#vip-transactional-email-design-system)
@@ -69,7 +69,7 @@ Rather than scattering your focus across disjointed apps—one for notes, one fo
 
 ### Key Tenets
 - **Self-Managed Security:** Authentication and workspace records remain under your control. Sessions use opaque SHA-256 tokens in secure, HTTP-only, SameSite=Lax cookies with `scrypt` password hashing.
-- **Local AI with transparent sync:** Models run in your browser using WebGPU and WebLLM. Prompts, responses, and task progress sync to your Folio account for conversation history and cross-device resumption; daily quota accounting is token-based and the UI displays only a usage percentage.
+- **Google Gemini AI with server-side credentials:** Folio sends prompts and bounded workspace context to Google through an authenticated server route. The API key never reaches the browser; responses, conversation history, task progress, and usage metadata are stored with the signed-in Folio account. Folio enforces a 10,000-token daily allowance per user.
 - **Complete Data Ownership:** At any point, export your entire workspace as readable JSON or permanently delete your account with guaranteed zero orphaned records across all 25 PostgreSQL tables.
 - **Calm, Human Design:** Polished typography (`Instrument Serif` & `DM Sans`), thoughtful light/dark themes, subtle animations, and zero spam.
 
@@ -85,7 +85,7 @@ Rather than scattering your focus across disjointed apps—one for notes, one fo
 | **ORM & Migrations**| Drizzle ORM 0.45.2 & Drizzle Kit | Type-safe schema definition, transactional queries, 28 tables |
 | **Styling** | Tailwind CSS 4 & PostCSS 8 | Custom CSS design tokens, CSS variables, fluid responsive layouts |
 | **Icons & Visuals** | Lucide React 1.66.0 | Semantic SVG iconography across all components |
-| **Local AI Engine** | `@mlc-ai/web-llm` 0.2.87 | WebGPU browser-based LLM inference with zero cloud server dependencies |
+| **AI Provider** | Google AI Studio Gemini API | Authenticated server-side streaming with bounded per-user token usage |
 | **Image Processing**| Sharp 0.35.5 | High-efficiency PNG palette optimization and metadata extraction |
 | **Automation & E2E**| Playwright 1.64.1 | Headless Chromium automation for screenshot generation and test suites |
 | **Email Delivery** | Nodemailer 10.3.1 | TLS SMTP client for transactional emails (welcome, verification, reset) |
@@ -121,7 +121,7 @@ Folio/
 │   │   ├── task-board.tsx             # Kanban workflow columns with drag-and-drop
 │   │   ├── task-list.tsx              # High-density filtered task table with bulk operations
 │   │   ├── task-calendar.tsx          # Month and week calendar views with deadline overlays
-│   │   ├── folio-ai-panel.tsx         # On-device WebGPU assistant UI & plan review
+│ │ ├── folio-ai-panel.tsx # Gemini assistant UI & plan review
 │   │   └── global-search.tsx          # ⌘K workspace spotlight search
 │   ├── db/                            # Database Schema & Migration Engine
 │   │   ├── schema.ts                  # Drizzle ORM schema defining 28 PostgreSQL tables
@@ -170,7 +170,7 @@ All screenshots are captured from the actual running application using Playwrigh
 | **Calendar Sync** | Google Calendar integration showing external meetings beside Folio deadlines | `public/screenshots/calendar.png` |
 | **Idea Board** | Fleeting thought capture with stages (Just an idea, Exploring, Ready to start) | `public/screenshots/ideas.png` |
 | **Analytics & Insights** | Task completion velocity, weekly goal trends, and overdue metrics | `public/screenshots/analytics.png` |
-| **Folio AI Assistant** | Local-first on-device WebGPU assistant with transparent action plan previews | `public/screenshots/folio-ai.png` |
+| **Folio AI Assistant** | Gemini-powered hosted assistant with reviewable workspace action plans | `public/screenshots/folio-ai.png` |
 
 ---
 
@@ -200,16 +200,15 @@ All screenshots are captured from the actual running application using Playwrigh
 - Stages: *Just an idea*, *Exploring*, and *Ready to start*.
 - One-click **"Make it a project"** converts an idea into a full project with notes intact.
 
-### On-Device AI Inference (WebLLM)
-- Powered by `@mlc-ai/web-llm` running directly inside the browser using WebGPU.
-- **No third-party AI processing:** Prompt inference happens on-device; conversations and task progress sync with your Folio account for history and resumption.
-- **Compact, device-aware models:** Choose between Llama 3.2 1B for quick replies and SmolLM2 1.7B for fuller workspace planning. Download both sequentially in one action; their combined model files are about 1.7 GB, below the 2 GB bundle limit. Models remain in browser storage. Devices reporting under 4 GB do not expose Folio AI, and mobile browsers need WebGPU.
-- **Optional quality upgrades:** After the compact models are installed, compatible devices can review quality-model pros and trade-offs, download a model individually, or install all device-compatible upgrades sequentially. Gemma 2 2B, Qwen 2.5 3B, Phi 3.5 Mini, and Qwen 2.5 7B are gated by reported memory and WebGPU features; they are not included in the compact bundle.
-- **Staged local workflow:** When all quality models supported by the device are installed, complex prompts can pass through the installed models in planning, review, writing, and Folio-action preparation stages. Models run one at a time; proposed workspace changes still require review in Folio before execution.
-- **Readable responses:** Assistant output renders Markdown as formatted content rather than showing raw heading and emphasis markers. Long prompts are checked against the local model’s context budget, with a request to split oversized work into smaller prompts.
+### Google Gemini AI
+- Folio uses Google AI Studio's Gemini API through an authenticated server-side streaming route. Create a key in [Google AI Studio](https://aistudio.google.com/app/apikey), then set `GEMINI_API_KEY` in the server environment; never expose it with a `NEXT_PUBLIC_` prefix or send it to the browser.
+- **Honest data flow:** The current prompt and a bounded selection of workspace context are sent to Google for inference. Conversation history, task progress, and usage accounting are stored by Folio for the signed-in user. Avoid sending secrets or unnecessary sensitive information in prompts.
+- **Folio usage cap:** The server enforces a maximum 10,000-token daily allowance per user, reserves a bounded amount per request, and limits each response to 1,024 output tokens. The UI shows usage as a percentage. Google's project-level rate limits and any billing configured for the API key remain separate.
+- **Mobile-friendly:** Inference is hosted, so Folio AI does not require WebGPU, model downloads, or a minimum device-memory threshold.
+- **Readable responses:** Assistant output renders Markdown as formatted content rather than showing raw heading and emphasis markers. Oversized prompts are rejected with a request to split them into smaller prompts.
 - **Verified Action Plans:** When AI prepares workspace changes, you inspect the exact proposed plan before confirming execution.
 - **Reliable Long-Running Tasks (No 3-Minute Cutoff):** Complex prompts and multi-step workspace plans are never killed by a fixed 180-second timer. A background task manager (`src/lib/folio-ai/task-manager.ts`) and PostgreSQL task table (`folio_ai_tasks`) persist task status (`queued`, `running`, `waiting`, `completed`, `failed`, `cancelled`), execution stages, periodic heartbeats, reservation lease renewals, and intermediate partial output across in-app navigation and page refreshes.
-- 50,000-token daily allowance tracked via account-wide database reservations; the UI displays usage as a percentage only, never a remaining-token count.
+- 10,000-token daily allowance tracked via account-wide database reservations; the UI displays usage as a percentage only.
 
 ### Contextual Notifications & Quiet Hours
 - Customizable reminder timings (15m, 30m, 1h, 1d before, custom local time).
@@ -247,6 +246,7 @@ Create a `.env.local` file in the project root (see [Environment Variables Refer
 ```sh
 cp .env.example .env.local
 ```
+Set `GEMINI_API_KEY` in `.env.local` to enable Folio AI. Keep it server-side; never prefix it with `NEXT_PUBLIC_`.
 
 ### 3. Initialize the Database
 Folio's database initializes in two ordered layers (Base Application Schema + Drizzle Migrations):
@@ -271,6 +271,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | `APP_URL` | **Yes** | Canonical public origin (`http://localhost:3000` in dev, `https://folio-management-studio.onrender.com` in production) |
 | `NEXT_PUBLIC_APP_URL` | Optional | Same public origin as `APP_URL`; used by client-side integrations |
 | `FOLIO_ENCRYPTION_KEY` | **Yes** (prod) | 32+ character secret for AES-256-GCM token encryption (`openssl rand -base64 32`) |
+| `GEMINI_API_KEY` | Optional | Server-only Google AI Studio key for Gemini-powered Folio AI; never expose it with `NEXT_PUBLIC_` |
 | `GOOGLE_CLIENT_ID` | Optional | Google OAuth client ID for sign-in & Google Calendar |
 | `GOOGLE_CLIENT_SECRET` | Optional | Google OAuth client secret |
 | `GITHUB_CLIENT_ID` | Optional | GitHub OAuth client ID for sign-in |
@@ -500,7 +501,7 @@ npm run start
 | --- | --- | --- |
 | `relation "folio_users" does not exist` | Ran raw Drizzle migration without base schema | Run `npm run db:init` to apply Layer 1 base schema followed by Layer 2 migrations. |
 | `Screenshot safety check failed` | Target is remote Neon DB or matches `DATABASE_URL` | Screenshots must run with `FOLIO_SCREENSHOT_MODE=local` and a dedicated database named `folio_screenshots`. |
-| `Cannot access WebGPU` | Browser lacks WebGPU support | Use a modern browser (Chrome 113+, Edge) with hardware acceleration enabled. The rest of Folio works normally without AI. |
+| Folio AI says it is not configured | Server is missing its Gemini API key | Set `GEMINI_API_KEY` in the server environment and restart/redeploy Folio. Do not expose it with `NEXT_PUBLIC_`. |
 | Google Calendar says `Not configured` | Client ID / Secret missing | Provide `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` and register redirect URI in Google Cloud Console. |
 | Verification or recovery link is missing | Frontend flag is off, or SMTP is not configured | Email actions are hidden while `NEXT_PUBLIC_EMAIL_FEATURES_ENABLED` is not `true`. To deliver mail, set `SMTP_URL` and `SMTP_FROM` with a verified sending domain, then enable the flag and rebuild. |
 | Recovery or verification shows "temporarily unavailable" | Delivery not configured on this server | Expected while the flag is off or SMTP is absent. Users see a calm notice; technical details stay in server logs only. |

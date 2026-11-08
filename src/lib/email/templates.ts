@@ -77,7 +77,7 @@ export function buildWelcomeEmail(input: WelcomeEmailInput): RenderedEmail {
     {
       number: "03",
       title: "Keep bright ideas and schedules together",
-      description: "Park early sparks on your Idea Board until they are ready, connect Google Calendar when helpful, or explore private on-device Folio AI.",
+      description: "Park early sparks on your Idea Board until they are ready, connect Google Calendar when helpful, or explore Folio AI powered by Google Gemini.",
     },
   ];
 

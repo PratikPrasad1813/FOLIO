@@ -3,7 +3,7 @@
 import { estimateTokenCount, FOLIO_AI_CONFIG, maxReservedTokensForModel } from "@/lib/folio-ai/config";
 import { extractActionPlan } from "@/lib/folio-ai/actions";
 import { parseNaturalLanguageIntent, type WorkspaceSummaryContext } from "@/lib/folio-ai/intent-pipeline";
-import type { LocalAIProvider, LocalChatMessage } from "@/lib/folio-ai/provider";
+import type { AIProvider, ChatMessage } from "@/lib/folio-ai/provider";
 import type {
   AIActionResult,
   AIReservation,
@@ -31,7 +31,7 @@ type Listener = () => void;
 interface ActiveRunner {
   snapshot: LiveTaskSnapshot;
   controller: AbortController;
-  provider: LocalAIProvider;
+  provider: AIProvider;
   heartbeatTimer: number | null;
   stallTimer: number | null;
 }
@@ -233,8 +233,8 @@ export interface StartAITaskOptions {
   prompt: string;
   conversationId: string | null;
   modelId: string;
-  provider: LocalAIProvider;
-  contextMessages: LocalChatMessage[];
+  provider: AIProvider;
+  contextMessages: ChatMessage[];
   workspaceContext?: WorkspaceSummaryContext;
   resumeTask?: AITaskRecord | null;
   keepPartial?: boolean;
@@ -340,12 +340,12 @@ async function runTaskLifecycle(
     const elapsedMs = Date.now() - snapshot.startedAtMs;
     if (tokenCount === 0) {
       if (elapsedMs >= FOLIO_AI_CONFIG.extendedRunningThresholdMilliseconds) {
-        return "Reasoning on device · deep analysis in progress (no time cutoff)";
+        return "Gemini is working through the details…";
       }
       if (elapsedMs >= FOLIO_AI_CONFIG.longRunningThresholdMilliseconds) {
-        return "Reasoning on device · preparing detailed response…";
+        return "Preparing a detailed response…";
       }
-      return "Reasoning on device…";
+      return "Thinking through your request…";
     }
     if (elapsedMs >= FOLIO_AI_CONFIG.extendedRunningThresholdMilliseconds) {
       return "Generating response · saving checkpoints";
@@ -387,7 +387,7 @@ async function runTaskLifecycle(
       snapshot.usage = synced.usage;
       options.onUsageUpdated?.(synced.usage);
     } catch {
-      // Transient network interruption during a heartbeat must NEVER abort local AI work.
+      // Transient network interruption during a heartbeat must not abort inference.
       // The next heartbeat or completion step will sync the accumulated output.
     }
   };
@@ -418,7 +418,7 @@ async function runTaskLifecycle(
     snapshot.task = {
       ...snapshot.task,
       status: "running",
-      stage: initialPartial ? "Resuming generation on device…" : "Reasoning on device…",
+      stage: initialPartial ? "Reconnecting to Gemini…" : "Thinking through your request…",
       updatedAt: new Date().toISOString(),
     };
     latestByConversationId.set(snapshot.task.conversationId, snapshot);
@@ -447,7 +447,7 @@ async function runTaskLifecycle(
       emitChange();
     };
 
-    const messagesToSend: LocalChatMessage[] = initialPartial
+    const messagesToSend: ChatMessage[] = initialPartial
       ? [
           ...options.contextMessages,
           { role: "assistant", content: initialPartial },
@@ -490,12 +490,13 @@ async function runTaskLifecycle(
         usageTokenCount = Math.min(taskTokenLimit, Math.max(usageTokenCount, Math.floor(tokens)));
         resetStallWatchdog();
       },
+      taskId,
     );
 
     flushToSnapshot();
     const finalText = (initialPartial ? `${initialPartial}${result.text}` : result.text).trim();
     if (!finalText) {
-      throw new Error("The local model finished without a response. This attempt was not counted.");
+      throw new Error("Gemini finished without a response. This attempt was not counted.");
     }
 
     completedLocally = true;
@@ -590,9 +591,9 @@ async function runTaskLifecycle(
     const errorMessage = isUserCancel || recoveredPlan
       ? null
       : isStall
-        ? "The AI worker stopped producing output for 5 minutes. Partial output was saved and estimated local token usage was counted."
+        ? "The AI worker stopped producing output for 5 minutes. Partial output was saved and estimated token usage was counted."
         : isContextLimit
-          ? "This request is too large for the local model to answer in one go. Start a new chat or split it into smaller prompts."
+          ? "This request is too large for Folio AI’s token allowance. Start a new chat or split it into smaller prompts."
         : error instanceof Error
           ? error.message
           : "Generation could not be completed.";

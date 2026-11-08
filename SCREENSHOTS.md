@@ -17,9 +17,9 @@ SCREENSHOT_DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:5432/folio_scr
 npm run screenshots
 ```
 
-Alternatively put those variables in `.env.local` for development and run `npm run screenshots`. The runner chooses a free local port, starts an isolated server itself, uses a fresh in-memory Playwright profile, and does not accept an external server URL. It checks the database name and server address before any writes. The isolated server uses placeholder OAuth settings and cannot use your real Google or SMTP credentials. A software WebGPU adapter allows the genuine AI interface to render without downloading a model.
+Alternatively put those variables in `.env.local` for development and run `npm run screenshots`. The runner chooses a free local port, starts an isolated server itself, uses a fresh in-memory Playwright profile, and does not accept an external server URL. It checks the database name and server address before any writes. The isolated server uses placeholder OAuth settings and cannot use your real Google or SMTP credentials. The hosted Gemini interface can render without a model download or API key.
 
-It seeds the existing Folio demo workspace with projects, priorities, statuses, deadlines, ideas and activity, plus fictional notifications, a fictional calendar mirror, and a sample AI conversation. No real accounts, calendar credentials, AI API keys, or live provider calls are used. Authentication is a normal opaque Folio session inserted for the temporary user; there is no public test-login route or authorization bypass.
+It seeds the existing Folio demo workspace with projects, priorities, statuses, deadlines, ideas and activity, plus fictional notifications, a fictional calendar mirror, and a sample AI conversation. No real accounts, calendar credentials, AI API keys, or live provider calls are used. The hosted Gemini interface can render without a configured key; sending prompts requires the server's `GEMINI_API_KEY`. Authentication is a normal opaque Folio session inserted for the temporary user; there is no public test-login route or authorization bypass.
 
 The command writes `dashboard.png`, `projects.png`, `project-details.png`, `tasks-board.png`, `tasks-list.png`, `tasks-calendar.png`, `ideas.png`, `calendar.png`, `analytics.png`, and `folio-ai.png`. Screens are staged temporarily and only published after all captures and cleanup succeed. The landing page uses exactly these filenames and falls back gracefully if one is unavailable.
 
@@ -32,7 +32,7 @@ In `finally`, the browser and isolated server are closed. Deletion requires the 
 * **Safety check failed:** use the exact local mode and dedicated loopback database name; check that `DATABASE_URL` is different and production environment flags are unset. Remote/test Neon is intentionally not accepted.
 * **Connection refused / permissions:** start local PostgreSQL, create the dedicated database, and check its URL and permissions. The tool applies the additive Folio schema there.
 * **Browser launch or missing library:** rerun `npx playwright install chromium` and, on Linux, `npx playwright install-deps chromium`.
-* **AI compatibility timeout:** ensure the Chromium build supports SwiftShader WebGPU; the runner fails rather than publishing an error screen.
+* **AI provider configuration:** screenshots do not make Gemini requests. To test generation, configure `GEMINI_API_KEY` in a separate development environment and use the Folio AI browser test.
 * **Selector or loading timeout:** the real UI may have changed; inspect the route and update the corresponding readiness selector in `scripts/screenshots.mjs`. The staged images are not published on failure.
 * **Cleanup failed:** note the printed unique demo UUID. In the dedicated local database only, investigate that exact ID and its cascading foreign keys. Never run a broad delete or truncate. Do not point cleanup at production.
 

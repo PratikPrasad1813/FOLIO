@@ -372,8 +372,8 @@ const SCREENS = [
     name: "folio-ai",
     label: "Folio AI",
     icon: BrainCircuit,
-    badge: "LOCAL ON-DEVICE",
-    description: "100% on-device WebGPU assistant. Proposes verified workspace action plans without cloud data leaks.",
+    badge: "GOOGLE GEMINI",
+    description: "A thoughtful Gemini-powered assistant with reviewable workspace action plans and a clear daily Folio usage limit.",
   },
 ];
 
@@ -448,15 +448,15 @@ export function ProductShowcase() {
 const FAQ = [
   [
     "What is Folio?",
-    "Folio is a personal workspace for your projects, tasks, schedule, and ideas. Built with Next.js 16, PostgreSQL, Drizzle ORM, and local WebGPU AI, it brings big-picture calm and small-step momentum together into one distraction-free place.",
+    "Folio is a personal workspace for your projects, tasks, schedule, and ideas. Built with Next.js 16, PostgreSQL, Drizzle ORM, and Google Gemini AI, it brings big-picture calm and small-step momentum together into one distraction-free place.",
   ],
   [
     "Is Folio completely free to use?",
-    "Folio has no subscriptions, paywalls, or premium tiers in this version. The local AI preview includes an account-wide daily token allowance. Inference runs on your device and the usage panel shows only a percentage.",
+    "Folio has no subscriptions or premium tiers in this version. Folio AI includes a 10,000-token daily allowance per user, and the usage panel shows only a percentage. Google's project-level rate limits and any billing enabled for the deployment's API key are separate.",
   ],
   [
     "How does Folio AI protect my privacy?",
-    "Folio AI runs model inference locally in your browser using WebLLM and WebGPU; prompts are not sent to a third-party AI provider. Conversation history and task progress sync to your Folio account so you can resume across devices, and account-wide daily token usage is tracked for the usage limit. Proposed workspace actions remain visible for your review and confirmation.",
+    "Folio AI sends your prompt and bounded workspace context to Google AI Studio for Gemini inference. Conversation history and task progress are stored with your Folio account, and Folio enforces a 10,000-token daily allowance per user. The Gemini API key stays on the server. Proposed workspace actions remain visible for your review and confirmation.",
   ],
   [
     "How does Google Calendar integration work?",
@@ -476,7 +476,7 @@ const FAQ = [
   ],
   [
     "Can I use Folio on mobile devices?",
-    "Yes. The public landing page, sign-in, onboarding, and workspace shells adapt responsively to mobile and tablet screens. Local AI inference depends on your device's browser WebGPU support, but the core workspace (projects, tasks, calendar, ideas) works everywhere.",
+    "Yes. The public landing page, sign-in, onboarding, and workspace shells adapt responsively to mobile and tablet screens. Folio AI uses hosted Gemini inference, so it does not require WebGPU or local model downloads.",
   ],
 ];
 
@@ -523,7 +523,7 @@ export function LandingPage() {
             <a href="#folio-ai" className="lp-announcement">
               <span>
                 <Sparkles size={12} />
-                Folio 2.0 with On-Device WebGPU AI &amp; Calendar Sync
+                Folio 2.0 with Google Gemini AI &amp; Calendar Sync
               </span>
               <span>
                 Explore the workspace
@@ -571,12 +571,12 @@ export function LandingPage() {
               <i />
               <span>
                 <Check size={13} />
-                Zero cloud AI data leaks
+                Visible AI usage limits
               </span>
               <i />
               <span>
                 <Check size={13} />
-                Full data deletion on demand
+                Review before workspace changes
               </span>
             </div>
           </div>
@@ -638,7 +638,7 @@ export function LandingPage() {
             </span>
             <span>
               <BrainCircuit size={18} />
-              The on-device assistant
+              The thoughtful assistant
             </span>
           </div>
         </section>
@@ -847,19 +847,19 @@ export function LandingPage() {
                 <em>A lot more potential.</em>
               </h2>
               <p>
-                Meet Folio AI. A personalized, local-first assistant that runs directly on your device using WebGPU and WebLLM.
+                Meet Folio AI. A personalized assistant, powered by Google Gemini and designed around your Folio workspace.
               </p>
               <ul>
                 <li>
                   <CheckCircleIcon />
                   <span>
-                    <strong>On-device model inference:</strong> Your prompts are processed locally and are not sent to a third-party AI provider. Conversation history syncs with your Folio account.
+                    <strong>Powered by Gemini:</strong> Folio sends your prompt and selected workspace context to Google AI Studio through a secure server route.
                   </span>
                 </li>
                 <li>
                   <CheckCircleIcon />
                   <span>
-                    <strong>No hosted AI fallback:</strong> Model failures never silently send your prompt to a hosted AI provider.
+                    <strong>A clear daily allowance:</strong> Folio enforces a 10,000-token daily limit, with usage shown as a simple percentage.
                   </span>
                 </li>
                 <li>
@@ -877,7 +877,7 @@ export function LandingPage() {
               </ul>
               <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginTop: 22 }}>
                 <Link href="/signup" className="lp-button is-dark">
-                  Try Folio AI locally
+                  Try Folio AI
                   <ArrowUpRight size={16} />
                 </Link>
                 <a href="#open-source" className="lp-button is-outline">
@@ -885,7 +885,7 @@ export function LandingPage() {
                 </a>
               </div>
               <small>
-                Local AI preview requires a WebGPU-compatible browser (e.g. Chrome 113+, Edge, Safari 26+) and sufficient device memory. Model files download once to browser cache. Your entire workspace functions smoothly without AI enabled.
+                Gemini API access is configured by the Folio deployment. Your prompts are sent to Google AI Studio; Google project-level limits and billing settings also apply.
               </small>
             </div>
             <div className="lp-ai-visual">
@@ -893,7 +893,7 @@ export function LandingPage() {
                 <div className="lp-ai-window-label">
                   <Sparkles size={14} />
                   <span>Folio AI Assistant</span>
-                  <b>LOCAL ON-DEVICE WEBGPU</b>
+                  <b>GOOGLE AI STUDIO · GEMINI</b>
                 </div>
                 <ProductImage
                   name="folio-ai"
@@ -902,7 +902,7 @@ export function LandingPage() {
               </div>
               <p>
                 <ShieldCheck size={13} />
-                Your private thoughts belong strictly on your device.
+                Your API key stays server-side. Your prompts are sent to Google.
               </p>
             </div>
           </div>
@@ -1034,7 +1034,7 @@ export function LandingPage() {
               <div className="lp-step-line" />
               <h3>Make meaningful progress.</h3>
               <p>
-                Watch small wins add up in task insights. Review on-device AI plans when you want perspective, and keep your workspace calm.
+                Watch small wins add up in task insights. Review Folio AI action plans when you want perspective, and keep your workspace calm.
               </p>
             </article>
           </div>
@@ -1114,8 +1114,8 @@ export function LandingPage() {
                 <li>
                   <Cpu size={15} />
                   <div>
-                    <strong>WebLLM &amp; WebGPU</strong>
-                    <span>Local-first on-device AI inference with zero cloud server dependencies</span>
+                    <strong>Google Gemini API</strong>
+                    <span>Server-side credentials, streaming responses, and a 10,000-token daily Folio allowance</span>
                   </div>
                 </li>
                 <li>

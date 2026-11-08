@@ -85,6 +85,13 @@
       "when": 1794050941089,
       "tag": "0011_folio_ai_token_budget",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794140000000,
+      "tag": "0012_folio_ai_provider_request",
+      "breakpoints": true
     }
   ]
 }

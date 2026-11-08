@@ -393,7 +393,7 @@ export { ActionValidationError };
 export const AI_ACTION_PLAN_OPEN = "[AI_ACTION_PLAN]";
 export const AI_ACTION_PLAN_CLOSE = "[/AI_ACTION_PLAN]";
 
-/** Extract an action plan from a local model reply, if present. */
+/** Extract an action plan from an assistant reply, if present. */
 export function extractActionPlan(content: string): { id: string; params: Record<string, unknown> }[] | null {
   const { repairAndExtractActionPlan } = require("@/lib/folio-ai/intent-pipeline");
   return repairAndExtractActionPlan(content);

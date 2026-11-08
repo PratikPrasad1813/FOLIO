@@ -1,28 +1,23 @@
 import type { AIProgress } from "@/lib/folio-ai/types";
 
-export interface LocalChatMessage { role: "system" | "user" | "assistant"; content: string }
-export interface AIInferenceProvider {
+export interface ChatMessage { role: "system" | "user" | "assistant"; content: string }
+export interface AIProvider {
   readonly providerId: string;
-  readonly inferenceLocation: "local" | "hosted";
+  readonly inferenceLocation: "hosted";
   readonly modelId: string;
   readonly modelName: string;
   initialize(onProgress: (progress: AIProgress) => void): Promise<{ cached: boolean }>;
   generate(
-    messages: LocalChatMessage[],
+    messages: ChatMessage[],
     signal: AbortSignal,
     onToken: (token: string) => void,
     onStage?: (stage: string) => void,
     onUsage?: (tokens: number) => void,
+    taskId?: string,
   ): Promise<{ text: string; outputTokens: number; promptTokens?: number }>;
   interrupt(): Promise<void>;
   resetConversation(): Promise<void>;
   unload(): Promise<void>;
-}
-
-/** Phase 1 uses a local implementation. A future hosted provider can implement
- * the same neutral interface without changing Folio AI's chat/action clients. */
-export interface LocalAIProvider extends AIInferenceProvider {
-  readonly inferenceLocation: "local";
 }
 
 export interface AIActionDefinition<Args = unknown, Result = unknown> {

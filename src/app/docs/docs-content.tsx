@@ -50,12 +50,11 @@ export const chapters = [
   },
   {
     id: "ai",
-    title: "6. Folio AI & local models",
+    title: "6. Folio AI & Gemini API",
     sections: [
       ["ambient-ai", "Context and trust boundaries"],
       ["prompt-design", "Planning prompts"],
-      ["local-models", "WebLLM and local endpoints"],
-      ["quality-workflow", "Optional quality models"],
+      ["gemini-api", "Gemini API configuration and limits"],
     ],
   },
   {
@@ -627,7 +626,7 @@ export function DocsChapterContent({ chapterId }: { chapterId: ChapterId }) {
                      └─────────────────────┘
 
 Google OAuth / Calendar API ◄──── encrypted server-side integration
-Browser WebGPU + WebLLM      ◄──── local inference; account history and quota sync through Folio APIs
+Google AI Studio Gemini    ◄──── authenticated server route; Folio enforces a 10,000-token daily allowance
 
 ┌──────────────────────── Tauri v2 desktop ───────────────────────────────┐
 │ Rust host + native WebView (WebView2 / WKWebView / WebKitGTK)           │
@@ -655,7 +654,7 @@ Browser WebGPU + WebLLM      ◄──── local inference; account history an
                 Every data operation must include the authenticated user predicate, even if identifiers are unguessable. Mutating JSON endpoints must reject cross-origin requests and return explicit 4xx/5xx responses rather than success-shaped empty data.
               </Callout>
               <h4 className="mt-7 text-base font-semibold text-white">Choosing the rendering boundary</h4>
-              <p className="mt-3 leading-8">Keep static product explanation, legal information, and documentation on the server-rendered path wherever interaction does not require browser state. Use client components for stateful controls—drag previews, keyboard focus, local model workers, search dialogs, and theme-aware interactions—not as a blanket wrapper around data fetching. This reduces the amount of JavaScript that must hydrate and makes the server the natural place to enforce authentication before sensitive workspace data is serialized.</p>
+              <p className="mt-3 leading-8">Keep static product explanation, legal information, and documentation on the server-rendered path wherever interaction does not require browser state. Use client components for stateful controls—drag previews, keyboard focus, Gemini response streaming, search dialogs, and theme-aware interactions—not as a blanket wrapper around data fetching. This reduces the amount of JavaScript that must hydrate and makes the server the natural place to enforce authentication before sensitive workspace data is serialized.</p>
               <p className="mt-3 leading-8">A route handler should own the HTTP boundary and delegate business rules to domain modules when a behavior is reused. Keep provider-specific payload parsing near the integration boundary, translate it to Folio’s internal types, then return a stable application shape. This avoids leaking external API naming conventions into every view. For private workspace responses, set non-cacheable response semantics unless the caching layer is explicitly keyed by authenticated identity and has been tested against cross-user leakage.</p>
               <div className="docs-request-steps my-6">
                 <span>REQUEST LIFECYCLE</span>
@@ -869,10 +868,10 @@ connection revoked, clear access token, and ask the user to reconnect.`}/>
 
             {chapterId === "ai" && (
             <section id="ai" className="scroll-mt-24">
-              <ChapterTitle number="06" title="Folio AI Engine & Local Open-Weight LLM Integration" lead="Folio AI is designed as a reviewable assistant: it can reason over a bounded workspace context, but consequential edits are presented as proposed actions and applied through the application’s normal validated mutation layer." />
+              <ChapterTitle number="06" title="Folio AI & Google Gemini API" lead="Folio AI streams Gemini responses through an authenticated server route, keeps API credentials server-side, and applies consequential workspace edits only through validated, reviewable actions." />
               <SectionTitle id="ambient-ai">Ambient context and privacy boundary</SectionTitle>
               <p className="leading-8">Useful context can include active project goals, unfinished tasks, due dates, recent activity, and upcoming calendar events. Assemble only the smallest relevant subset for the user’s request, with explicit limits on record count and character length. Remove unrelated personal fields and never include session cookies, OAuth credentials, or hidden system metadata. Context should carry stable IDs when proposing actions so the executor can resolve and validate targets rather than trusting model-generated names.</p>
-              <p className="mt-4 leading-8">The implemented local provider uses WebLLM and WebGPU in the browser. The model weights and prompts are processed locally after download; normal Folio account/session and usage features still communicate with the Folio server. “Local inference” is not equivalent to “the entire application is offline.” User-visible wording should precisely distinguish local model inference from server persistence and request accounting.</p>
+              <p className="mt-4 leading-8">Folio sends the current prompt and a bounded subset of relevant workspace context from the authenticated server route to Google AI Studio for inference. Conversation history, task progress, and Folio usage accounting remain associated with the signed-in Folio account. The browser never receives the Gemini API key. Tell users clearly that prompts are sent to Google, avoid putting secrets in prompts, and do not describe the inference as private or on-device.</p>
               <p className="mt-4 leading-8">Action proposals should be structured, schema-validated, previewable, and idempotent where possible. Treat model output as untrusted text, not executable code. Every action must pass ordinary authorization and domain checks; the model never gets direct database access or permission to bypass confirmation.</p>
 
               <SectionTitle id="prompt-design">Task decomposition and estimation prompts</SectionTitle>
@@ -916,31 +915,17 @@ Output JSON only:
 { "lowMinutes": 0, "highMinutes": 0, "confidence": "low|medium|high",
   "assumptions": ["..."] }`}/>
 
-              <SectionTitle id="local-models">On-device models, Ollama, and WebGPU</SectionTitle>
-              <p className="leading-8">Folio offers two compact WebLLM models: Llama 3.2 1B for quick replies and SmolLM2 1.7B for fuller workspace planning. Download both sequentially in one action; their combined model files are about 1.7 GB and stay within the 2 GB bundle limit. Folio recommends Llama on devices with unknown or limited memory and SmolLM2 on devices reporting at least 8 GB; devices reporting under 4 GB do not expose Folio AI. The configured context window is 4,096 tokens, input is capped at 4,000 characters, output at 2,048 tokens, and the daily token allowance is 50,000; the UI exposes usage as a percentage only. Mobile browsers also need WebGPU. Inference stays on-device, while conversation history and task progress sync to the Folio account.</p>
-              <SectionTitle id="quality-workflow">Optional quality models and staged collaboration</SectionTitle>
-              <p className="leading-8">After the compact models are installed, Folio can offer an optional quality-model library. Eligible devices can inspect each model’s strengths and trade-offs, download one model at a time, or install all models compatible with that device. The library includes Gemma 2 2B IT (~1.5 GB), Qwen 2.5 3B Instruct (~1.3 GB), Phi 3.5 Mini (~1.2 GB), and Qwen 2.5 7B Instruct (~2.4 GB). Availability is filtered using reported system memory and required WebGPU features; for example, Gemma requires <code>shader-f16</code>. These are additional downloads, not part of the compact bundle: installing quality models can use more than 2 GB of storage, and browser-reported memory is only a compatibility hint, not a guarantee of available GPU memory.</p>
-              <p className="mt-4 leading-8">When smart routing is enabled, a prompt is assessed as complex, and every quality model offered for the device is installed, Folio can run a staged workflow locally. With two installed quality models it plans and writes; with three it plans, reviews the plan, and writes; with four it can also prepare a separate Folio-action stage. Each model is loaded and unloaded before the next stage to avoid keeping all model weights in GPU memory simultaneously. The multi-model request uses a larger usage reservation (up to 16,384 tokens rather than the regular 6,144-token reservation), so it consumes more of the daily allowance. Model strengths are descriptive rather than benchmark guarantees.</p>
-              <p className="mt-4 leading-8">A staged workflow does not silently change the workspace. Any proposed Folio actions are returned through the normal action-plan review and confirmation flow; only after approval can Folio apply them through its validated mutation layer. Users can continue with the compact models instead, and devices without compatible quality upgrades retain the compact-model experience.</p>
-              <p className="mt-4 leading-8">A local Ollama-compatible OpenAI endpoint can be used as an integration option in a development environment when a provider adapter is configured to call it. Typical local URL is <code>http://localhost:11434/v1</code>; do not expose that endpoint publicly without authentication and network controls. A browser page cannot safely assume it may call localhost: browser mixed-content, CORS, private-network and permission policies vary. The current repository’s default Folio AI provider is WebLLM/WebGPU, not an Ollama HTTP client.</p>
-              <CodeBlock language="local model comparison" code={`Path                 Inference location    Privacy / tradeoff
-WebLLM + WebGPU      User's browser         Prompt/model inference local;
-                                           weights download to browser cache
-Ollama + local API   User's device service  Local if bound to loopback;
-                                           requires an explicit adapter
-Hosted model API     Provider's servers     Strong availability/model choice;
-                                           workspace context leaves device
+              <SectionTitle id="gemini-api">Gemini API configuration and limits</SectionTitle>
+              <p className="leading-8">The hosted provider uses the Gemini API through the server-only <code>GEMINI_API_KEY</code> environment variable. Create a key in Google AI Studio, configure it in the server or deployment secret manager, and restart/redeploy Folio. Never use a <code>NEXT_PUBLIC_</code> prefix, put the key in client code, or commit it to source control. The model identifier is configured in <code>src/lib/folio-ai/config.ts</code>; Folio currently targets Gemini 3.8 Flash.</p>
+              <CodeBlock language="server environment" code={`# .env.local (development) or your deployment's secret settings
+GEMINI_API_KEY="your-server-side-Google-AI-Studio-key"
 
-Current Folio default: device-aware WebLLM (Llama 3.2 1B for unknown or limited
-system memory; SmolLM2 1.7B for everyday planning).
-Conversation/task history and quota metadata sync to Folio; model inference
-and downloaded weights remain on the device. Roster entries require compatible
-compiled model artifacts, memory, and registry availability.`}/>
-              <p className="leading-8">Choose local inference when device-side processing and avoiding third-party model providers are priorities; Folio account sync and quota checks still require network access. A local model is not automatically safer from malicious prompt content or inaccurate output. Evaluate outputs, keep destructive operations confirmed, and never treat model confidence as authorization.</p>
-              <h4 className="mt-7 text-base font-semibold text-white">Evaluation and graceful degradation</h4>
-              <p className="mt-3 leading-8">A model adapter should expose a narrow interface for initialization, progress, generation, interruption, reset, and unload. Keep model loading behind an explicit user action because downloading hundreds of megabytes consumes bandwidth and storage. Report download progress, whether assets were cached, WebGPU initialization errors, and cancellation clearly; release the worker when the user unloads the model or the browser route no longer needs it. Never silently fall back to a remote provider after a local model fails, since that changes the privacy contract.</p>
-              <p className="mt-3 leading-8">Evaluate generated plans against a fixed set of representative requests: vague goals, tasks with dependencies, already-completed work, sensitive content, requests to act on an unknown project, and malicious instructions embedded in task descriptions. Measure schema-valid output, useful decomposition, hallucinated dates, and whether unsafe operations are presented as proposals. Keep evaluation samples synthetic or consented, and avoid retaining raw prompts longer than the feature requires.</p>
-              <p className="mt-3 leading-8">Streaming improves perceived responsiveness but introduces partial output. Do not parse or execute an incomplete JSON fragment. Buffer the response, validate it against a runtime schema after generation completes, reject unknown fields, and show a recoverable parse error with the original user input intact. Pause automatic scrolling when the user has moved away from the latest message. Check the estimated prompt against the local context budget and ask users to split requests that will not fit; abort signals should stop generation and release the UI’s busy state even when the worker rejects during interruption.</p>
+# Never do this:
+NEXT_PUBLIC_GEMINI_API_KEY="..."`}/>
+              <p className="mt-4 leading-8">The <code>/api/ai/generate</code> route authenticates the Folio user, accepts only a bounded message context, requires an active owned task, and atomically claims that task before contacting Google. This makes the provider request one-shot per task, preventing duplicate retries from generating extra upstream calls. The route streams Google’s server-sent events to the browser, propagates cancellation, and records usage observed from Gemini before the stream is considered complete.</p>
+              <p className="mt-4 leading-8">Folio enforces a 10,000-token daily allowance per user with database-backed reservations. Each generation reserves at most 4,096 tokens, accepts at most the matching bounded input budget, and asks Gemini for no more than 1,024 output tokens. Folio records provider-reported usage when available and settles unused reservation capacity after completion; the client only receives a percentage. Folio’s allowance is not Google’s billing or project-level quota: the deployment owner remains subject to the Google AI Studio key’s rate limits, terms, and any billing enabled for that project.</p>
+              <p className="mt-4 leading-8">Prompts, bounded workspace context, and generated text are sent to Google for inference. Conversation messages and task progress are stored by Folio for the signed-in user. Follow Google’s current Gemini API data-use terms for the configured project; do not promise that third-party processing is private or on-device. Keep credentials and unrelated sensitive data out of prompts. Hosted inference does not depend on WebGPU, local model downloads, or a device-memory threshold, so the same interface can be used from mobile browsers.</p>
+              <p className="mt-4 leading-8">Streaming responses are partial until the server closes the stream. Preserve incomplete output, never execute a partial action plan, and only invoke workspace actions after the complete response passes the existing action-plan validation and user confirmation flow. When a prompt or its context will not fit the configured budget, ask the user to start a new chat or split the request into smaller prompts. Automatic scrolling must pause as soon as the user scrolls away from the newest message.</p>
             </section>
             )}
 
@@ -949,7 +934,7 @@ compiled model artifacts, memory, and registry availability.`}/>
               <ChapterTitle number="07" title="Cross-Platform Desktop Client (Tauri v2 Manual)" lead="Tauri supplies a compact Rust host around the operating system’s WebView, with narrowly scoped plugins for opener behavior, custom deep links, and single-instance handling." />
               <SectionTitle id="tauri-architecture">Rust core and native WebViews</SectionTitle>
               <p className="leading-8">Tauri’s Rust process owns the native window and plugin lifecycle; the UI is rendered by the operating system’s WebView: WebView2 on Windows, WKWebView on macOS, and WebKitGTK on Linux. That avoids bundling a separate browser engine but means platform WebView versions and system dependencies affect runtime behavior. The configured plugins include deep-link, opener, logging in development, and single-instance on desktop. Keep the Tauri command surface small, validate all webview input, and grant only capabilities required by the app.</p>
-              <p className="mt-4 leading-8">The current window uses a 1280×820 initial size, minimum size 900×600, dark native theme, and a hosted production URL. The active Tauri config sets <code>csp</code> to <code>null</code>; this is permissive and should be revisited before embedding arbitrary remote content or expanding native permissions. A strict content security policy must account for the actual app origin, WebGPU/model assets, and required API connections rather than being copied blindly.</p>
+              <p className="mt-4 leading-8">The current window uses a 1280×820 initial size, minimum size 900×600, dark native theme, and a hosted production URL. The active Tauri config sets <code>csp</code> to <code>null</code>; this is permissive and should be revisited before embedding arbitrary remote content or expanding native permissions. A strict content security policy must account for the actual app origin and required API connections rather than being copied blindly.</p>
 
               <SectionTitle id="tauri-config">tauri.conf.json reference</SectionTitle>
               <p className="leading-8">This listing reproduces the relevant current repository configuration. Build output targets and icon paths must exist for release packaging. The empty before-build commands mean this config does not invoke a Next.js build; in this deployment, the window loads the hosted application URL.</p>

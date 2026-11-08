@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import {
@@ -731,6 +731,21 @@ export async function getAITaskById(
     .where(and(eq(folioAiTasks.id, taskId), eq(folioAiTasks.userId, userId)))
     .limit(1);
   return row ? mapTaskRow(row) : null;
+}
+
+export async function claimGeminiRequest(userId: string, taskId: string): Promise<boolean> {
+  await ensureSchema();
+  const [claimed] = await db
+    .update(folioAiTasks)
+    .set({ providerRequestStartedAt: new Date(), updatedAt: new Date() })
+    .where(and(
+      eq(folioAiTasks.id, taskId),
+      eq(folioAiTasks.userId, userId),
+      eq(folioAiTasks.status, "running"),
+      isNull(folioAiTasks.providerRequestStartedAt),
+    ))
+    .returning({ id: folioAiTasks.id });
+  return Boolean(claimed);
 }
 
 export async function listActiveUserAITasks(

@@ -101,9 +101,7 @@ try {
   await db.insert(folioAiMessages).values([{ userId, conversationId: conversation.id, role: "user", content: "Help me make a thoughtful plan for this week." }, { userId, conversationId: conversation.id, role: "assistant", content: "Absolutely. Let’s start with your most important priorities, make room for focused work, and leave a little breathing space between tasks.", generationStatus: "complete", createdAt: new Date(Date.now() + 1000) }]);
   if (process.env.FOLIO_SCREENSHOT_FAIL_AFTER_SEED === "1") throw new Error("Intentional failure after seed, for cleanup verification.");
   staging = await mkdtemp(join(tmpdir(), "folio-capture-"));
-  // SwiftShader provides an actual software WebGPU adapter in headless Chromium;
-  // no AI model is downloaded or run during capture.
-  browser = await chromium.launch({ headless: true, args: ["--enable-unsafe-webgpu", "--use-angle=swiftshader"] });
+  browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, colorScheme: "light", reducedMotion: "reduce", timezoneId: "UTC", locale: "en-US" });
   await context.addCookies([{ name: "folio_session", value: token, url: base, httpOnly: true, sameSite: "Lax" }]);
   await context.addInitScript(() => { localStorage.setItem("folio-theme", "light"); localStorage.setItem("folio.tasks.view", "board"); localStorage.setItem("folio.tasks.insights", "open"); });

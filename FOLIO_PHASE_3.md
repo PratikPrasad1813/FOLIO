@@ -1,5 +1,7 @@
 # Folio Phase 3 — Public website, authentication and personalized onboarding
 
+> Historical implementation notes: the local-AI descriptions below refer to an earlier provider and have been superseded. Current Gemini setup and usage limits live in the [README's Google Gemini AI section](README.md#google-gemini-ai) and the app's `/docs` route.
+
 ## What is implemented
 
 The existing Next.js App Router, Drizzle ORM, `pg` connection pool, PostgreSQL records, Netlify-compatible build, Google Calendar integration, notifications, search and AI modules are preserved. This phase replaces anonymous shared-demo access with authenticated workspace access. The shared demo record is **not deleted**; it is no longer an automatic anonymous identity.

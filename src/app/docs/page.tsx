@@ -37,8 +37,8 @@ const chapterDetails = [
     audience: "Everyone",
   },
   {
-    kicker: "LOCAL AI",
-    description: "Understand Folio AI, on-device model limits, privacy boundaries, and responsible action proposals.",
+    kicker: "GOOGLE GEMINI AI",
+    description: "Configure Gemini, understand Folio's token allowance and data flow, and review AI action proposals.",
     audience: "Everyone",
   },
   {

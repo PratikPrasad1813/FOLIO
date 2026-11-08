@@ -304,18 +304,18 @@ try {
     { name: "folio_session", value: sessionToken, url: base, httpOnly: true, sameSite: "Lax" },
   ]);
 
-  // Inject controllable local provider so we can deterministically test normal, >3m,
+  // Inject a controllable hosted-provider mock so we can deterministically test normal, >3m,
   // navigation, refresh, network glitch, failure/retry, and manual cancellation.
   await context.addInitScript(() => {
     window.__TEST_AI_MODE__ = "normal";
     window.__FOLIO_AI_TEST_PROVIDER__ = {
-      providerId: "webllm",
-      inferenceLocation: "local",
-      modelId: "Qwen2.5-3B-Instruct-q4f16_1-MLC",
-      modelName: "Qwen2.5 3B Instruct · Q4F16",
+      providerId: "google-gemini",
+      inferenceLocation: "hosted",
+      modelId: "gemini-3.8-flash",
+      modelName: "Gemini 3.8 Flash",
       async initialize(onProgress) {
-        onProgress({ progress: 1, text: "Model ready on this device.", cached: true });
-        return { cached: true };
+        onProgress({ progress: 1, text: "Hosted provider ready.", cached: false });
+        return { cached: false };
       },
       async generate(messages, signal, onToken) {
         const lastUser = [...messages].reverse().find(m => m.role === "user")?.content || "";
@@ -338,7 +338,7 @@ try {
         if (mode === "fail_midway") {
           onToken("First part of the analysis before device error. ");
           await sleep(150);
-          throw new Error("Simulated GPU execution error during generation.");
+          throw new Error("Simulated upstream stream error during generation.");
         }
 
         if (mode === "slow_nav") {
@@ -391,12 +391,7 @@ try {
   await page.goto(`${base}/ai`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Folio AI", exact: true }).waitFor({ timeout: 30_000 });
 
-  // Load the local model
-  const loadBtn = page.getByRole("button", { name: /Download & load local model|Try loading model anyway/i });
-  if (await loadBtn.count()) {
-    await loadBtn.click();
-  }
-  await page.getByText(/Ready · running locally/).waitFor({ timeout: 20_000 });
+  await page.getByText(/Google AI Studio/).waitFor({ timeout: 20_000 });
 
   /* ---------------------------------------------------------------------- */
   /* Test 1 & 8: A normal AI request completes & persists                   */
@@ -482,10 +477,7 @@ try {
   /* ---------------------------------------------------------------------- */
   /* Test 5: Temporary network interruption does not create duplicate tasks */
   /* ---------------------------------------------------------------------- */
-  // Re-load model after full page reload
-  const reloadModelBtn = page.getByRole("button", { name: /Download & load local model|Try loading model anyway/i });
-  if (await reloadModelBtn.count()) await reloadModelBtn.click();
-  await page.getByText(/Ready · running locally/).waitFor({ timeout: 20_000 });
+  await page.getByText(/Google AI Studio/).waitFor({ timeout: 20_000 });
   await page.evaluate(() => {
     window.__TEST_AI_MODE__ = "normal";
   });

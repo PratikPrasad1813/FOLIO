@@ -1,5 +1,7 @@
 # Folio AI — Phase 2: Workspace Operator + Intelligent Device-Based Model Selection
 
+> Historical implementation notes: the browser-local WebLLM provider and device-based model selection described here have been retired. Current setup and Gemini usage limits live in the [README's Google Gemini AI section](README.md#google-gemini-ai) and the app's `/docs` route.
+
 Phase 2 builds on Phase 1 (browser-local WebLLM inference and Neon account-wide usage limits) and adds:
 
 1. **Secure Folio workspace actions** — the local assistant can create, update, complete, search, summarize, and manage real Folio records through validated, authenticated backend actions.

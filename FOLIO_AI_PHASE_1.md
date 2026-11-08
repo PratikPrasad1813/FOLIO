@@ -1,5 +1,7 @@
 # Folio AI — Phase 1 local-browser proof of concept
 
+> Historical implementation notes: the browser-local WebLLM provider described here has been retired. Current setup and Gemini usage limits live in the [README's Google Gemini AI section](README.md#google-gemini-ai) and the app's `/docs` route.
+
 Folio AI is a native workspace page at **`/ai`**. Phase 1 provides genuine, streamed local inference—not canned replies—and deliberately gives the model no access to Folio records and no executable tools.
 
 ## Model and WebLLM version (verified against the installed registry)

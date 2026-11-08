@@ -1,26 +1,19 @@
 /**
- * One client/server-safe Folio AI configuration source. This file contains no
- * secrets. There is no fixed 3-minute (180-second) wall-clock execution cutoff:
- * long-running tasks stay alive through periodic heartbeats, lease renewals,
- * and intermediate progress checkpoints, while stale-worker and inactivity
- * safeguards protect against genuinely dead or unresponsive workers.
+ * Client/server-safe Folio AI limits. Gemini credentials are read only by the
+ * server-side API route and must never be added here.
  */
 export const FOLIO_AI_CONFIG = {
-  provider: "webllm" as const,
-  modelId: "SmolLM2-1.7B-Instruct-q4f16_1-MLC",
-  modelName: "SmolLM2 1.7B Instruct · Q4F16",
-  webLLMVersion: "0.2.87",
-  approximateDownloadBytes: 973_038_265,
-  requiredGpuMemoryMB: 1_774.19,
+  provider: "google-gemini" as const,
+  modelId: "gemini-3.8-flash",
+  modelName: "Gemini 3.8 Flash",
   contextWindowTokens: 4_096,
   maxInputCharacters: 4_000,
-  maxOutputTokens: 2_048,
-  dailyTokenLimit: 50_000,
-  maxReservedTokensPerGeneration: 6_144,
-  maxReservedTokensPerOrchestratedGeneration: 16_384,
+  maxOutputTokens: 1_024,
+  dailyTokenLimit: 10_000,
+  maxReservedTokensPerGeneration: 4_096,
   approximateCharactersPerToken: 4,
-  maxContextMessages: 8,
-  maxContextCharacters: 6_000,
+  maxContextMessages: 6,
+  maxContextCharacters: 4_800,
   reservationLeaseMilliseconds: 600_000,
   heartbeatIntervalMilliseconds: 10_000,
   staleTaskTimeoutMilliseconds: 60_000,
@@ -31,12 +24,8 @@ export const FOLIO_AI_CONFIG = {
   historyMessageLimit: 40,
 } as const;
 
-export const MULTI_MODEL_WORKFLOW_ID = "folio-multi-model-v1";
-
-export function maxReservedTokensForModel(modelId?: string): number {
-  return modelId === MULTI_MODEL_WORKFLOW_ID
-    ? FOLIO_AI_CONFIG.maxReservedTokensPerOrchestratedGeneration
-    : FOLIO_AI_CONFIG.maxReservedTokensPerGeneration;
+export function maxReservedTokensForModel(_modelId?: string): number {
+  return FOLIO_AI_CONFIG.maxReservedTokensPerGeneration;
 }
 
 export function approximateHumanSize(bytes: number): string {
