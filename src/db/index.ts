@@ -1,14 +1,19 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
-const databaseUrl = process.env.DATABASE_URL;
+let databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
-  throw new Error(
-    "DATABASE_URL is not set. Copy .env.example to .env.local in the project root and set DATABASE_URL " +
-    "to your PostgreSQL connection string (Neon: Dashboard → Connect → copy the full string). " +
-    "Then restart the dev server. You can verify a connection string with `npm run db:check` — see DATABASE_SETUP.md.",
-  );
+  // If building for desktop static export or in CI, provide a dummy fallback so compilation passes
+  if (process.env.NEXT_PUBLIC_DESKTOP_BUILD === "1" || process.env.CI) {
+    databaseUrl = "postgres://dummy:dummy@localhost:5432/dummy";
+  } else {
+    throw new Error(
+      "DATABASE_URL is not set. Copy .env.example to .env.local in the project root and set DATABASE_URL " +
+      "to your PostgreSQL connection string (Neon: Dashboard → Connect → copy the full string). " +
+      "Then restart the dev server. You can verify a connection string with `npm run db:check` — see DATABASE_SETUP.md.",
+    );
+  }
 }
 
 /**
