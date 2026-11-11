@@ -23,6 +23,10 @@ import { OverviewPanel } from "@/components/dashboard";
 import { GlobalSearch } from "@/components/global-search";
 import { FolioAIPanel } from "@/components/folio-ai-panel";
 import { NotificationCenter } from "@/components/notification-center";
+import { SyncIndicator } from "@/components/desktop/sync-indicator";
+import { disposeSyncEngine } from "@/lib/desktop/sync-engine";
+import { isDesktopRuntime } from "@/lib/desktop/runtime";
+import { desktopSignOut } from "@/lib/desktop/auth-store";
 
 const NAV_ITEMS = [
   { view: "overview" as View, label: "Overview", icon: LayoutDashboard },
@@ -43,7 +47,14 @@ export default function Workspace({ children }: { children?: ReactNode }) {
   const segments = pathname.split("/").filter(Boolean);
   const route = segments[0] || "overview";
   const view: View = route in VIEW_NAMES ? route as View : "overview";
-  const routeProjectId = view === "projects" && segments[1] ? decodeURIComponent(segments[1]) : null;
+  const urlProjectId = view === "projects" && segments[1] ? decodeURIComponent(segments[1]) : null;
+  // Desktop static shell: /projects/<id> URLs cannot exist in a static
+  // export (dynamic ids are not prerenderable), so the open project is
+  // client state there. The web keeps the real, shareable URL. Both values
+  // are null on the projects list itself, so the prerendered HTML and the
+  // hydration render stay identical — no mismatch.
+  const [desktopProjectId, setDesktopProjectId] = useState<string | null>(null);
+  const routeProjectId = isDesktopRuntime() ? desktopProjectId : urlProjectId;
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error"; key: number } | null>(null);
   const notify = useCallback((message: string, tone: "success" | "error" = "success") => setToast({ message, tone, key: Date.now() }), []);
   const { data, error, pending, reload, mutate, bulkTasks, convert, saveSettings, loadSearchItem } = useWorkspace(notify);
@@ -58,8 +69,8 @@ export default function Workspace({ children }: { children?: ReactNode }) {
   const [popover, setPopover] = useState<"notifications" | "profile" | "workspace" | null>(null);
   const [calendarFocus, setCalendarFocus] = useState<CalendarFocusEvent | null>(null);
   const [settingsFocusNonce, setSettingsFocusNonce] = useState(0);
-  const navigate = useCallback((next: View) => { setMobileOpen(false); setPopover(null); router.push(`/${next}`); }, [router]);
-  const openProject = useCallback((id: string) => { setMobileOpen(false); setPopover(null); router.push(`/projects/${id}`); }, [router]);
+  const navigate = useCallback((next: View) => { setMobileOpen(false); setPopover(null); if (isDesktopRuntime()) setDesktopProjectId(null); router.push(`/${next}`); }, [router]);
+  const openProject = useCallback((id: string) => { setMobileOpen(false); setPopover(null); if (isDesktopRuntime()) { setDesktopProjectId(id); return; } router.push(`/projects/${id}`); }, [router]);
   const openEditor = (next: EditorState) => { setEditor(next); setPopover(null); };
   const deleteItem = (kind: Resource, item: Item) => { setEditor(null); setConfirmError(""); setConfirmation({ kind, item, action: "delete" }); };
 
@@ -143,6 +154,16 @@ export default function Workspace({ children }: { children?: ReactNode }) {
   async function signOut() {
     setPopover(null);
     try {
+      if (isDesktopRuntime()) {
+        // Desktop: the ONLY path that clears the offline session. Revokes
+        // the token (best-effort), clears local_auth, wipes the mirror and
+        // stops the engine. The session gate then shows the sign-in screen —
+        // never a navigation to /login (that page is web-only).
+        await desktopSignOut();
+        disposeSyncEngine();
+        delete document.documentElement.dataset.folioAccount;
+        return;
+      }
       const response = await fetch("/api/auth", { method: "DELETE" });
       if (!response.ok) throw new Error("Couldn’t sign out. Please try again.");
       delete document.documentElement.dataset.folioAccount;
@@ -154,7 +175,7 @@ export default function Workspace({ children }: { children?: ReactNode }) {
     setConfirmBusy(true); setConfirmError("");
     try {
       if (confirmation.action === "convert") { const project = await convert(confirmation.item as Idea); openProject(project.id); }
-      else { if (confirmation.kind === "projects" && routeProjectId === confirmation.item.id) router.push("/projects"); await mutate(confirmation.kind, "DELETE", {}, confirmation.item.id); }
+      else { if (confirmation.kind === "projects" && routeProjectId === confirmation.item.id) navigate("projects"); await mutate(confirmation.kind, "DELETE", {}, confirmation.item.id); }
       setConfirmation(null);
     } catch (err) { setConfirmError(err instanceof Error ? err.message : "Could not complete that action."); } finally { setConfirmBusy(false); }
   }
@@ -167,15 +188,7 @@ export default function Workspace({ children }: { children?: ReactNode }) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const pageTitle = view === "overview" ? `${greeting}, ${firstName}` : VIEW_NAMES[view];
-  // First-time onboarding is decided by the persisted per-user flag, never by
-  // current content. Deleting every project, task and idea must not send a
-  // user back to onboarding; an empty regular dashboard has its own empty
-  // states for each section.
-  const isNewWorkspace = Boolean(data && data.user.onboardingCompleted === false);
 
-  // Folio AI opens as a full-window experience: no sidebar, topbar, or footer.
-  // The panel fills the viewport and exposes a "Back to Folio" action that
-  // returns the user to the regular workspace shell.
   if (view === "ai") {
     return (
       <div className="folio-ai-fullscreen">
@@ -201,10 +214,10 @@ export default function Workspace({ children }: { children?: ReactNode }) {
       <div className="sidebar-bottom"><Link href="/settings" className={`nav-item ${view === "settings" ? "active" : ""}`} onClick={() => setMobileOpen(false)}><Settings size={18} strokeWidth={1.6}/><span>Settings</span></Link><button className="nav-item help-nav" onClick={() => { setHelpOpen(true); setMobileOpen(false); }}><CircleHelp size={18} strokeWidth={1.6}/><span>Help & shortcuts</span><ArrowUpRight size={14}/></button><div className="sidebar-note"><span className="note-sparkle">✳</span><strong>A little space. Big possibilities.</strong><p>Capture an idea while it’s fresh. Give it a home, then give it a plan.</p><button onClick={() => openEditor({ kind: "ideas" })}>Capture an idea<ArrowUpRight size={15}/></button></div><div className="sidebar-profile-wrap"><button className="sidebar-profile" onClick={() => setPopover(popover === "profile" ? null : "profile")} aria-expanded={popover === "profile"}><Avatar name={data?.user.name || "You"}/><span><strong>{data?.user.name || "Your workspace"}</strong><small>{PROVIDER_LABELS[data?.user.provider || "email"] || "Personal account"}</small></span><ChevronsUpDown size={14}/></button>{popover === "profile" && <><button className="menu-dismiss" aria-label="Close account menu" onClick={() => setPopover(null)}/><div className="dropdown-menu profile-dropdown"><div className="menu-caption">{data?.user.email || "DEMO MODE"}</div><button onClick={() => navigate("settings")}><UserRound size={15}/>Account settings</button><button onClick={() => signOut()}><LogOut size={15}/>Sign out</button></div></>}</div></div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu-button" aria-label="Open navigation" onClick={() => setMobileOpen(true)}><Menu size={21}/></button><PanelLeft size={17} className="breadcrumb-icon"/><div className="breadcrumbs"><button onClick={() => navigate("overview")}>My workspace</button><ChevronRight size={13}/>{routeProjectId ? <><button onClick={() => navigate("projects")}>Projects</button><ChevronRight size={13}/><span>{routeProject?.name ?? "Project"}</span></> : <span>{VIEW_NAMES[view]}</span>}</div></div><div className="topbar-right"><button className="global-search" aria-label="Search workspace" aria-keyshortcuts="Control+k Meta+k" onClick={() => { setPopover(null); setSearchOpen(true); }}><Search size={16}/><span>Search anything…</span><kbd>⌘ K</kbd></button><button className="icon-button top-help" aria-label="Help and keyboard shortcuts" onClick={() => setHelpOpen(true)}><CircleHelp size={18}/></button><ThemeToggle/><NotificationCenter controller={notifications} isOpen={popover === "notifications"} onToggle={() => setPopover(popover === "notifications" ? null : "notifications")} onClose={() => setPopover(null)} onNavigateEntity={handleNotificationNavigate} onOpenPreferences={openNotificationPreferences}/><span className="topbar-divider"/><button className="top-avatar plain-button" aria-label="Open account settings" onClick={() => navigate("settings")}><Avatar name={data?.user.name || "You"}/></button></div></header>
+      <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu-button" aria-label="Open navigation" onClick={() => setMobileOpen(true)}><Menu size={21}/></button><PanelLeft size={17} className="breadcrumb-icon"/><div className="breadcrumbs"><button onClick={() => navigate("overview")}>My workspace</button><ChevronRight size={13}/>{routeProjectId ? <><button onClick={() => navigate("projects")}>Projects</button><ChevronRight size={13}/><span>{routeProject?.name ?? "Project"}</span></> : <span>{VIEW_NAMES[view]}</span>}</div></div><div className="topbar-right"><button className="global-search" aria-label="Search workspace" aria-keyshortcuts="Control+k Meta+k" onClick={() => { setPopover(null); setSearchOpen(true); }}><Search size={16}/><span>Search anything…</span><kbd>⌘ K</kbd></button><button className="icon-button top-help" aria-label="Help and keyboard shortcuts" onClick={() => setHelpOpen(true)}><CircleHelp size={18}/></button><ThemeToggle/><SyncIndicator/><NotificationCenter controller={notifications} isOpen={popover === "notifications"} onToggle={() => setPopover(popover === "notifications" ? null : "notifications")} onClose={() => setPopover(null)} onNavigateEntity={handleNotificationNavigate} onOpenPreferences={openNotificationPreferences}/><span className="topbar-divider"/><button className="top-avatar plain-button" aria-label="Open account settings" onClick={() => navigate("settings")}><Avatar name={data?.user.name || "You"}/></button></div></header>
       <main className={`main-content view-${view}`}>
-        {view !== "overview" && view !== "projects" && view !== "tasks" && view !== "ai" && <div className="page-heading"><div><h1>{pageTitle}</h1><p>{VIEW_SUBTITLES[view]}</p></div><div className="page-heading-actions">{view !== "settings" && <button className="button primary new-resource-button" disabled={!data} onClick={() => openEditor({ kind: view === "ideas" ? "ideas" : view === "calendar" ? "tasks" : "projects", defaults: view === "calendar" ? { dueDate: dateKey() } : undefined })}><Plus size={16}/>{view === "ideas" ? "Capture an idea" : view === "calendar" ? "New task" : "New project"}</button>}</div></div>}
-        {!data ? error ? view === "projects" ? <ProjectsError message={error} onRetry={() => { void reload().catch(() => {}); }}/> : view === "tasks" ? <TasksError message={error} onRetry={() => { void reload().catch(() => {}); }}/> : <div className="panel error-panel"><EmptyState title="Let’s try that again" description={error} action="Reload workspace" onAction={() => { void reload().catch(() => {}); }}/></div> : view === "projects" ? <ProjectsSkeleton/> : view === "tasks" ? <TasksSkeleton/> : <DashboardSkeleton/> : actions && <>{view === "overview" && (isNewWorkspace ? <WelcomeStart actions={actions} onSignOut={() => { void signOut(); }}/> : <OverviewPanel actions={actions} onReload={() => { void reload().catch(() => {}); }}/ >)} {view === "projects" && (routeProjectId ? (routeProject ? <ProjectWorkspace key={routeProject.id} project={routeProject} actions={actions} onBack={() => navigate("projects")}/> : <ProjectNotFound onBack={() => navigate("projects")}/>) : <ProjectsPanel actions={actions}/>)} {view === "tasks" && <TasksPanel actions={actions}/>} {view === "ideas" && <IdeasPanel actions={actions}/>} {view === "calendar" && <CalendarPanel actions={actions} focusEvent={calendarFocus} onFocusHandled={(found) => { setCalendarFocus(null); if (!found) notify("That calendar event is no longer available.", "error"); }}/>} {view === "ai" && <FolioAIPanel userName={data.user.name} key={data.user.id}/>} {view === "settings" && <SettingsPanel key={data.user.id} data={data} onSave={saveSettings} onSignOut={() => { void signOut(); }} notifications={notifications} notify={notify} focusSectionNonce={settingsFocusNonce}/>}</>}
+        {view !== "overview" && view !== "projects" && view !== "tasks" && <div className="page-heading"><div><h1>{pageTitle}</h1><p>{VIEW_SUBTITLES[view]}</p></div><div className="page-heading-actions">{view !== "settings" && <button className="button primary new-resource-button" disabled={!data} onClick={() => openEditor({ kind: view === "ideas" ? "ideas" : view === "calendar" ? "tasks" : "projects", defaults: view === "calendar" ? { dueDate: dateKey() } : undefined })}><Plus size={16}/>{view === "ideas" ? "Capture an idea" : view === "calendar" ? "New task" : "New project"}</button>}</div></div>}
+        {!data ? error ? view === "projects" ? <ProjectsError message={error} onRetry={() => { void reload().catch(() => {}); }}/> : view === "tasks" ? <TasksError message={error} onRetry={() => { void reload().catch(() => {}); }}/> : <div className="panel error-panel"><EmptyState title="Let’s try that again" description={error} action="Reload workspace" onAction={() => { void reload().catch(() => {}); }}/></div> : view === "projects" ? <ProjectsSkeleton/> : view === "tasks" ? <TasksSkeleton/> : <DashboardSkeleton/> : actions && <>{view === "overview" && <OverviewPanel actions={actions} onReload={() => { void reload().catch(() => {}); }}/ >} {view === "projects" && (routeProjectId ? (routeProject ? <ProjectWorkspace key={routeProject.id} project={routeProject} actions={actions} onBack={() => navigate("projects")}/> : <ProjectNotFound onBack={() => navigate("projects")}/>) : <ProjectsPanel actions={actions}/>)} {view === "tasks" && <TasksPanel actions={actions}/>} {view === "ideas" && <IdeasPanel actions={actions}/>} {view === "calendar" && <CalendarPanel actions={actions} focusEvent={calendarFocus} onFocusHandled={(found) => { setCalendarFocus(null); if (!found) notify("That calendar event is no longer available.", "error"); }}/>} {view === "settings" && <SettingsPanel key={data.user.id} data={data} onSave={saveSettings} onSignOut={() => { void signOut(); }} notifications={notifications} notify={notify} focusSectionNonce={settingsFocusNonce}/>}</>}
         {children}
         <footer className="workspace-footer"><span><span className="footer-spark">✳</span>A little more organized. A little more you.</span><span className="save-status">{pending.size > 0 ? <><Spinner size={12}/>Saving your progress…</> : data ? <><span className="tiny-dot"/>All changes saved</> : <><Spinner size={12}/>Getting things ready…</>}</span></footer>
       </main>
@@ -225,44 +238,5 @@ export default function Workspace({ children }: { children?: ReactNode }) {
 }
 
 function Trash2Icon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg>; }
-
-function WelcomeStart({ actions, onSignOut }: { actions: WorkspaceActions; onSignOut: () => void }) {
-  const firstName = actions.data.user.greetingName || actions.data.user.name.split(" ")[0] || "there";
-  const steps = [
-    { done: actions.data.projects.length > 0, label: "Create your first project", detail: "Give the big thing a name and a little context.", action: () => actions.openEditor({ kind: "projects" }), button: "New project" },
-    { done: actions.data.tasks.length > 0, label: "Add one small next step", detail: "A task you could finish today beats a perfect plan.", action: () => actions.openEditor({ kind: "tasks" }), button: "Add a task" },
-    { done: actions.data.ideas.length > 0, label: "Capture something for later", detail: "Park the “what ifs” on your idea board, guilt-free.", action: () => actions.openEditor({ kind: "ideas" }), button: "Capture an idea" },
-  ];
-  return <div className="welcome-start">
-    <section className="welcome-start-hero">
-      <div className="welcome-start-copy">
-        <span className="eyebrow">YOUR WORKSPACE IS READY</span>
-        <h2>Hello, {firstName}.<br/>Let’s make something <em>yours</em>.</h2>
-        <p>This space starts completely empty, just as it should be. No starter projects, no clutter—only what you decide belongs here.</p>
-        <div className="welcome-start-actions">
-          <button className="button primary" onClick={() => actions.openEditor({ kind: "projects" })}><Plus size={16}/>Create your first project</button>
-          <button className="button secondary" onClick={() => actions.openEditor({ kind: "tasks" })}><SquareCheckBig size={16}/>Create your first task</button>
-          <button className="button secondary" onClick={() => actions.openEditor({ kind: "ideas" })}><Lightbulb size={16}/>Capture your first idea</button>
-          <button className="button secondary" onClick={() => { actions.navigate("projects"); }}><ArrowUpRight size={16}/>Explore the workspace</button>
-        </div>
-        <p className="welcome-start-note">Everything you create is private, saved automatically, and available whenever you sign back in.</p>
-      </div>
-      <div className="welcome-start-art" aria-hidden="true">
-        <div className="start-art-card art-back"><span className="start-art-icon"><Lightbulb size={17}/></span><strong>A someday idea</strong><p>Saved for the right moment.</p></div>
-        <div className="start-art-card art-front"><span className="start-art-icon violet"><FolderKanban size={17}/></span><strong>Your first project</strong><p>Progress starts with one task.</p><div className="start-art-progress"><span/></div></div>
-        <span className="start-art-star">✳</span>
-      </div>
-    </section>
-    <section className="panel welcome-steps">
-      <div className="welcome-steps-heading"><h2>Three gentle ways to begin</h2><span>Nothing here is permanent. Rename, reshape, or remove anything later.</span></div>
-      <ol>{steps.map((step, index) => <li key={step.label} className={step.done ? "step-done" : ""}><span className="step-number">{step.done ? <Check size={14}/> : index + 1}</span><div><strong>{step.label}</strong><p>{step.detail}</p></div><button className="button secondary small-button" onClick={step.action}>{step.button}<ArrowRight size={13}/></button></li>)}</ol>
-    </section>
-    <div className="welcome-start-grid">
-      <section className="panel welcome-tip"><span className="welcome-tip-icon color-green"><SquareCheckBig size={18}/></span><div><h3>Keep the list honest</h3><p>Three real priorities are worth more than fifteen maybes. Your weekly focus is set to {actions.data.user.weeklyGoal} tasks—adjust it any time in Settings.</p><button className="text-link" onClick={() => actions.navigate("settings")}>Tune your weekly goal <ArrowUpRight size={13}/></button></div></section>
-      <section className="panel welcome-tip"><span className="welcome-tip-icon color-yellow"><Sparkles size={18}/></span><div><h3>Ideas don’t need a plan yet</h3><p>Jot the thought down before it disappears. When it feels ready, one click turns an idea into a project with a home of its own.</p><button className="text-link" onClick={() => actions.openEditor({ kind: "ideas" })}>Capture a thought <ArrowUpRight size={13}/></button></div></section>
-      <section className="panel welcome-tip"><span className="welcome-tip-icon color-blue"><UserRound size={18}/></span><div><h3>Your account, your work</h3><p>You’re signed in as {actions.data.user.name}. Export everything from Settings, or sign out safely at any time.</p><button className="text-link" onClick={onSignOut}>Sign out of folio <ArrowUpRight size={13}/></button></div></section>
-    </div>
-  </div>;
-}
 
 function DashboardSkeleton() { return <div className="dashboard-skeleton" aria-label="Loading your workspace" role="status"><div className="skeleton skeleton-banner"/><div className="skeleton-stat-grid">{Array.from({ length: 4 }).map((_, index) => <div className="skeleton skeleton-stat" key={index}/>)}</div><div className="skeleton skeleton-section-heading"/><div className="skeleton-project-grid">{Array.from({ length: 3 }).map((_, index) => <div className="skeleton skeleton-project" key={index}/>)}</div><span className="sr-only">Getting your projects and possibilities ready…</span></div>; }

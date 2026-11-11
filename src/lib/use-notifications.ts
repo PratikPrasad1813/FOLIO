@@ -11,9 +11,20 @@ import {
   type TaskReminderConfig,
 } from "@/lib/notifications";
 import { isValidTimezone } from "@/lib/timezone";
+import { isDesktopRuntime } from "@/lib/desktop/runtime";
 
 const PAGE_SIZE = 30;
 const POLL_INTERVAL_MS = 30_000;
+
+/**
+ * Desktop shells never fire notification requests while offline: the API is
+ * remote, the requests would all reject, and notifications are a cloud-only
+ * feature anyway. The UI simply keeps its last-known state (empty on a fresh
+ * install) — no error banners, no unhandled rejections, no blocked panels.
+ */
+function desktopNotificationsOffline(): boolean {
+  return isDesktopRuntime() && typeof navigator !== "undefined" && !navigator.onLine;
+}
 
 export function broadcastNotificationsSync() {
   if (typeof window !== "undefined") {
@@ -66,6 +77,11 @@ export function useNotifications(
 
   const fetchNotifications = useCallback(
     async (opts: { silent?: boolean; appendOffset?: number } = {}) => {
+      if (desktopNotificationsOffline()) {
+        setLoading(false);
+        setLoadingMore(false);
+        return;
+      }
       if (!opts.silent && opts.appendOffset === undefined) setLoading(true);
       if (opts.appendOffset !== undefined) setLoadingMore(true);
       try {
@@ -128,6 +144,7 @@ export function useNotifications(
   );
 
   const fetchUnreadCount = useCallback(async () => {
+    if (desktopNotificationsOffline()) return;
     try {
       const res = await fetch("/api/notifications/unread-count", { cache: "no-store" });
       if (!res.ok) return;
@@ -146,6 +163,7 @@ export function useNotifications(
   }, [fetchNotifications]);
 
   const fetchReminders = useCallback(async () => {
+    if (desktopNotificationsOffline()) return;
     try {
       const res = await fetch("/api/notifications/reminders", { cache: "no-store" });
       if (!res.ok) return;
@@ -157,6 +175,10 @@ export function useNotifications(
   }, []);
 
   const fetchPreferences = useCallback(async () => {
+    if (desktopNotificationsOffline()) {
+      setPrefsLoading(false);
+      return;
+    }
     try {
       const res = await fetch("/api/notifications/preferences", { cache: "no-store" });
       if (!res.ok) return;

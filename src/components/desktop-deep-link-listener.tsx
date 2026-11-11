@@ -2,6 +2,27 @@
 
 import { useEffect } from "react";
 import { isTauri } from "@tauri-apps/api/core";
+import { desktopExchangeHandoffCode, isNetworkError } from "@/lib/desktop/auth-store";
+
+/**
+ * Deep-link bridge for desktop sign-in (local shell edition).
+ *
+ * The user finishes signing in inside the SYSTEM BROWSER (the deployed
+ * web app at `<api>/login?next=/desktop-auth` — email, Google or GitHub).
+ * The web page mints a one-time handoff code and deep-links back:
+ *
+ *     folio://auth?code=<64-hex>
+ *
+ * This listener exchanges the code against the deployed API
+ * (`/api/auth/desktop/exchange`, absolute URL + CORS) and persists the
+ * returned user + 90-day Bearer token in `local_auth`. The session-gate
+ * picks up the `folio:desktop-session` event and swaps to the workspace —
+ * no navigation, no reload, no flash.
+ *
+ * Offline resilience: network failures are swallowed silently (a handoff
+ * code cannot be exchanged without internet; the user simply stays on the
+ * sign-in screen).
+ */
 
 export function DesktopDeepLinkListener() {
   useEffect(() => {
@@ -15,19 +36,18 @@ export function DesktopDeepLinkListener() {
       if (handledCodes.has(code)) return;
       handledCodes.add(code);
       try {
-        const response = await fetch("/api/auth/desktop/exchange", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code }),
-        });
-        const data = await response.json() as { destination?: string; error?: string };
-        if (!response.ok || !data.destination) {
-          throw new Error(data.error || "Desktop sign-in could not be completed.");
-        }
-        window.location.assign(data.destination);
+        await desktopExchangeHandoffCode(code);
+        // Success: auth-store already emitted the session event; the
+        // session gate renders the workspace by itself.
       } catch (error) {
-        console.error("Desktop sign-in exchange failed.", error);
-        window.location.assign(`/login?error=${encodeURIComponent("Desktop sign-in could not be completed. Please try again.")}`);
+        // A network failure while offline is expected and silent; only a
+        // definitive server rejection is worth surfacing (the sign-in
+        // screen keeps its own error area).
+        if (!isNetworkError(error) && typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("folio:desktop-handoff-error", {
+            detail: { message: error instanceof Error ? error.message : "Desktop sign-in could not be completed." },
+          }));
+        }
       }
     };
 
@@ -39,8 +59,9 @@ export function DesktopDeepLinkListener() {
           if (url.protocol === "folio:" && url.hostname === "auth" && code && /^[a-f0-9]{64}$/.test(code)) {
             void exchangeCode(code);
           }
-        } catch (error) {
-          console.error("Could not parse a Folio sign-in link.", error);
+        } catch {
+          // A malformed deep link is ignored — it can never carry a
+          // valid handoff code, and must not disturb the shell.
         }
       }
     };
@@ -54,8 +75,9 @@ export function DesktopDeepLinkListener() {
       }
       const currentUrls = await getCurrent();
       if (currentUrls) handleUrls(currentUrls);
-    })().catch((error: unknown) => {
-      console.error("Could not initialize Folio deep-link handling.", error);
+    })().catch(() => {
+      // The deep-link plugin being unavailable (or the promise rejecting
+      // during teardown) is never fatal: password sign-in still works.
     });
 
     return () => {

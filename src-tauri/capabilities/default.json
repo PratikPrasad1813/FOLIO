@@ -1,29 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "enables the default permissions",
-  "windows": [
-    "main"
-  ],
-  "remote": {
-    "urls": [
-      "https://folio-management-studio.onrender.com"
-    ]
-  },
+  "description": "Production capabilities for the Folio desktop shell. The webview now loads the bundled local frontend (frontendDist ../out, url index.html), so its origin is the Tauri custom protocol (tauri://localhost on macOS/Linux, http://tauri.localhost on Windows) — covered by the `windows` match below with no remote URL grants. The SQL plugin powers the local-first SQLite mirror (folio.db).",
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "core:event:default",
     "deep-link:default",
-    {
-      "identifier": "opener:allow-open-url",
-      "allow": [
-        {
-          "url": "https://folio-management-studio.onrender.com/**"
-        },
-        {
-          "url": "http://localhost:3000/**"
-        }
-      ]
-    }
+    "opener:default",
+    "sql:default",
+    "sql:allow-load",
+    "sql:allow-select",
+    "sql:allow-execute"
   ]
 }

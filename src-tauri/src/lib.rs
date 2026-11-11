@@ -22,6 +22,9 @@ pub fn run() {
   builder
     .plugin(tauri_plugin_deep_link::init())
     .plugin(tauri_plugin_opener::init())
+    // Local-first storage: the SQLite workspace mirror (folio.db) that powers
+    // the offline-capable desktop data layer and the background sync engine.
+    .plugin(tauri_plugin_sql::Builder::default().build())
     .setup(|app| {
       #[cfg(all(debug_assertions, any(target_os = "linux", target_os = "windows")))]
       {

@@ -17,6 +17,7 @@ import "./folio-ai.css";
 import "./public.css";
 import "./landing.css";
 import "./onboarding.css";
+import "./desktop-sync.css";
 
 export const metadata: Metadata = {
   title: "folio — A little clarity. A lot of possibility.",

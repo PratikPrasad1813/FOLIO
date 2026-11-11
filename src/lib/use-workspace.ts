@@ -4,6 +4,16 @@ import type { SearchKind } from "@/lib/search-types";
 import { searchRequest } from "@/lib/search-client";
 import { DEFAULT_PERSONAL, setBrowserPersonal } from "@/lib/personalization";
 import { applyTheme } from "@/components/theme-toggle";
+import { isDesktopRuntime } from "@/lib/desktop/runtime";
+import { desktopApiUrl } from "@/lib/desktop/api-base";
+import { getSyncEngine } from "@/lib/desktop/sync-engine";
+import { markLocalProfilePending, setCachedProfile } from "@/lib/desktop/local-db";
+import {
+  desktopBulkTasks,
+  desktopConvertIdea,
+  desktopMutate,
+  loadDesktopWorkspace,
+} from "@/lib/desktop/desktop-workspace";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatDate, statusLabel, TASK_STATUS_LABELS, type Activity, type Idea, type Item, type Milestone, type Project, type Resource, type Subtask, type Task, type TaskStatus, type WorkspaceData } from "@/lib/types";
@@ -58,6 +68,20 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
 
   const reload = useCallback(async () => {
     try {
+      // Local-first: in the desktop shell the SQLite mirror is the source of
+      // truth (0ms, offline-capable). The network path is the web fallback.
+      if (isDesktopRuntime()) {
+        const local = await loadDesktopWorkspace();
+        if (local) {
+          const next = normalise(local);
+          setData(next); dataRef.current = next; setError("");
+          return;
+        }
+        // No cached profile yet (first seconds after sign-in, or a broken
+        // local database): show a transient state — never a redirect, never
+        // a network call that could unmount the workspace while offline.
+        throw new Error("Your workspace is still syncing. One moment…");
+      }
       const response = await fetch("/api/workspace", { cache: "no-store" });
       const result = await response.json();
       if (response.status === 401) { window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname)}`); throw new Error("Please sign in again."); }
@@ -69,8 +93,29 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
 
   useEffect(() => {
     let cancelled = false;
+    // Desktop shell: boot the background sync engine (launch trigger) and
+    // render from the local SQLite mirror — the web keeps the classic
+    // request/response flow.
+    const engine = getSyncEngine();
+    engine?.start();
     async function loadWorkspace() {
       try {
+        if (isDesktopRuntime()) {
+          const local = await loadDesktopWorkspace();
+          if (local && !cancelled) {
+            const next = normalise(local);
+            dataRef.current = next;
+            setData(next);
+            setError("");
+            return;
+          }
+          if (local) return;
+          // The session gate guarantees a local_auth row before this hook
+          // mounts; an empty mirror simply means the first pull is still
+          // running. No network call, no login redirect — a splash state.
+          if (!cancelled) setError("Your workspace is still syncing. One moment…");
+          return;
+        }
         const response = await fetch("/api/workspace", { cache: "no-store" });
         const result = await response.json();
         if (response.status === 401) { window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname)}`); throw new Error("Please sign in again."); }
@@ -89,8 +134,12 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
     return () => { cancelled = true; };
   }, []);
 
+  // Web only: refresh the server session cookie every 30 minutes. The
+  // desktop shell NEVER validates its session over the network — its
+  // session lives in local_auth and stays valid offline.
   useEffect(() => {
-    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void fetch("/api/auth/session", { method: "POST" }).catch(() => {}); }, 30 * 60_000);
+    if (isDesktopRuntime()) return;
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void fetch(desktopApiUrl("/api/auth/session"), { method: "POST" }).catch(() => {}); }, 30 * 60_000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -160,6 +209,12 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
     let released = false;
     try {
       const result = await enqueue(id, async () => {
+        // Local-first path: persist to SQLite + outbox instead of the network.
+        // NEVER blocks on HTTP — the mutation lands locally in milliseconds
+        // and the background engine uploads it later.
+        if (isDesktopRuntime()) {
+          return await desktopMutate(kind, method, values, id);
+        }
         const response = await fetch("/api/workspace", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, id, data: values }) });
         const body = await response.json();
         if (!response.ok) throw new Error(body.error || "Could not save your change.");
@@ -202,11 +257,17 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
         const wasIncomplete = !dataRef.current?.user.onboardingCompleted;
         if (wasIncomplete) {
           setData(state => state ? ({ ...state, user: { ...state.user, onboardingCompleted: true } }) as WorkspaceData : state);
-          void fetch("/api/profile", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ complete: true, firstAction: true }),
-          }).catch(() => { /* completion is retried on the next workspace load */ });
+          if (isDesktopRuntime()) {
+            // Desktop: complete locally and let the background engine push
+            // the flag (it rides the profile-dirty queue — works offline).
+            void markLocalProfilePending({ complete: true }).catch(() => {});
+          } else {
+            void fetch("/api/profile", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ complete: true, firstAction: true }),
+            }).catch(() => { /* completion is retried on the next workspace load */ });
+          }
         }
       }
       return result.item;
@@ -256,9 +317,15 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
       }) };
     });
     try {
-      const response = await fetch("/api/workspace", { method: isDelete ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "tasks", ids: unique, data: isDelete ? {} : change }) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "We couldn’t apply that change. Nothing was modified.");
+      let result: { items?: Task[]; deleted?: string[]; missing?: number; activity: Activity | null; projects: Project[] };
+      if (isDesktopRuntime()) {
+        result = await desktopBulkTasks(unique, change);
+      } else {
+        const response = await fetch("/api/workspace", { method: isDelete ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "tasks", ids: unique, data: isDelete ? {} : change }) });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || "We couldn’t apply that change. Nothing was modified.");
+        result = body;
+      }
       const returned = new Map(((result.items ?? []) as Task[]).map(task => [task.id, task]));
       setData(state => {
         if (!state) return state;
@@ -298,9 +365,15 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
   async function convert(idea: Idea) {
     markPending([idea.id], true);
     try {
-      const response = await fetch("/api/workspace", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "ideas", action: "convert", id: idea.id }) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Couldn’t turn this idea into a project.");
+      let result: { item: Project; activity: Activity };
+      if (isDesktopRuntime()) {
+        result = await desktopConvertIdea(idea);
+      } else {
+        const response = await fetch("/api/workspace", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "ideas", action: "convert", id: idea.id }) });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || "Couldn’t turn this idea into a project.");
+        result = body;
+      }
       setData(state => state ? { ...state, projects: [result.item, ...state.projects], ideas: state.ideas.filter(item => item.id !== idea.id), activities: [result.activity, ...state.activities].slice(0, 40) } : state);
       notify("From a little spark to a real project. Let’s go!");
       if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("folio:notifications-sync"));
@@ -308,7 +381,22 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
     } catch (err) { const message = err instanceof Error ? err.message : "Could not create the project."; notify(message, "error"); throw new Error(message); } finally { markPending([idea.id], false); }
   }
 
-  async function saveSettings(values: { name: string; weeklyGoal: number }) {
+  async function saveSettings(values: { name: string; weeklyGoal: number }): Promise<void> {
+    if (isDesktopRuntime()) {
+      // Local-first: the profile snapshot updates immediately, the change is
+      // marked pending, and the background engine PATCHes the cloud profile
+      // on its next cycle. Works identically online and offline.
+      const currentUser = dataRef.current?.user;
+      setData(state => state ? { ...state, user: { ...state.user, name: values.name, weeklyGoal: values.weeklyGoal } } : state);
+      await markLocalProfilePending(values).catch(() => {});
+      // Keep the cached profile (the local mirror's `user`) in sync so a
+      // reload keeps the new name even before the cloud push lands.
+      if (currentUser) {
+        await setCachedProfile({ ...currentUser, name: values.name, weeklyGoal: values.weeklyGoal }).catch(() => {});
+      }
+      notify("Your workspace feels a little more like you.");
+      return;
+    }
     const response = await fetch("/api/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Could not save your settings.");

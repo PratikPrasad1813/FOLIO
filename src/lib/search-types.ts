@@ -36,7 +36,8 @@ export interface FilterConfig {
 export const defaultFilters = (kind: FilterKind): FilterConfig => ({ version: 1, q: "", statuses: [], priorities: [], projects: [], labels: [], focus: "all", from: "", to: "", startFrom: "", startTo: "", deadline: "all", progressMin: null, progressMax: null, archived: false, sort: kind === "tasks" ? "smart" : "updated", dir: kind === "tasks" ? "asc" : "desc" });
 
 export class SearchInputError extends Error {
-  constructor(message: string, public status = 400) { super(message); }
+  public status: number;
+  constructor(message: string, status = 400) { super(message); this.status = status; }
 }
 export function objectInput(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new SearchInputError("Please provide a valid object.");

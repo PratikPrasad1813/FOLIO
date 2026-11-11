@@ -50,8 +50,12 @@ export const projects = pgTable("folio_projects", {
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  // Local-first sync: tombstone timestamp. NULL while the row is alive; set
+  // (together with updated_at) when a device pushes a DELETE mutation.
+  deletedAt: timestamp("deleted_at"),
 }, (table) => [
   index("folio_projects_user_idx").on(table.userId),
+  index("folio_projects_sync_idx").on(table.userId, table.updatedAt),
   index("folio_projects_filter_idx").on(table.userId, table.archived, table.status, table.dueDate),
   index("folio_projects_search_idx").using("gin", sql`to_tsvector('simple', ${table.name} || ' ' || ${table.description} || ' ' || ${table.category})`),
 ]);
@@ -68,6 +72,8 @@ export const milestones = pgTable("folio_milestones", {
   completed: boolean("completed").notNull().default(false),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
 }, (table) => [
   index("folio_milestones_user_idx").on(table.userId),
   index("folio_milestones_project_idx").on(table.projectId),
@@ -96,8 +102,10 @@ export const tasks = pgTable("folio_tasks", {
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
 }, (table) => [
   index("folio_tasks_user_idx").on(table.userId),
+  index("folio_tasks_sync_idx").on(table.userId, table.updatedAt),
   index("folio_tasks_filter_idx").on(table.userId, table.status, table.dueDate),
   index("folio_tasks_project_progress_idx").on(table.userId, table.projectId, table.completed),
   index("folio_tasks_search_idx").using("gin", sql`to_tsvector('simple', ${table.title} || ' ' || ${table.description} || ' ' || ${table.notes})`),
@@ -114,6 +122,8 @@ export const subtasks = pgTable("folio_subtasks", {
   completedAt: timestamp("completed_at"),
   position: integer("position").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
 }, (table) => [
   index("folio_subtasks_user_idx").on(table.userId),
   index("folio_subtasks_task_idx").on(table.taskId),
@@ -215,8 +225,11 @@ export const ideas = pgTable("folio_ideas", {
   color: text("color").notNull().default("yellow"),
   status: text("status").notNull().default("Just an idea"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
 }, (table) => [
   index("folio_ideas_user_idx").on(table.userId),
+  index("folio_ideas_sync_idx").on(table.userId, table.updatedAt),
   index("folio_ideas_search_idx").using("gin", sql`to_tsvector('simple', ${table.title} || ' ' || ${table.description} || ' ' || ${table.category})`),
 ]);
 

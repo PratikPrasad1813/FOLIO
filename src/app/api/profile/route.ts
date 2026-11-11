@@ -1,24 +1,38 @@
 import { AuthenticationError, getUser, sameOrigin } from "@/lib/auth";
 import { readProfile, updateProfile } from "@/lib/profile-service";
+import { syncUser, corsJson, desktopCorsPreflight } from "@/lib/sync-auth";
 export const dynamic = "force-dynamic";
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { "Cache-Control": "private, no-store", Vary: "Cookie" } });
-export async function GET() {
-  try { return json(await readProfile(await getUser())); }
+
+/** CORS preflight for the desktop shell (its engine PATCHes the profile cross-origin). */
+export async function OPTIONS(request: Request): Promise<Response> {
+  return desktopCorsPreflight(request);
+}
+
+export async function GET(request: Request) {
+  try {
+    const user = await syncUser(request);
+    if (!user) return json({ error: "Please sign in again." }, 401);
+    return json(await readProfile(user));
+  }
   catch (error) { return json({ error: error instanceof AuthenticationError ? error.message : "Your profile is temporarily unavailable." }, error instanceof AuthenticationError ? 401 : 503); }
 }
 export async function PATCH(request: Request) {
-  if (!sameOrigin(request)) return json({ error: "Request not allowed." }, 403);
   try {
-    const user = await getUser();
+    // Dual auth: the web's cookie session OR the desktop shell's Bearer
+    // token (the sync engine pushes offline settings changes this way).
+    // syncUser applies the same-origin check to the cookie path itself.
+    const user = await syncUser(request);
+    if (!user) return corsJson(request, { error: "Please sign in again." }, 401);
     const text = await request.text();
-    if (text.length > 8192) return json({ error: "Profile update is too large." }, 413);
-    let body: unknown; try { body = JSON.parse(text); } catch { return json({ error: "Please send valid JSON." }, 400); }
-    try { return json(await updateProfile(user.id, body)); }
+    if (text.length > 8192) return corsJson(request, { error: "Profile update is too large." }, 413);
+    let body: unknown; try { body = JSON.parse(text); } catch { return corsJson(request, { error: "Please send valid JSON." }, 400); }
+    try { return corsJson(request, await updateProfile(user.id, body)); }
     catch (error) {
-      if (error instanceof Error && !error.message.includes("query") && error.message.length < 180) return json({ error: error.message }, 400);
-      return json({ error: "Couldn’t save your preferences. Please try again." }, 500);
+      if (error instanceof Error && !error.message.includes("query") && error.message.length < 180) return corsJson(request, { error: error.message }, 400);
+      return corsJson(request, { error: "Couldn’t save your preferences. Please try again." }, 500);
     }
-  } catch (error) { return json({ error: error instanceof AuthenticationError ? error.message : "Couldn’t save your preferences." }, error instanceof AuthenticationError ? 401 : 500); }
+  } catch (error) { return corsJson(request, { error: error instanceof AuthenticationError ? error.message : "Couldn’t save your preferences." }, error instanceof AuthenticationError ? 401 : 500); }
 }
 
 export async function DELETE(request: Request) {

@@ -200,6 +200,21 @@ export function ProjectsError({ message, onRetry }: { message: string; onRetry: 
 
 /* ------------------------------------------------------------------ */
 
+/** True when the row carries a tombstone in any of its possible spellings. */
+function hasTombstone(project: Project & { deletedAt?: unknown; deleted_at?: unknown }): boolean {
+  return [project.deletedAt, project.deleted_at].some((value) => value !== null && value !== undefined && value !== "");
+}
+
+/**
+ * A project is visible when it is not archived and carries no tombstone.
+ * All three spellings are checked defensively: the UI camelCase field, the
+ * wire snake_case field, and the literal string "null" — the exact SQLite
+ * type-handling bug that previously hid projects behind "0 matching results".
+ */
+function isProjectActive(project: Project & { deletedAt?: unknown; deleted_at?: unknown }): boolean {
+  return !project.archived && !hasTombstone(project);
+}
+
 export function ProjectsPanel({ actions }: { actions: WorkspaceActions }) {
   const { data } = actions;
   const [view, setView] = usePersistentState<ViewMode>("folio.projects.view", "grid", "local", ["grid", "list"]);
@@ -210,7 +225,7 @@ export function ProjectsPanel({ actions }: { actions: WorkspaceActions }) {
   const [query, setQuery] = usePersistentState<string>(`folio.projects.${data.user.id}.query`, "", "session");
   const [advanced, setAdvanced] = usePersistentJson<Advanced>(`folio.projects.${data.user.id}.advanced`, NO_ADVANCED, "session", sanitizeAdvanced);
   const serverFilters: FilterConfig = { ...defaultFilters("projects"), ...advanced, q: query, sort, dir, archived: status === "archived", statuses: status === "all" || status === "archived" ? [] : [status], priorities: priority === "all" ? [] : [priority] };
-  const collection = useFilteredCollection<BrowsedProject>("projects", serverFilters, data, actions.pending.size);
+  const collection = useFilteredCollection<BrowsedProject>("projects", serverFilters, data, actions.pending.size, data);
   const today = collection.today ?? dateKey();
   const advancedCount = (advanced.deadline !== "all" ? 1 : 0) + (advanced.progressMin !== null || advanced.progressMax !== null ? 1 : 0) + (advanced.startFrom || advanced.startTo ? 1 : 0) + (advanced.from || advanced.to ? 1 : 0);
   function applyFilters(next: FilterConfig) {
@@ -226,7 +241,7 @@ export function ProjectsPanel({ actions }: { actions: WorkspaceActions }) {
     for (const project of collection.items) map.set(project.id, { ...computeStats(project, data, today), percent: project.progress, total: project.taskCount, done: project.completedTaskCount, open: project.taskCount - project.completedTaskCount });
     return map;
   }, [data, today, collection.items]);
-  const active = useMemo(() => data.projects.filter((project) => !project.archived), [data.projects]);
+  const active = useMemo(() => data.projects.filter(isProjectActive), [data.projects]);
   const archivedCount = data.projects.length - active.length;
   const counts = useMemo(() => {
     const result: Record<string, number> = { all: active.length };
@@ -234,7 +249,7 @@ export function ProjectsPanel({ actions }: { actions: WorkspaceActions }) {
     return result;
   }, [active]);
 
-  const pool = status === "archived" ? data.projects.filter((project) => project.archived) : active;
+  const pool = status === "archived" ? data.projects.filter((project) => project.archived && !hasTombstone(project)) : active;
   const q = query.trim().toLowerCase();
   const visible = collection.items;
 

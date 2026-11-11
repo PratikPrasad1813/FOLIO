@@ -92,6 +92,13 @@
       "when": 1794140000000,
       "tag": "0012_folio_ai_provider_request",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794200000000,
+      "tag": "0013_sync_soft_delete",
+      "breakpoints": true
     }
   ]
 }

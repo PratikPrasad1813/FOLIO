@@ -1,32 +1,21 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { currentUser } from "@/lib/auth";
+import { DesktopHandoffClient } from "@/app/desktop-auth/handoff-client";
 
-export default async function DesktopAuthPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ next?: string }>;
-}) {
-  const cookieStore = await cookies();
-  
-  // Find your active session token (checking common session cookie names)
-  const sessionToken = 
-    cookieStore.get("folio_session")?.value || 
-    cookieStore.get("session")?.value ||
-    cookieStore.getAll().find(c => c.name.toLowerCase().includes("session") || c.name.toLowerCase().includes("auth"))?.value;
+/**
+ * Web-side pairing station for the desktop app (reached via
+ * `/login?next=/desktop-auth` from the desktop sign-in screen).
+ *
+ * Once the user has a live browser session, the client component mints a
+ * ONE-TIME handoff code via POST /api/auth/desktop/handoff and deep-links
+ * back to the shell: `folio://auth?code=<64-hex>`. No raw session token
+ * ever travels through a URL.
+ */
 
-  // If not logged in on Chrome, send to login first, then come back here
-  if (!sessionToken) {
-    redirect("/login?next=/desktop-auth");
-  }
+export const dynamic = "force-dynamic";
 
-  const desktopUrl = `folio://auth?token=${encodeURIComponent(sessionToken)}`;
-  const redirectScript = `window.location.href = ${JSON.stringify(desktopUrl).replace(/</g, "\\u003c")};`;
-
-  return (
-    <main>
-      <p>Opening Folio…</p>
-      <a href={desktopUrl}>Open Folio</a>
-      <script dangerouslySetInnerHTML={{ __html: redirectScript }} />
-    </main>
-  );
+export default async function DesktopAuthPage() {
+  const user = await currentUser();
+  if (!user) redirect("/login?next=/desktop-auth");
+  return <DesktopHandoffClient name={user.name} />;
 }
