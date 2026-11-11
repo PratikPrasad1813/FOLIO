@@ -50,11 +50,11 @@ export const chapters = [
   },
   {
     id: "ai",
-    title: "6. Folio AI & Gemini API",
+    title: "6. Folio AI & BYOK providers",
     sections: [
       ["ambient-ai", "Context and trust boundaries"],
       ["prompt-design", "Planning prompts"],
-      ["gemini-api", "Gemini API configuration and limits"],
+      ["byok-api", "BYOK provider configuration and limits"],
     ],
   },
   {
@@ -626,7 +626,7 @@ export function DocsChapterContent({ chapterId }: { chapterId: ChapterId }) {
                      └─────────────────────┘
 
 Google OAuth / Calendar API ◄──── encrypted server-side integration
-Google AI Studio Gemini    ◄──── authenticated server route; Folio enforces a 10,000-token daily allowance
+BYOK AI provider           ◄──── authenticated server route; Folio enforces a 10,000-token daily allowance
 
 ┌──────────────────────── Tauri v2 desktop ───────────────────────────────┐
 │ Rust host + native WebView (WebView2 / WKWebView / WebKitGTK)           │
@@ -654,7 +654,7 @@ Google AI Studio Gemini    ◄──── authenticated server route; Folio enf
                 Every data operation must include the authenticated user predicate, even if identifiers are unguessable. Mutating JSON endpoints must reject cross-origin requests and return explicit 4xx/5xx responses rather than success-shaped empty data.
               </Callout>
               <h4 className="mt-7 text-base font-semibold text-white">Choosing the rendering boundary</h4>
-              <p className="mt-3 leading-8">Keep static product explanation, legal information, and documentation on the server-rendered path wherever interaction does not require browser state. Use client components for stateful controls—drag previews, keyboard focus, Gemini response streaming, search dialogs, and theme-aware interactions—not as a blanket wrapper around data fetching. This reduces the amount of JavaScript that must hydrate and makes the server the natural place to enforce authentication before sensitive workspace data is serialized.</p>
+              <p className="mt-3 leading-8">Keep static product explanation, legal information, and documentation on the server-rendered path wherever interaction does not require browser state. Use client components for stateful controls—drag previews, keyboard focus, AI response streaming, search dialogs, and theme-aware interactions—not as a blanket wrapper around data fetching. This reduces the amount of JavaScript that must hydrate and makes the server the natural place to enforce authentication before sensitive workspace data is serialized.</p>
               <p className="mt-3 leading-8">A route handler should own the HTTP boundary and delegate business rules to domain modules when a behavior is reused. Keep provider-specific payload parsing near the integration boundary, translate it to Folio’s internal types, then return a stable application shape. This avoids leaking external API naming conventions into every view. For private workspace responses, set non-cacheable response semantics unless the caching layer is explicitly keyed by authenticated identity and has been tested against cross-user leakage.</p>
               <div className="docs-request-steps my-6">
                 <span>REQUEST LIFECYCLE</span>
@@ -868,10 +868,10 @@ connection revoked, clear access token, and ask the user to reconnect.`}/>
 
             {chapterId === "ai" && (
             <section id="ai" className="scroll-mt-24">
-              <ChapterTitle number="06" title="Folio AI & Google Gemini API" lead="Folio AI streams Gemini responses through an authenticated server route, keeps API credentials server-side, and applies consequential workspace edits only through validated, reviewable actions." />
+              <ChapterTitle number="06" title="Folio AI & BYOK providers" lead="Folio AI streams responses from the user's own Anthropic, OpenAI, OpenRouter, or Google AI Studio key through an authenticated server route, holds no central provider credential, and applies consequential workspace edits only through validated, reviewable actions." />
               <SectionTitle id="ambient-ai">Ambient context and privacy boundary</SectionTitle>
               <p className="leading-8">Useful context can include active project goals, unfinished tasks, due dates, recent activity, and upcoming calendar events. Assemble only the smallest relevant subset for the user’s request, with explicit limits on record count and character length. Remove unrelated personal fields and never include session cookies, OAuth credentials, or hidden system metadata. Context should carry stable IDs when proposing actions so the executor can resolve and validate targets rather than trusting model-generated names.</p>
-              <p className="mt-4 leading-8">Folio sends the current prompt and a bounded subset of relevant workspace context from the authenticated server route to Google AI Studio for inference. Conversation history, task progress, and Folio usage accounting remain associated with the signed-in Folio account. The browser never receives the Gemini API key. Tell users clearly that prompts are sent to Google, avoid putting secrets in prompts, and do not describe the inference as private or on-device.</p>
+              <p className="mt-4 leading-8">Folio sends the current prompt and a bounded subset of relevant workspace context from the authenticated server route to the AI provider the user connected in AI Settings (Anthropic, OpenAI, OpenRouter, or Google AI Studio). Conversation history, task progress, and Folio usage accounting remain associated with the signed-in Folio account. The server holds no shared provider credential; each request carries the user's own key in authenticated headers. Tell users clearly that prompts are sent to their chosen provider, avoid putting secrets in prompts, and do not describe the inference as private or on-device.</p>
               <p className="mt-4 leading-8">Action proposals should be structured, schema-validated, previewable, and idempotent where possible. Treat model output as untrusted text, not executable code. Every action must pass ordinary authorization and domain checks; the model never gets direct database access or permission to bypass confirmation.</p>
 
               <SectionTitle id="prompt-design">Task decomposition and estimation prompts</SectionTitle>
@@ -915,16 +915,17 @@ Output JSON only:
 { "lowMinutes": 0, "highMinutes": 0, "confidence": "low|medium|high",
   "assumptions": ["..."] }`}/>
 
-              <SectionTitle id="gemini-api">Gemini API configuration and limits</SectionTitle>
-              <p className="leading-8">The hosted provider uses the Gemini API through the server-only <code>GEMINI_API_KEY</code> environment variable. Create a key in Google AI Studio, configure it in the server or deployment secret manager, and restart/redeploy Folio. Never use a <code>NEXT_PUBLIC_</code> prefix, put the key in client code, or commit it to source control. The model identifier is configured in <code>src/lib/folio-ai/config.ts</code>; Folio currently targets Gemini 3.8 Flash.</p>
-              <CodeBlock language="server environment" code={`# .env.local (development) or your deployment's secret settings
-GEMINI_API_KEY="your-server-side-Google-AI-Studio-key"
-
-# Never do this:
-NEXT_PUBLIC_GEMINI_API_KEY="..."`}/>
-              <p className="mt-4 leading-8">The <code>/api/ai/generate</code> route authenticates the Folio user, accepts only a bounded message context, requires an active owned task, and atomically claims that task before contacting Google. This makes the provider request one-shot per task, preventing duplicate retries from generating extra upstream calls. The route streams Google’s server-sent events to the browser, propagates cancellation, and records usage observed from Gemini before the stream is considered complete.</p>
-              <p className="mt-4 leading-8">Folio enforces a 10,000-token daily allowance per user with database-backed reservations. Each generation reserves at most 4,096 tokens, accepts at most the matching bounded input budget, and asks Gemini for no more than 1,024 output tokens. Folio records provider-reported usage when available and settles unused reservation capacity after completion; the client only receives a percentage. Folio’s allowance is not Google’s billing or project-level quota: the deployment owner remains subject to the Google AI Studio key’s rate limits, terms, and any billing enabled for that project.</p>
-              <p className="mt-4 leading-8">Prompts, bounded workspace context, and generated text are sent to Google for inference. Conversation messages and task progress are stored by Folio for the signed-in user. Follow Google’s current Gemini API data-use terms for the configured project; do not promise that third-party processing is private or on-device. Keep credentials and unrelated sensitive data out of prompts. Hosted inference does not depend on WebGPU, local model downloads, or a device-memory threshold, so the same interface can be used from mobile browsers.</p>
+              <SectionTitle id="byok-api">BYOK provider configuration and limits</SectionTitle>
+              <p className="leading-8">Folio AI is bring-your-own-key: the server holds no central provider credential and there is no AI-key environment variable at all. Each user opens <strong>AI Settings</strong> in the Folio AI panel, picks a provider (Anthropic, OpenAI, OpenRouter, or Google AI Studio), and pastes their own API key. Keys are kept in the browser’s localStorage under <code>folio_ai_key_&lt;provider&gt;</code> and are sent per request through the <code>x-user-ai-key</code>, <code>x-user-ai-provider</code>, and <code>x-user-ai-model</code> headers. Requests without a usable key fail with 400 <code>api_key_required</code> and the message “Please provide an API key in AI Settings.” Never commit a real key or read one from a <code>NEXT_PUBLIC_</code> variable.</p>
+              <CodeBlock language="client storage keys" code={`folio_ai_provider              // "anthropic" | "openai" | "openrouter" | "google"
+folio_ai_key_anthropic         // user's own Anthropic key (sk-ant-…)
+folio_ai_key_openai            // user's own OpenAI key (sk-…)
+folio_ai_key_openrouter        // user's own OpenRouter key (sk-or-…)
+folio_ai_key_google            // user's own Google AI Studio key (AIza…)
+folio_ai_model_<provider>      // optional model override per provider`}/>
+              <p className="mt-4 leading-8">The <code>/api/ai/generate</code> route authenticates the Folio user, accepts only a bounded message context, requires an active owned task, and atomically claims that task before contacting the user’s provider. This makes the provider request one-shot per task, preventing duplicate retries from generating extra upstream calls. The route converts the provider’s native stream into provider-neutral server-sent events for the browser, propagates cancellation, and records usage observed from the provider before the stream is considered complete. A structured companion endpoint, <code>/api/ai/plan</code>, calls <code>executeWorkspaceAI</code> in <code>src/lib/folio-ai/byok-service.ts</code> to return a validated JSON plan with an <code>intent</code> of <code>create_task</code>, <code>create_project</code>, <code>decompose_goal</code>, or <code>plan_schedule</code>.</p>
+              <p className="mt-4 leading-8">Folio enforces a 10,000-token daily allowance per user with database-backed reservations. Each generation reserves at most 4,096 tokens, accepts at most the matching bounded input budget, and asks the provider for no more than 1,024 output tokens. Folio records provider-reported usage when available and settles unused reservation capacity after completion; the client only receives a percentage. Folio’s allowance is not the provider’s billing or project-level quota: every user remains subject to the rate limits, terms, and any billing enabled on their own API key.</p>
+              <p className="mt-4 leading-8">Prompts, bounded workspace context, and generated text are sent to the user’s chosen provider for inference. Conversation messages and task progress are stored by Folio for the signed-in user. Follow the provider’s current data-use terms; do not promise that third-party processing is private or on-device. Keep credentials and unrelated sensitive data out of prompts. Hosted inference does not depend on WebGPU, local model downloads, or a device-memory threshold, so the same interface can be used from mobile browsers.</p>
               <p className="mt-4 leading-8">Streaming responses are partial until the server closes the stream. Preserve incomplete output, never execute a partial action plan, and only invoke workspace actions after the complete response passes the existing action-plan validation and user confirmation flow. When a prompt or its context will not fit the configured budget, ask the user to start a new chat or split the request into smaller prompts. Automatic scrolling must pause as soon as the user scrolls away from the newest message.</p>
             </section>
             )}

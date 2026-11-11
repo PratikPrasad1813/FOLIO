@@ -4,7 +4,7 @@ import { PublicHeader, PublicFooter } from "@/components/public-site";
 
 export const metadata: Metadata = {
   title: "Privacy — Folio",
-  description: "How Folio handles your account, workspace, calendar connection, and Gemini AI data.",
+  description: "How Folio handles your account, workspace, calendar connection, and AI data.",
 };
 
 export default function PrivacyPage() {
@@ -37,18 +37,18 @@ export default function PrivacyPage() {
           </p>
         </section>
         <section>
-          <h2>Folio AI and Google Gemini</h2>
+          <h2>Folio AI and your AI provider</h2>
           <p>
-            Folio AI sends your prompt, relevant conversation context, and selected workspace context to Google AI
-            Studio for Gemini inference. Google processes that information under the terms and data-use settings for
-            the API key’s project. Do not put passwords, API keys, government identifiers, or other unnecessary
-            sensitive details into AI prompts. The Gemini API key is held by the Folio server and is not sent to your
-            browser.
+            Folio AI sends your prompt, relevant conversation context, and selected workspace context to the AI
+            provider you connect with your own API key for inference. Your provider processes that information under
+            its own terms and data-use settings. Do not put passwords, API keys, government identifiers, or other
+            unnecessary sensitive details into AI prompts. Your API key is stored in your browser and is only used to
+            route your own requests; it is not shared with other accounts.
           </p>
           <p>
             Folio enforces a 10,000-token daily allowance per user and stores usage metadata for that limit. This
-            allowance is separate from Google’s project-level rate limits and any billing enabled for the deployment’s
-            Google AI Studio project. Folio action plans are proposals: workspace changes use the existing validation
+            allowance is separate from your provider’s rate limits and any billing enabled for your own API key.
+            Folio action plans are proposals: workspace changes use the existing validation
             and confirmation flow.
           </p>
         </section>

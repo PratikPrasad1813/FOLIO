@@ -54,25 +54,25 @@ export function Modal({ title, children, onClose, className = "", subtitle, init
 
 export function MomentumArt() {
   return <svg className="momentum-art" width="340" height="180" viewBox="0 0 340 180" fill="none" aria-hidden="true">
-    <path d="M251 12c33 9 61 41 60 78-1 28-17 49-41 65" stroke="#D9D2ED" strokeWidth="1.3" strokeDasharray="4 5"/>
-    <circle cx="114" cy="83" r="61" fill="#E2DDF2"/>
-    <path d="m73 60 18-5 15 12 76-21c6-2 11 1 12 6l23 82c2 6-1 11-7 13l-108 29c-6 2-10-1-12-7L65 75c-2-6 1-12 8-15Z" fill="#B4A4E5"/>
-    <path d="m68 80 126-34 28 98c1 5-1 9-7 11l-109 29c-5 1-9-1-11-6L68 80Z" fill="#A08BD9"/>
-    <rect x="111" y="27" width="108" height="132" rx="8" transform="rotate(8 111 27)" fill="#D8D0EB"/>
-    <rect x="116" y="20" width="108" height="132" rx="8" transform="rotate(8 116 20)" fill="#fff" stroke="#E6E1EE"/>
-    <path d="m133 45 37 5" stroke="#514567" strokeWidth="4" strokeLinecap="round"/>
-    <path d="m133 56 62 9" stroke="#E2DFE8" strokeWidth="3" strokeLinecap="round"/>
-    <rect x="130" y="73" width="11" height="11" rx="3" transform="rotate(8 130 73)" fill="#DACFF3"/>
-    <path d="m133 78 2 3 5-5" stroke="#8570BA" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="m149 81 43 6" stroke="#D7D1E0" strokeWidth="3" strokeLinecap="round"/>
-    <rect x="127" y="94" width="11" height="11" rx="3" transform="rotate(8 127 94)" fill="#DACFF3"/>
-    <path d="m130 99 2 3 5-5" stroke="#8570BA" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="m146 102 35 5" stroke="#D7D1E0" strokeWidth="3" strokeLinecap="round"/>
-    <rect x="124" y="115" width="11" height="11" rx="3" transform="rotate(8 124 115)" stroke="#DAD4E3" strokeWidth="1.5"/>
-    <path d="m143 123 43 6" stroke="#E5E0EB" strokeWidth="3" strokeLinecap="round"/>
+    <path d="M251 12c33 9 61 41 60 78-1 28-17 49-41 65" stroke="#CAD9F0" strokeWidth="1.3" strokeDasharray="4 5"/>
+    <circle cx="114" cy="83" r="61" fill="#D6E4F7"/>
+    <path d="m73 60 18-5 15 12 76-21c6-2 11 1 12 6l23 82c2 6-1 11-7 13l-108 29c-6 2-10-1-12-7L65 75c-2-6 1-12 8-15Z" fill="#85A5E3"/>
+    <path d="m68 80 126-34 28 98c1 5-1 9-7 11l-109 29c-5 1-9-1-11-6L68 80Z" fill="#7299DF"/>
+    <rect x="111" y="27" width="108" height="132" rx="8" transform="rotate(8 111 27)" fill="#C9DCF2"/>
+    <rect x="116" y="20" width="108" height="132" rx="8" transform="rotate(8 116 20)" fill="#fff" stroke="#DCE4F2"/>
+    <path d="m133 45 37 5" stroke="#3B4A66" strokeWidth="4" strokeLinecap="round"/>
+    <path d="m133 56 62 9" stroke="#DDE3ED" strokeWidth="3" strokeLinecap="round"/>
+    <rect x="130" y="73" width="11" height="11" rx="3" transform="rotate(8 130 73)" fill="#CBDCF5"/>
+    <path d="m133 78 2 3 5-5" stroke="#5C7FBE" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="m149 81 43 6" stroke="#D3D8E4" strokeWidth="3" strokeLinecap="round"/>
+    <rect x="127" y="94" width="11" height="11" rx="3" transform="rotate(8 127 94)" fill="#CBDCF5"/>
+    <path d="m130 99 2 3 5-5" stroke="#5C7FBE" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="m146 102 35 5" stroke="#D3D8E4" strokeWidth="3" strokeLinecap="round"/>
+    <rect x="124" y="115" width="11" height="11" rx="3" transform="rotate(8 124 115)" stroke="#D9DEE9" strokeWidth="1.5"/>
+    <path d="m143 123 43 6" stroke="#E0E5EE" strokeWidth="3" strokeLinecap="round"/>
     <g transform="rotate(-12 237 119)"><rect x="203" y="88" width="72" height="71" rx="5" fill="#F4DB80"/><path d="M222 108h32m-32 9h23m-23 9h29" stroke="#B49643" strokeWidth="2" strokeLinecap="round"/><path d="m239 139 4 4 9-10" stroke="#8F7534" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></g>
     <path d="m242 28 6 13 14 1-11 9 3 14-12-8-13 7 4-14-10-10 14 1 5-13Z" fill="#C2D8A8" stroke="#ABC38F" strokeLinejoin="round"/>
-    <path d="m72 20 1 11m-6-5 11-1m205 47 1 9m-5-4 9-1" stroke="#9A88BD" strokeWidth="2" strokeLinecap="round"/>
+    <path d="m72 20 1 11m-6-5 11-1m205 47 1 9m-5-4 9-1" stroke="#7B93C5" strokeWidth="2" strokeLinecap="round"/>
     <circle cx="53" cy="124" r="4" fill="#C4B5E0"/><circle cx="288" cy="127" r="3" fill="#C4B5E0"/>
   </svg>;
 }

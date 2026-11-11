@@ -15,6 +15,8 @@ import { loadFolioEnv } from "./lib/env.mjs";
 
 loadFolioEnv();
 const mode = process.env.FOLIO_SCREENSHOT_MODE;
+const THEME = process.env.FOLIO_SCREENSHOT_THEME === "dark" ? "dark" : "light";
+console.log(`Capture theme: ${THEME}`);
 const screenshotUrl = process.env.SCREENSHOT_DATABASE_URL;
 function failSafety(message) { throw new Error(`Screenshot safety check failed: ${message}`); }
 if (mode !== "local") failSafety("set FOLIO_SCREENSHOT_MODE=local explicitly.");
@@ -78,10 +80,10 @@ try {
   let serverLog = ""; for (const stream of [server.stdout, server.stderr]) stream.on("data", chunk => { serverLog = (serverLog + chunk.toString()).slice(-4000); });
   try { await waitForServer(base); } catch (error) { console.error(serverLog); throw error; }
   mayHaveUser = true; // Set before insertion to handle an uncertain database response.
-  await db.insert(users).values({ id: userId, name: "Alex Morgan", email, provider: "demo", weeklyGoal: 14, onboardingCompletedAt: new Date(), onboardingStep: 10, personal: { ...DEFAULT_PERSONAL, theme: "light" } });
+  await db.insert(users).values({ id: userId, name: "Aarav Sharma", email, provider: "demo", weeklyGoal: 14, onboardingCompletedAt: new Date(), onboardingStep: 10, personal: { ...DEFAULT_PERSONAL, theme: THEME } });
   console.log(`Created temporary demo profile ${userId}`);
   await db.insert(sessions).values({ userId, tokenHash: hash(token), expiresAt: new Date(Date.now() + 60 * 60_000) });
-  await db.insert(notificationPreferences).values({ userId, ...DEFAULT_NOTIFICATION_PREFERENCES, timezone: "UTC", timezoneAutoDetected: true });
+  await db.insert(notificationPreferences).values({ userId, ...DEFAULT_NOTIFICATION_PREFERENCES, timezone: "Asia/Kolkata", timezoneAutoDetected: true });
   await db.insert(folioAiPreferences).values({ userId, assistantName: "Folio AI", presentation: "neutral", style: "friendly", modelPreference: "automatic" });
   await seedWorkspace(userId);
   const demoProjects = await db.select().from(projects).where(eq(projects.userId, userId));
@@ -89,22 +91,29 @@ try {
   const demoIdeas = await db.select().from(ideas).where(eq(ideas.userId, userId));
   assert.ok(demoProjects.length >= 4 && demoTasks.length >= 10 && demoIdeas.length >= 3, "Demo seed was incomplete.");
   await db.insert(notifications).values([
-    { userId, category: "task", type: "task_due", title: "A little progress for today", description: "The design system review is ready for your attention.", dedupeKey: "demo-task" },
+    { userId, category: "task", type: "task_due", title: "A little progress for today", description: "The mithai-box packaging proofs are ready for your attention.", dedupeKey: "demo-task" },
     { userId, category: "project", type: "project_update", title: "A milestone worth celebrating", description: "Foundations are complete for Folio Design System.", dedupeKey: "demo-project" },
-    { userId, category: "calendar", type: "calendar_event", title: "Coming up next", description: "Your creative planning session is tomorrow.", dedupeKey: "demo-calendar" },
+    { userId, category: "calendar", type: "calendar_event", title: "Coming up next", description: "The Pongal shoot planning session is tomorrow.", dedupeKey: "demo-calendar" },
   ]);
   // Fictional mirror records only: no real Google account, access token or network call.
-  const [account] = await db.insert(googleAccounts).values({ userId, googleUserId: `demo-${userId}`, email: "alex@example.test", name: "Alex Morgan", refreshTokenEnc: sealToken("fictional-noncredential"), scopes: ["https://www.googleapis.com/auth/calendar.readonly"], lastSyncAt: new Date(), lastSyncStatus: "success" }).returning();
-  await db.insert(googleCalendars).values({ userId, accountId: account.id, calendarId: "fictional-primary", summary: "Creative studio", primary: true, visible: true, selected: true, backgroundColor: "#ad98cf" });
-  await db.insert(googleEvents).values([0, 1, 3, 6].map((day, index) => ({ userId, accountId: account.id, calendarId: "fictional-primary", googleEventId: `example-${index}`, title: ["Creative planning", "Design review", "Studio focus time", "Campaign check-in"][index], startDate: dateOffset(day), endDate: dateOffset(day), startAt: new Date(`${dateOffset(day)}T10:00:00Z`), endAt: new Date(`${dateOffset(day)}T11:00:00Z`), timezone: "UTC" })));
+  const [account] = await db.insert(googleAccounts).values({ userId, googleUserId: `demo-${userId}`, email: "aarav@example.test", name: "Aarav Sharma", refreshTokenEnc: sealToken("fictional-noncredential"), scopes: ["https://www.googleapis.com/auth/calendar.readonly"], lastSyncAt: new Date(), lastSyncStatus: "success" }).returning();
+  await db.insert(googleCalendars).values({ userId, accountId: account.id, calendarId: "fictional-primary", summary: "Bandra studio", primary: true, visible: true, selected: true, backgroundColor: "#ad98cf" });
+  await db.insert(googleEvents).values([0, 1, 3, 6].map((day, index) => ({ userId, accountId: account.id, calendarId: "fictional-primary", googleEventId: `example-${index}`, title: ["Chai + roadmap sync", "Bandra store walkthrough", "Pongal shoot planning", "Mithai tasting with Mehra"][index], startDate: dateOffset(day), endDate: dateOffset(day), startAt: new Date(`${dateOffset(day)}T04:30:00Z`), endAt: new Date(`${dateOffset(day)}T05:30:00Z`), timezone: "Asia/Kolkata" })));
   const [conversation] = await db.insert(folioAiConversations).values({ userId, title: "Plan a calmer week", messageCount: 2 }).returning();
-  await db.insert(folioAiMessages).values([{ userId, conversationId: conversation.id, role: "user", content: "Help me make a thoughtful plan for this week." }, { userId, conversationId: conversation.id, role: "assistant", content: "Absolutely. Let’s start with your most important priorities, make room for focused work, and leave a little breathing space between tasks.", generationStatus: "complete", createdAt: new Date(Date.now() + 1000) }]);
+  await db.insert(folioAiMessages).values([{ userId, conversationId: conversation.id, role: "user", content: "Help me make a thoughtful plan for this week." }, { userId, conversationId: conversation.id, role: "assistant", content: "Absolutely. Let’s start with your most important priorities, make room for focused work, and leave Friday evening free for the studio’s Diwali-decor takedown.", generationStatus: "complete", createdAt: new Date(Date.now() + 1000) }]);
   if (process.env.FOLIO_SCREENSHOT_FAIL_AFTER_SEED === "1") throw new Error("Intentional failure after seed, for cleanup verification.");
   staging = await mkdtemp(join(tmpdir(), "folio-capture-"));
   browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, colorScheme: "light", reducedMotion: "reduce", timezoneId: "UTC", locale: "en-US" });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, colorScheme: THEME, reducedMotion: "reduce", timezoneId: "Asia/Kolkata", locale: "en-IN" });
   await context.addCookies([{ name: "folio_session", value: token, url: base, httpOnly: true, sameSite: "Lax" }]);
-  await context.addInitScript(() => { localStorage.setItem("folio-theme", "light"); localStorage.setItem("folio.tasks.view", "board"); localStorage.setItem("folio.tasks.insights", "open"); });
+  await context.addInitScript((theme) => {
+    localStorage.setItem("folio-theme", theme);
+    localStorage.setItem("folio.tasks.view", "board");
+    localStorage.setItem("folio.tasks.insights", "open");
+    // BYOK demo settings so the AI screen renders its ready state instead of a key prompt.
+    localStorage.setItem("folio_ai_provider", "anthropic");
+    localStorage.setItem("folio_ai_key_anthropic", "sk-ant-demo-capture-key");
+  }, THEME);
   const page = await context.newPage();
   const project = demoProjects.find(p => p.name === "Folio Design System");
   assert.ok(project, "Expected seeded project was not found.");
@@ -118,10 +127,12 @@ try {
     { name: "ideas", path: "/ideas", ready: ".idea-card", board: true },
     { name: "calendar", path: "/calendar", ready: ".tk-cal", calendar: true },
     { name: "analytics", path: "/tasks", ready: ".tk-insights", view: "List" },
-    { name: "folio-ai", path: "/ai", ready: ".fa-message", ai: true },
+    // The AI panel follows the capture theme: light pass → folio-ai-light, dark pass → folio-ai-dark.
+    { name: "folio-ai", path: "/ai", ready: ".fa-message", ai: true, aiTheme: THEME, file: THEME === "dark" ? "folio-ai-dark" : "folio-ai-light" },
   ];
   for (const screen of screens) {
     if (interrupted) throw new Error("Capture interrupted.");
+    if (screen.aiTheme) await page.evaluate(theme => localStorage.setItem("folio_ai_theme", theme), screen.aiTheme);
     await page.goto(`${base}${screen.path}`, { waitUntil: "domcontentloaded", timeout: 90_000 });
     if (screen.view) { await page.locator(".tk-views").waitFor({ timeout: 60_000 }); await page.locator(".tk-views").getByRole("button", { name: screen.view, exact: true }).click(); }
     if (screen.board) { await page.locator(".idea-card").first().waitFor({ timeout: 60_000 }); await page.getByRole("button", { name: "Idea board view" }).click(); }
@@ -129,7 +140,7 @@ try {
     if (screen.calendar) await page.locator(".gcal-card.is-compact").waitFor({ timeout: 30_000 });
     if (screen.ai) {
       await page.getByText("Help me make a thoughtful plan for this week.").waitFor({ timeout: 30_000 });
-      await page.locator(".fa-compatibility.is-supported, .fa-compatibility.is-caution").waitFor({ timeout: 30_000 });
+      await page.locator(".fa-composer textarea").waitFor({ timeout: 30_000 });
     }
     if (screen.path === "/tasks" || screen.path === "/projects") await page.waitForFunction(() => !document.querySelector('.sf-results-pending') && document.querySelector('.pj-results-count')?.textContent?.includes('matching'), { timeout: 30_000 });
     await page.waitForFunction(() => !document.querySelector('.pj-skeleton, .gcal-card.is-loading, .modal-backdrop, .sf-popover'), { timeout: 30_000 });
@@ -140,10 +151,11 @@ try {
     const alerts = (await page.locator('[role="alert"]:visible').allTextContents()).map(text => text.trim()).filter(Boolean);
     assert.equal(alerts.length, 0, `Visible error on ${screen.name}: ${alerts.map(text => text.slice(0, 180)).join("; ")}`);
     const png = await page.screenshot({ animations: "disabled" });
-    const output = join(staging, `${screen.name}.png`);
+    const file = `${screen.file ?? (THEME === "dark" ? `${screen.name}-dark` : screen.name)}.png`;
+    const output = join(staging, file);
     await sharp(png).png({ palette: true, colours: 256, effort: 8, quality: 95 }).toFile(output);
     const info = await sharp(output).metadata(); assert.equal(info.width, 1440); assert.equal(info.height, 1000);
-    files.push(`${screen.name}.png`); console.log(`Captured ${screen.name}.png`);
+    files.push(file); console.log(`Captured ${file}`);
   }
   await context.close();
   captured = true;

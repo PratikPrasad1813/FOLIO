@@ -55,7 +55,7 @@ try {
   assertEqual((await request("/api/ai/usage", a.token, "GET", undefined, "https://attacker.invalid")).status, 403, "Cross-origin usage reads rejected");
 
   // A retry with the same generation id reuses one slot. Another account cannot
-  // release the reservation, and a failed Gemini response charges only
+  // release the reservation, and a failed provider response charges only
   // the tokens it consumed.
   const idempotencyKey = randomUUID();
   const first = await reserve(a.token, idempotencyKey);
@@ -92,7 +92,7 @@ try {
   const usageFromOtherSession = await request("/api/ai/usage", sessionTokenA2);
   assertEqual(usageFromOtherSession.body.usage.usedPercent, 100, "Reserved capacity is reflected as a percentage across sessions");
   const completed = await finish(a.token, finalSlot.id, "completed", 3000);
-  assertEqual(completed.body.usage.usedPercent, 89, "Completion settles actual Gemini token usage");
+  assertEqual(completed.body.usage.usedPercent, 89, "Completion settles actual provider token usage");
   assertEqual((await finish(a.token, finalSlot.id, "completed")).body.idempotent, true, "Completion retries are idempotent");
   assertEqual((await request("/api/ai/usage", a.token)).body.usage.usedPercent, 89, "Duplicate completion cannot inflate daily percentage");
   assertEqual((await reserve(a.token)).status, 429, "Daily allowance enforces reservation capacity based on token usage");

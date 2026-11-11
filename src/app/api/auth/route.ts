@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db } from "@/db";
+import { db, DatabaseUnavailableError } from "@/db";
 import { users } from "@/db/schema";
 import { allowAuthAttempt, createSession, destroySession, getUser, hashPassword, publicUser, requestOrigin, sameOrigin, signedInDestination, verifyPassword } from "@/lib/auth";
 import { onAccountCreated } from "@/lib/account-events";
@@ -30,7 +30,14 @@ export async function POST(request: Request) {
     if (!user || !user.passwordHash || !valid) return Response.json({ error: "That email and password don’t match. Try again or recover your account." }, { status: 401 });
     await createSession(user.id);
     return Response.json({ user: publicUser(user), destination: signedInDestination(user, body.next) });
-  } catch (error) { console.error("Authentication request failed", error instanceof Error ? error.name : "error"); return Response.json({ error: "We couldn’t complete that request. Please try again." }, { status: 500 }); }
+  } catch (error) {
+    if (error instanceof DatabaseUnavailableError) {
+      console.error("Authentication request failed: database unavailable");
+      return Response.json({ error: `${error.message} ${error.hint}`.trim() }, { status: 503 });
+    }
+    console.error("Authentication request failed", error instanceof Error ? error.name : "error");
+    return Response.json({ error: "We couldn’t complete that request. Please try again." }, { status: 500 });
+  }
 }
 export async function PATCH(request: Request) {
   if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
@@ -42,7 +49,10 @@ export async function PATCH(request: Request) {
     if (!name || !Number.isInteger(weeklyGoal) || weeklyGoal < 1 || weeklyGoal > 100) return Response.json({ error: "Enter a name and a weekly goal between 1 and 100." }, { status: 400 });
     const [updated] = await db.update(users).set({ name, weeklyGoal }).where(eq(users.id, user.id)).returning();
     return Response.json({ user: publicUser(updated) });
-  } catch { return Response.json({ error: "Please sign in again." }, { status: 401 }); }
+  } catch (error) {
+    if (error instanceof DatabaseUnavailableError) return Response.json({ error: `${error.message} ${error.hint}`.trim() }, { status: 503 });
+    return Response.json({ error: "Please sign in again." }, { status: 401 });
+  }
 }
 export async function DELETE(request: Request) {
   if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });

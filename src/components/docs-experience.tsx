@@ -39,7 +39,7 @@ const SEARCH_TERMS: Record<string, string> = {
   "sync-resilience": "Google API rate limit 429 410 expired refresh token offline retry backoff",
   "ambient-ai": "Folio AI context tasks calendar projects privacy model actions consent",
   "prompt-design": "prompt template task decomposition estimation uncertainty JSON output",
-  "gemini-api": "Google AI Studio Gemini API key hosted inference streaming token daily quota billing privacy",
+  "byok-api": "BYOK bring your own key AI provider API key hosted inference streaming token daily quota billing privacy",
   "tauri-architecture": "Tauri Rust WebView2 WKWebView WebKitGTK desktop app shell",
   "tauri-config": "tauri.conf.json security CSP window icon bundle protocol",
   "desktop-packaging": "Windows exe msi macOS dmg universal Linux deb AppImage signing notarization",
@@ -312,7 +312,7 @@ export function DocsExperience({
                   <span className="docs-search-result-enter">↵</span>
                 </a>
               )) : (
-                <div className="docs-search-empty"><Search size={18} /><strong>No matching documentation</strong>                <span>Try a topic such as “OAuth”, “migrations”, or “Gemini API”.</span></div>
+                <div className="docs-search-empty"><Search size={18} /><strong>No matching documentation</strong>                <span>Try a topic such as “OAuth”, “migrations”, or “AI keys”.</span></div>
               )}
             </div>
             <div className="docs-search-footer"><span>Search Folio Engineering Manual</span><span>ESC</span></div>

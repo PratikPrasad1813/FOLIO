@@ -37,8 +37,8 @@ const chapterDetails = [
     audience: "Everyone",
   },
   {
-    kicker: "GOOGLE GEMINI AI",
-    description: "Configure Gemini, understand Folio's token allowance and data flow, and review AI action proposals.",
+    kicker: "BRING YOUR OWN KEY AI",
+    description: "Configure your own AI key, understand Folio's token allowance and data flow, and review AI action proposals.",
     audience: "Everyone",
   },
   {

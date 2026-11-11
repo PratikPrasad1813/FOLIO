@@ -340,7 +340,7 @@ async function runTaskLifecycle(
     const elapsedMs = Date.now() - snapshot.startedAtMs;
     if (tokenCount === 0) {
       if (elapsedMs >= FOLIO_AI_CONFIG.extendedRunningThresholdMilliseconds) {
-        return "Gemini is working through the details…";
+        return "Your assistant is working through the details…";
       }
       if (elapsedMs >= FOLIO_AI_CONFIG.longRunningThresholdMilliseconds) {
         return "Preparing a detailed response…";
@@ -418,7 +418,7 @@ async function runTaskLifecycle(
     snapshot.task = {
       ...snapshot.task,
       status: "running",
-      stage: initialPartial ? "Reconnecting to Gemini…" : "Thinking through your request…",
+      stage: initialPartial ? "Reconnecting to your assistant…" : "Thinking through your request…",
       updatedAt: new Date().toISOString(),
     };
     latestByConversationId.set(snapshot.task.conversationId, snapshot);
@@ -496,7 +496,7 @@ async function runTaskLifecycle(
     flushToSnapshot();
     const finalText = (initialPartial ? `${initialPartial}${result.text}` : result.text).trim();
     if (!finalText) {
-      throw new Error("Gemini finished without a response. This attempt was not counted.");
+      throw new Error("Your AI provider finished without a response. This attempt was not counted.");
     }
 
     completedLocally = true;

@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { and, eq, gt, sql } from "drizzle-orm";
-import { db } from "@/db";
+import { db, DatabaseUnavailableError } from "@/db";
 import { authRateLimits, sessions, users } from "@/db/schema";
 import { ensureSchema } from "@/db/migrate";
 import { DEFAULT_PERSONAL, personalAddress } from "@/lib/personalization";
@@ -39,6 +39,19 @@ export async function userFromToken(token: string | undefined): Promise<FolioUse
   return row?.user ?? null;
 }
 export const currentUser = cache(async (): Promise<FolioUser | null> => userFromToken((await cookies()).get(SESSION_COOKIE)?.value));
+/**
+ * Like `currentUser`, but reports an unreachable or misconfigured database
+ * instead of throwing, so auth pages can render a fix-it notice rather than a
+ * hard 500 (see DATABASE_SETUP.md → Troubleshooting).
+ */
+export async function currentUserSafe(): Promise<{ user: FolioUser | null; dbError: DatabaseUnavailableError | null }> {
+  try {
+    return { user: await currentUser(), dbError: null };
+  } catch (error) {
+    if (error instanceof DatabaseUnavailableError) return { user: null, dbError: error };
+    throw error;
+  }
+}
 export async function getUser(): Promise<FolioUser> {
   const user = await currentUser();
   if (!user) throw new AuthenticationError();

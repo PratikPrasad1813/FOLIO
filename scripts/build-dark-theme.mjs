@@ -76,7 +76,7 @@ function mapColor(color, role) {
   // Chroma (not HSL saturation, which explodes near white) decides neutral vs coloured.
   const chroma = (Math.max(color.r, color.g, color.b) - Math.min(color.r, color.g, color.b)) / 255;
   const vivid = chroma > 0.16 && l > 0.3 && l < 0.85;
-  const tint = () => { h = 0.68; s = 0.09; }; // Folio's cool, slightly violet neutral
+  const tint = () => { h = 0.61; s = 0.05; }; // Linear-style cool blue-grey neutral
   if (role === "bg") {
     if (vivid) { l *= 0.9; s *= 0.9; } else { l = 0.095 + (1 - l) * 0.9; if (chroma < 0.025) tint(); else s *= 0.5; }
   } else if (role === "border") {

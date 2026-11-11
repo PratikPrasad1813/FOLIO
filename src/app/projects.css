@@ -44,7 +44,7 @@
 }
 .pj-btn:active:not(:disabled) { transform: translateY(1px); }
 .pj-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.pj-btn.is-primary { background: var(--ink); border-color: var(--ink); color: var(--on-ink); box-shadow: 0 1px 2px rgba(20, 18, 30, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.08); }
+.pj-btn.is-primary { background: var(--ink); border-color: var(--ink); color: var(--on-ink); box-shadow: 0 1px 2px rgba(27, 25, 21, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.08); }
 .pj-btn.is-primary:hover:not(:disabled) { background: var(--ink-hover); border-color: var(--ink-hover); box-shadow: var(--shadow-md); }
 .pj-btn.is-secondary { background: var(--surface); border-color: var(--border-strong); color: var(--text-soft); box-shadow: var(--shadow-xs); }
 .pj-btn.is-secondary:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--accent-ring); color: var(--heading); }

@@ -309,10 +309,10 @@ try {
   await context.addInitScript(() => {
     window.__TEST_AI_MODE__ = "normal";
     window.__FOLIO_AI_TEST_PROVIDER__ = {
-      providerId: "google-gemini",
+      providerId: "byok",
       inferenceLocation: "hosted",
-      modelId: "gemini-3.8-flash",
-      modelName: "Gemini 3.8 Flash",
+      modelId: "gpt-4o-mini",
+      modelName: "GPT-4o mini",
       async initialize(onProgress) {
         onProgress({ progress: 1, text: "Hosted provider ready.", cached: false });
         return { cached: false };
@@ -391,7 +391,7 @@ try {
   await page.goto(`${base}/ai`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Folio AI", exact: true }).waitFor({ timeout: 30_000 });
 
-  await page.getByText(/Google AI Studio/).waitFor({ timeout: 20_000 });
+  await page.getByText(/Your assistant is working through your request/).waitFor({ timeout: 20_000 });
 
   /* ---------------------------------------------------------------------- */
   /* Test 1 & 8: A normal AI request completes & persists                   */
@@ -477,7 +477,7 @@ try {
   /* ---------------------------------------------------------------------- */
   /* Test 5: Temporary network interruption does not create duplicate tasks */
   /* ---------------------------------------------------------------------- */
-  await page.getByText(/Google AI Studio/).waitFor({ timeout: 20_000 });
+  await page.getByText(/Your assistant is working through your request/).waitFor({ timeout: 20_000 });
   await page.evaluate(() => {
     window.__TEST_AI_MODE__ = "normal";
   });

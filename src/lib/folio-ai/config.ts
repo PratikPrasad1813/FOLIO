@@ -1,11 +1,11 @@
 /**
- * Client/server-safe Folio AI limits. Gemini credentials are read only by the
- * server-side API route and must never be added here.
+ * Client/server-safe Folio AI limits. BYOK credentials travel per-request via
+ * headers and must never be added here. No central provider key exists.
  */
 export const FOLIO_AI_CONFIG = {
-  provider: "google-gemini" as const,
-  modelId: "gemini-3.8-flash",
-  modelName: "Gemini 3.8 Flash",
+  provider: "byok" as const,
+  modelId: "user-provided",
+  modelName: "Your AI model",
   contextWindowTokens: 4_096,
   maxInputCharacters: 4_000,
   maxOutputTokens: 1_024,

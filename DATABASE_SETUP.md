@@ -83,3 +83,36 @@ Never run automated screenshot generation or destructive tests against a product
 - Screenshot generation requires `FOLIO_SCREENSHOT_MODE=local` and a dedicated loopback database named `folio_screenshots`.
 - Remote Neon databases and databases with matching names to `DATABASE_URL` are strictly refused by safety guards.
 - See [SCREENSHOTS.md](./SCREENSHOTS.md) for full instructions.
+
+---
+
+## 7. Troubleshooting Connection Errors
+
+Run `npm run db:check` at any time — it pings `DATABASE_URL`, prints the target (provider, host, database, never the password) and, on failure, the exact cause and fix. The sign-in and sign-up pages also render this diagnosis as a notice instead of crashing when the database is unreachable.
+
+### `password authentication failed for user 'neondb_owner'`
+
+The PostgreSQL server is reachable, but it rejected the password in `DATABASE_URL`. This is a credentials problem, not a code problem. In order of likelihood:
+
+1. **Placeholder or stale password.** The string was copied from documentation or from an old connection dialog. Fix: open your provider's console (Neon: `console.neon.tech` → your project → **Dashboard** → **Connect** → **Copy** the full connection string, which includes the real password) and paste it into `.env.local`.
+2. **The role's password was reset** (Neon: *Roles* → *Reset password*). Fix: copy the new connection string into `.env.local`.
+3. **Special characters in the password are not URL-encoded.** The parser then reads a different password than you typed. Encode them first:
+
+   | Character | Encoded |
+   | --- | --- |
+   | `@` | `%40` |
+   | `#` | `%23` |
+   | `%` | `%25` |
+   | `?` | `%3F` |
+   | `/` | `%2F` |
+
+After changing `.env.local`, **restart the dev server** — Next.js reads environment files only at startup. Then confirm with `npm run db:check`; it should print `OK : connected … Credentials accepted.`
+
+### `ECONNREFUSED` / connection timeout
+
+- Local PostgreSQL is not running. Start it (Docker: `docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres`) or point `DATABASE_URL` at a hosted database such as Neon.
+- Host, port, or the provider's IP allowlist is wrong; check `npm run db:check` output for which.
+
+### `relation "folio_users" does not exist` or empty database
+
+The connection works but the schema was never created. Run `npm run db:init` (applies base schema + migrations idempotently), then `npm run db:verify`.

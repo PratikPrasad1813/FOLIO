@@ -15,6 +15,7 @@ import "./theme.css";
 import "./search.css";
 import "./folio-ai.css";
 import "./public.css";
+import "./landing.css";
 import "./onboarding.css";
 
 export const metadata: Metadata = {
@@ -29,8 +30,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f8f9fb" },
-    { media: "(prefers-color-scheme: dark)", color: "#0e0f13" },
+    { media: "(prefers-color-scheme: light)", color: "#f6f5f4" },
+    { media: "(prefers-color-scheme: dark)", color: "#08090a" },
   ],
 };
 

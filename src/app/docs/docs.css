@@ -1,42 +1,42 @@
 .docs-experience {
-  --docs-bg: #0b0c11;
-  --docs-panel: #11131a;
-  --docs-raised: #171922;
-  --docs-border: #272a35;
-  --docs-border-soft: #1d202a;
-  --docs-heading: #f7f7fb;
-  --docs-text: #c4c6d0;
-  --docs-muted: #858999;
-  --docs-faint: #666b7d;
-  --docs-accent: #b7a3ff;
-  --docs-accent-strong: #8c6cf0;
-  --docs-accent-wash: rgb(140 108 240 / 10%);
+  --docs-bg: #08090a;
+  --docs-panel: #101112;
+  --docs-raised: #16171b;
+  --docs-border: rgb(255 255 255 / 8%);
+  --docs-border-soft: rgb(255 255 255 / 5%);
+  --docs-heading: #f7f8f8;
+  --docs-text: #c3c7cd;
+  --docs-muted: #8a8f98;
+  --docs-faint: #62666d;
+  --docs-accent: #7db5ff;
+  --docs-accent-strong: #3b91f4;
+  --docs-accent-wash: rgb(59 145 244 / 12%);
   min-height: 100vh;
   color: var(--docs-text);
   background:
-    radial-gradient(ellipse at 50% -23rem, rgb(114 80 192 / 14%), transparent 48rem),
+    radial-gradient(ellipse at 50% -23rem, rgb(59 145 244 / 5%), transparent 48rem),
     var(--docs-bg);
-  font-family: "DM Sans", "Inter", system-ui, sans-serif;
+  font-family: "Folio Sans", "DM Sans", "Inter", system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.75;
   -webkit-font-smoothing: antialiased;
 }
 
 .docs-theme-light {
-  --docs-bg: #f8f7fa;
+  --docs-bg: #f6f5f4;
   --docs-panel: #fff;
-  --docs-raised: #f2f0f7;
-  --docs-border: #e5e1ec;
-  --docs-border-soft: #eeeaf2;
-  --docs-heading: #24212d;
-  --docs-text: #4b4855;
-  --docs-muted: #777382;
-  --docs-faint: #93909c;
-  --docs-accent: #7354a5;
-  --docs-accent-strong: #7658aa;
-  --docs-accent-wash: rgb(118 88 170 / 9%);
+  --docs-raised: #f0eeea;
+  --docs-border: rgb(0 0 0 / 9%);
+  --docs-border-soft: rgb(0 0 0 / 5%);
+  --docs-heading: #16130f;
+  --docs-text: #57534d;
+  --docs-muted: #757168;
+  --docs-faint: #9b958c;
+  --docs-accent: #0075de;
+  --docs-accent-strong: #0067c2;
+  --docs-accent-wash: rgb(0 117 222 / 8%);
   background:
-    radial-gradient(ellipse at 50% -23rem, rgb(159 129 209 / 15%), transparent 48rem),
+    radial-gradient(ellipse at 50% -23rem, rgb(255 177 16 / 7%), transparent 48rem),
     var(--docs-bg);
 }
 
@@ -57,8 +57,8 @@
 .docs-reading-progress span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #9b75ee, #d6a5ff);
-  box-shadow: 0 0 12px rgb(161 117 238 / 65%);
+  background: linear-gradient(90deg, #ffb110, #ffcf70);
+  box-shadow: 0 0 12px rgb(255 177 16 / 45%);
   transition: width 100ms linear;
 }
 
@@ -422,7 +422,7 @@
   width: 510px;
   height: 360px;
   border-radius: 50%;
-  background: radial-gradient(ellipse, rgb(142 108 220 / 13%), transparent 68%);
+  background: radial-gradient(ellipse, rgb(255 177 16 / 7%), transparent 68%);
   content: "";
   pointer-events: none;
   transform: translateX(-50%);
@@ -1036,17 +1036,17 @@
   align-items: center;
   gap: 6px;
   padding: 0 8px;
-  border: 1px solid #303341;
+  border: 1px solid var(--docs-border);
   border-radius: 6px;
-  color: #a4a8b7;
+  color: var(--docs-muted);
   font-size: 10px;
   transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
 }
 
 .docs-copy-button:hover {
-  border-color: #7960c5;
-  background: #191624;
-  color: #ded3ff;
+  border-color: var(--docs-accent-strong);
+  background: var(--docs-accent-wash);
+  color: var(--docs-accent);
 }
 
 .docs-code pre,
@@ -1243,15 +1243,15 @@
 }
 
 .docs-theme-light .docs-content .text-slate-400 {
-  color: #625e6b !important;
+  color: #57534d !important;
 }
 
 .docs-theme-light .docs-content .text-slate-500 {
-  color: #777382 !important;
+  color: #757168 !important;
 }
 
 .docs-theme-light .docs-content .text-slate-600 {
-  color: #8b8794 !important;
+  color: #948e85 !important;
 }
 
 .docs-theme-light .docs-content [class~="border-slate-800"],
@@ -1276,8 +1276,8 @@
 }
 
 .docs-theme-light .docs-code {
-  border-color: #d5d1df !important;
-  background: #11131a !important;
+  border-color: rgb(0 0 0 / 12%) !important;
+  background: #16171b !important;
 }
 
 .docs-theme-light .docs-code .text-slate-500 {
@@ -1285,7 +1285,7 @@
 }
 
 .docs-theme-light .docs-content table thead {
-  background: #efedf4;
+  background: #f0eeea;
 }
 
 .docs-theme-light .docs-content table tbody tr {
@@ -1293,17 +1293,17 @@
 }
 
 .docs-theme-light .docs-content .bg-slate-900 {
-  background-color: #efedf4 !important;
+  background-color: #f0eeea !important;
 }
 
 .docs-theme-light .docs-content .text-violet-200,
 .docs-theme-light .docs-content .text-violet-300 {
-  color: #70509f !important;
+  color: #0067c2 !important;
 }
 
 .docs-theme-light .docs-content [class*="text-sky-100"],
 .docs-theme-light .docs-content [class*="text-amber-100"] {
-  color: #4c4655 !important;
+  color: #57534d !important;
 }
 
 .docs-theme-light .docs-content .text-slate-300,

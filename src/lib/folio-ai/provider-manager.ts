@@ -1,7 +1,7 @@
 "use client";
 
 import type { AIProvider } from "@/lib/folio-ai/provider";
-import { GoogleGeminiProvider } from "@/lib/folio-ai/google-gemini-provider";
+import { BYOKProvider, MissingKeyError, readStoredBYOKSettings } from "@/lib/folio-ai/byok-provider";
 
 declare global {
   interface Window {
@@ -16,7 +16,10 @@ export function getAIProvider(): AIProvider {
   if (typeof window !== "undefined" && process.env.NODE_ENV !== "production" && window.__FOLIO_AI_TEST_PROVIDER__) {
     return window.__FOLIO_AI_TEST_PROVIDER__;
   }
-  if (!provider) provider = new GoogleGeminiProvider();
+  if (!provider) {
+    if (!readStoredBYOKSettings()) throw new MissingKeyError();
+    provider = new BYOKProvider();
+  }
   return provider;
 }
 
@@ -29,6 +32,12 @@ export function getAIProviderState(): { provider: AIProvider | null; ready: bool
 
 export function markAIProviderReady(ready: boolean) {
   providerReady = ready;
+}
+
+/** Clears the cached provider so the next connection picks up new AI Settings. */
+export function resetAIProvider(): void {
+  provider = null;
+  providerReady = false;
 }
 
 export async function unloadAIProvider(): Promise<void> {

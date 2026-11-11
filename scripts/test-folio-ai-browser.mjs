@@ -58,7 +58,7 @@ try {
   await pageA.getByText(/% used today/).waitFor();
   const privacy = pageA.locator(".fa-chat-foot");
   await privacy.waitFor();
-  ok((await privacy.innerText()).includes("processed by Google AI Studio"), "Hosted Gemini processing and account history are explained");
+  ok((await privacy.innerText()).includes("AI provider"), "AI provider processing and account history are explained");
   ok((await pageA.locator(".fa-phase-note").innerText()).includes("wait for your review"), "Preview explains that Folio changes require review");
   ok((await pageA.locator(".fa-model-state").innerText()).includes("Folio AI"), "Hosted assistant identity is displayed");
   ok(await pageA.locator(".fa-compatibility,.fa-model-stats,.fa-recommend").count() === 0, "AI page has no local-model compatibility or download UI");

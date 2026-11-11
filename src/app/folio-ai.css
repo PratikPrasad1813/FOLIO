@@ -158,6 +158,13 @@
 .fa-settings-field { display:flex; flex-direction:column; gap:6px; margin-bottom:11px; }
 .fa-settings-field > span { font-size:10.5px; font-weight:600; color:var(--text-soft); }
 .fa-settings-field input { width:100%; height:37px; padding:0 11px; border:1px solid var(--border-strong); border-radius:8px; background:var(--surface); color:var(--text); font-size:12.5px; }
+.fa-settings-field select { width:100%; height:37px; padding:0 11px; border:1px solid var(--border-strong); border-radius:8px; background:var(--surface); color:var(--text); font-size:12.5px; }
+.fa-key-input { display:flex; gap:6px; align-items:stretch; }
+.fa-key-input input { flex:1; font-family:ui-monospace, monospace; }
+.fa-key-input .pj-btn { display:inline-flex; align-items:center; justify-content:center; min-width:36px; }
+.fa-key-help { display:flex; gap:7px; align-items:flex-start; margin-top:2px; font-size:10.5px; line-height:1.55; color:var(--muted); }
+.fa-key-help svg { flex:none; margin-top:2px; }
+.fa-key-help a { color:var(--accent-strong); text-decoration:underline; }
 .fa-chip-row { display:flex; flex-wrap:wrap; gap:6px; }
 .fa-chip { min-height:28px; padding:0 10px; border:1px solid var(--border-strong); border-radius:999px; background:var(--surface); color:var(--muted); font-size:10.5px; font-weight:560; }
 .fa-chip:hover { border-color:var(--accent-ring); color:var(--heading); }
@@ -392,7 +399,7 @@
 @media(max-width:560px){.fa-quality-modal{width:100%}.fa-quality-modal-body{max-height:calc(100dvh - 100px);padding:0 15px 16px}.fa-quality-modal-list{grid-template-columns:1fr}.fa-quality-modal-actions{flex-direction:column}.fa-quality-modal-actions .pj-btn{justify-content:center}}
 @media(prefers-reduced-motion:reduce){.fa-prompts button:hover:not(:disabled){transform:none}}
 
-/* Hosted Gemini chat: keep the workspace calm and let the conversation lead. */
+/* BYOK chat: keep the workspace calm and let the conversation lead. */
 .folio-ai-page { max-width: 1540px; padding: 14px clamp(4px,1vw,18px) 28px; }
 .fa-page-header { margin-bottom: 18px; }
 .fa-page-title { gap: 14px; }
@@ -519,4 +526,912 @@
   .fa-chat-foot { padding: 0 9px 9px; font-size: 7.5px; }
   .fa-side-column { grid-template-columns: 1fr; }
   .fa-capabilities { grid-column: auto; }
+}
+
+/* ==========================================================================
+   Synapse edition · dark frosted-glass theme for the Folio AI view
+   Design reference: "Synapse – AI Chat Dashboard" (Selasa Agency / Muhammad
+   Iqbal, dribbble.com/shots/26084842). Official shot palette mapped below.
+   Scoped entirely to .folio-ai-page so the rest of Folio stays light.
+   ========================================================================== */
+.folio-ai-page {
+  --syn-bg: #0C1016;        /* near-black navy      (shot palette)  */
+  --syn-slate: #213444;     /* deep blue-gray       (shot palette)  */
+  --syn-brown: #473934;     /* warm brown           (shot palette)  */
+  --syn-copper: #937060;    /* muted copper accent  (shot palette)  */
+  --syn-copper-hi: #C9A288; /* copper, lifted for dark glass          */
+  --syn-gray: #645856;      /* warm gray            (shot palette)  */
+  --syn-mauve: #8A7A88;     /* muted mauve         (shot palette)  */
+  --syn-ink: #E9E8EB;       /* heading white        (from #C7C6C9)  */
+  --syn-glass: rgba(19, 26, 35, 0.62);
+  --syn-glass-2: rgba(25, 34, 45, 0.5);
+  --syn-line: rgba(199, 198, 201, 0.13);
+
+  color-scheme: dark;
+  color: var(--syn-ink);
+
+  /* Folio theme tokens, re-pointed at the Synapse mood */
+  --background: transparent;
+  --surface: rgba(23, 31, 41, 0.5);
+  --surface-2: rgba(19, 26, 35, 0.42);
+  --surface-3: rgba(199, 198, 201, 0.07);
+  --surface-hover: rgba(199, 198, 201, 0.11);
+  --text: #C7C6C9;
+  --text-soft: #C7C6C9;
+  --heading: #E9E8EB;
+  --muted: rgba(199, 198, 201, 0.62);
+  --faint: rgba(199, 198, 201, 0.38);
+  --border: var(--syn-line);
+  --border-strong: rgba(199, 198, 201, 0.22);
+  --accent: #937060;
+  --accent-strong: #C9A288;
+  --accent-soft: rgba(147, 112, 96, 0.22);
+  --accent-ring: rgba(147, 112, 96, 0.45);
+  --ink: #C9A288;
+  --ink-hover: #DDB79E;
+  --on-ink: #14181F;
+  --tone-violet: #A79BC5;
+  --tone-violet-soft: rgba(138, 122, 136, 0.22);
+  --tone-blue: #9EB6D8;
+  --tone-blue-soft: rgba(120, 155, 200, 0.14);
+  --tone-green: #8FBF9F;
+  --tone-green-soft: rgba(120, 190, 150, 0.13);
+  --tone-amber: #D8A468;
+  --tone-amber-soft: rgba(216, 164, 104, 0.13);
+  --tone-red: #E08E85;
+  --tone-red-soft: rgba(224, 142, 133, 0.12);
+  --tone-neutral: #A7A0AA;
+  --tone-neutral-soft: rgba(199, 198, 201, 0.08);
+  --c-violet: #8A7A88;
+  --c-green: #8FBF9F;
+  --c-peach: #C9A288;
+  --shadow-xs: 0 1px 2px rgba(5, 8, 12, 0.4);
+  --shadow-sm: 0 18px 48px rgba(5, 8, 12, 0.45);
+  --shadow-md: 0 24px 60px rgba(5, 8, 12, 0.55);
+
+  /* The signature backdrop: snowy ridge at dusk (generated for this theme) */
+  background-color: var(--syn-bg);
+  background-image:
+    linear-gradient(180deg, rgba(12, 16, 22, 0.42) 0%, rgba(12, 16, 22, 0.72) 52%, rgba(12, 16, 22, 0.9) 100%),
+    url("/synapse-dusk.jpg");
+  background-size: cover;
+  background-position: center 38%;
+  border-radius: 22px;
+  max-width: 1540px;
+  margin: 0 auto;
+  padding: 18px clamp(10px, 1.4vw, 22px) 26px;
+}
+
+/* ---- Shared glass surface ---- */
+.folio-ai-page .fa-history-sidebar,
+.folio-ai-page .fa-chat-card,
+.folio-ai-page .fa-usage-card,
+.folio-ai-page .fa-capabilities {
+  background: var(--syn-glass);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  backdrop-filter: blur(16px) saturate(1.15);
+  border: 1px solid var(--syn-line);
+  box-shadow: var(--shadow-sm);
+  color: var(--syn-ink);
+}
+.folio-ai-page .fa-history-sidebar { border-radius: 18px; }
+.folio-ai-page .fa-chat-card { border-radius: 18px; }
+.folio-ai-page .fa-usage-card, .folio-ai-page .fa-capabilities { border-radius: 15px; }
+
+/* ---- Page header ---- */
+.folio-ai-page .fa-page-title .eyebrow { color: var(--syn-copper-hi); }
+.folio-ai-page .fa-page-title h1 { color: var(--syn-ink); }
+.folio-ai-page .fa-page-actions .pj-btn {
+  color: var(--syn-ink);
+  border: 1px solid rgba(199, 198, 201, 0.18);
+  background: rgba(199, 198, 201, 0.08);
+}
+.folio-ai-page .fa-page-actions .pj-btn:hover { background: rgba(199, 198, 201, 0.16); }
+.folio-ai-page .fa-icon-pill {
+  display: grid; place-items: center; width: 34px; height: 34px;
+  border: 1px solid rgba(199, 198, 201, 0.18); border-radius: 999px;
+  background: rgba(199, 198, 201, 0.08); color: var(--syn-ink);
+}
+.folio-ai-page .fa-icon-pill:hover { background: rgba(199, 198, 201, 0.16); }
+.folio-ai-page .fa-plan-pill { background: rgba(199, 198, 201, 0.08); border-color: var(--syn-line); color: rgba(199,198,201,.75); }
+.folio-ai-page .fa-plan-pill > span { background: var(--tone-green); box-shadow: 0 0 0 3px var(--tone-green-soft); }
+.folio-ai-page .fa-brand-icon {
+  background: linear-gradient(140deg, rgba(147,112,96,.35), rgba(138,122,136,.25));
+  border-color: rgba(201,162,136,.35); color: var(--syn-copper-hi);
+  box-shadow: 0 10px 26px rgba(147,112,96,.28);
+}
+
+/* ---- Sidebar ---- */
+.folio-ai-page .fa-history-brand { color: var(--syn-ink); }
+.folio-ai-page .fa-history-brand > span:last-child > span { color: var(--syn-copper-hi); }
+.folio-ai-page .fa-new-conversation {
+  background: rgba(199, 198, 201, 0.12); border: 1px solid rgba(199, 198, 201, 0.2);
+  color: var(--syn-ink); border-radius: 999px; font-weight: 600;
+}
+.folio-ai-page .fa-new-conversation:hover:not(:disabled) { background: rgba(199, 198, 201, 0.2); }
+.folio-ai-page .fa-side-nav { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; }
+.folio-ai-page .fa-side-nav-item {
+  display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 0 10px;
+  border: 0; border-radius: 9px; background: transparent; color: rgba(199,198,201,.68);
+  font-size: 11px; font-weight: 560; text-align: left;
+}
+.folio-ai-page .fa-side-nav-item svg { opacity: .85; }
+.folio-ai-page .fa-side-nav-item:hover:not(:disabled) { background: rgba(199, 198, 201, 0.09); color: var(--syn-ink); }
+.folio-ai-page .fa-side-nav-item.is-active { background: var(--accent-soft); color: var(--syn-copper-hi); }
+.folio-ai-page .fa-side-nav-item:disabled { opacity: .4; }
+.folio-ai-page .fa-history-heading { color: rgba(199,198,201,.4); }
+.folio-ai-page .fa-history-item { color: rgba(199,198,201,.68); }
+.folio-ai-page .fa-history-item:hover:not(:disabled),
+.folio-ai-page .fa-history-item.is-active {
+  background: rgba(199, 198, 201, 0.1); color: var(--syn-ink);
+  box-shadow: inset 0 0 0 1px rgba(147, 112, 96, 0.32);
+}
+.folio-ai-page .fa-history-item.is-active svg { color: var(--syn-copper-hi); opacity: 1; }
+.folio-ai-page .fa-history-row { background: transparent; }
+.folio-ai-page .fa-history-menu-trigger { color: rgba(199,198,201,.55); }
+.folio-ai-page .fa-history-menu-trigger:hover:not(:disabled), .folio-ai-page .fa-history-menu-trigger[aria-expanded="true"] {
+  background: rgba(199, 198, 201, 0.12); color: var(--syn-ink);
+}
+.folio-ai-page .fa-history-empty { color: rgba(199,198,201,.45); }
+.folio-ai-page .fa-history-footer {
+  margin-top: auto; padding: 11px 10px; border: 1px solid var(--syn-line);
+  border-radius: 12px; background: rgba(12, 16, 22, 0.45); color: var(--tone-green);
+}
+.folio-ai-page .fa-history-footer strong { color: var(--syn-ink); }
+.folio-ai-page .fa-history-footer small { color: rgba(199,198,201,.55); }
+.folio-ai-page .fa-side-user {
+  display: flex; align-items: center; gap: 10px; margin-top: 11px;
+  padding: 11px 8px 2px; border-top: 1px solid var(--syn-line);
+}
+.folio-ai-page .fa-side-user-avatar {
+  display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0;
+  border-radius: 999px; font-size: 11.5px; font-weight: 650; color: #14181F;
+  background: linear-gradient(135deg, var(--syn-copper-hi), var(--syn-mauve));
+  box-shadow: 0 6px 16px rgba(147, 112, 96, 0.35);
+}
+.folio-ai-page .fa-side-user-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.folio-ai-page .fa-side-user-copy strong {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--syn-ink); font-size: 11.5px; font-weight: 620;
+}
+.folio-ai-page .fa-side-user-copy small { color: rgba(199,198,201,.55); font-size: 9px; }
+
+/* ---- Chat card header ---- */
+.folio-ai-page .fa-chat-header { background: rgba(23, 31, 41, 0.35); border-bottom: 1px solid var(--syn-line); }
+.folio-ai-page .fa-model-state strong { color: var(--syn-ink); }
+.folio-ai-page .fa-model-state small { color: rgba(199,198,201,.6); }
+.folio-ai-page .fa-tool { color: rgba(199,198,201,.62); }
+.folio-ai-page .fa-tool:hover:not(:disabled) { background: rgba(199, 198, 201, 0.12); color: var(--syn-ink); }
+.folio-ai-page .fa-model-pill {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 30px;
+  padding: 0 11px; border: 1px solid rgba(199, 198, 201, 0.18); border-radius: 999px;
+  background: rgba(199, 198, 201, 0.08); color: rgba(199,198,201,.82);
+  font-size: 10.5px; font-weight: 590; white-space: nowrap; max-width: 320px;
+}
+.folio-ai-page .fa-model-pill:hover { background: rgba(199, 198, 201, 0.16); color: var(--syn-ink); }
+.folio-ai-page .fa-model-pill-dot {
+  width: 7px; height: 7px; flex-shrink: 0; border-radius: 999px;
+  background: var(--tone-green); box-shadow: 0 0 0 3px var(--tone-green-soft);
+}
+.folio-ai-page .fa-model-pill-label { overflow: hidden; text-overflow: ellipsis; }
+.folio-ai-page .fa-model-pill svg { flex-shrink: 0; opacity: .6; }
+
+/* ---- Hero (Synapse home state) ---- */
+.folio-ai-page .fa-hero {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  padding: clamp(30px, 5vh, 58px) clamp(16px, 3vw, 34px) 30px;
+  overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(199,198,201,.2) transparent;
+}
+.folio-ai-page .fa-hero-greeting { text-align: center; margin-bottom: 22px; }
+.folio-ai-page .fa-hero-greeting h2 {
+  font-size: clamp(30px, 3.4vw, 42px); font-weight: 640; letter-spacing: -.9px;
+  color: #F2F1F4; text-shadow: 0 0 34px rgba(147, 112, 96, 0.4);
+}
+.folio-ai-page .fa-hero-greeting p {
+  margin-top: 8px; font-size: 14.5px; color: rgba(199, 198, 201, 0.66);
+}
+.folio-ai-page .fa-hero .fa-composer { width: min(640px, 100%); }
+.folio-ai-page .fa-hero-chips {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+  width: min(680px, 100%); margin-top: 16px;
+}
+.folio-ai-page .fa-hero-chips button {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 13px;
+  border: 1px solid rgba(199, 198, 201, 0.16); border-radius: 999px;
+  background: rgba(199, 198, 201, 0.07); color: rgba(199,198,201,.82);
+  font-size: 10.5px; font-weight: 550;
+}
+.folio-ai-page .fa-hero-chips button svg { color: var(--syn-copper-hi); }
+.folio-ai-page .fa-hero-chips button:hover:not(:disabled) {
+  background: rgba(199, 198, 201, 0.15); color: var(--syn-ink);
+  border-color: rgba(201, 162, 136, 0.4);
+}
+.folio-ai-page .fa-hero-chips button:disabled { opacity: .45; }
+.folio-ai-page .fa-hero-widgets {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px; width: min(680px, 100%); margin-top: 26px;
+}
+.folio-ai-page .fa-hero-card {
+  position: relative; padding: 14px 15px; border: 1px solid var(--syn-line);
+  border-radius: 13px; background: var(--syn-glass-2);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.folio-ai-page .fa-hero-badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px;
+  border-radius: 999px; background: rgba(199, 198, 201, 0.14);
+  color: var(--syn-ink); font-size: 8.5px; font-weight: 660; letter-spacing: .8px;
+}
+.folio-ai-page .fa-hero-badge::before {
+  content: ""; width: 5px; height: 5px; border-radius: 999px;
+  background: var(--syn-copper-hi);
+}
+.folio-ai-page .fa-hero-card strong { display: block; margin-top: 9px; color: var(--syn-ink); font-size: 13px; font-weight: 630; }
+.folio-ai-page .fa-hero-card p { margin: 5px 0 0; color: rgba(199,198,201,.6); font-size: 10.5px; line-height: 1.65; }
+.folio-ai-page .fa-hero-recent { width: min(680px, 100%); margin-top: 28px; }
+.folio-ai-page .fa-hero-recent-head {
+  display: flex; align-items: center; gap: 6px; color: rgba(199,198,201,.6);
+  font-size: 10.5px; font-weight: 620; margin-bottom: 9px;
+}
+.folio-ai-page .fa-hero-recent-head svg { opacity: .6; }
+.folio-ai-page .fa-hero-recent-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.folio-ai-page .fa-hero-recent-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 7px;
+  padding: 12px 13px; border: 1px solid var(--syn-line); border-radius: 12px;
+  background: var(--syn-glass-2); color: rgba(199,198,201,.85); text-align: left;
+}
+.folio-ai-page .fa-hero-recent-card svg { color: var(--syn-copper-hi); opacity: .85; }
+.folio-ai-page .fa-hero-recent-title {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; color: var(--syn-ink); font-size: 11px; font-weight: 590; line-height: 1.45;
+}
+.folio-ai-page .fa-hero-recent-card small { color: rgba(199,198,201,.5); font-size: 9px; }
+.folio-ai-page .fa-hero-recent-card:hover:not(:disabled) { border-color: rgba(201, 162, 136, 0.4); background: rgba(25, 34, 45, 0.62); }
+.folio-ai-page .fa-hero-recent-card:disabled { opacity: .45; }
+
+/* ---- Composer ---- */
+.folio-ai-page .fa-composer {
+  border: 1px solid rgba(199, 198, 201, 0.16); border-radius: 15px;
+  background:
+    linear-gradient(150deg, rgba(33, 52, 68, 0.4), rgba(71, 57, 52, 0.3)),
+    rgba(19, 26, 35, 0.6);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-sm);
+}
+.folio-ai-page .fa-composer:focus-within { border-color: rgba(201, 162, 136, 0.5); box-shadow: 0 0 0 3px rgba(147, 112, 96, 0.18); }
+.folio-ai-page .fa-composer > textarea { color: var(--syn-ink); background: transparent; caret-color: var(--syn-copper-hi); }
+.folio-ai-page .fa-composer > textarea::placeholder { color: rgba(199,198,201,.45); }
+.folio-ai-page .fa-composer-footer { border-top: 1px solid var(--syn-line); }
+.folio-ai-page .fa-composer-actions { display: flex; align-items: center; gap: 8px; }
+.folio-ai-page .fa-composer-count { color: rgba(199,198,201,.45); font-size: 9px; font-variant-numeric: tabular-nums; }
+.folio-ai-page .fa-send-button {
+  display: grid; place-items: center; width: 34px; height: 34px; padding: 0;
+  border: 0; border-radius: 10px; color: #14181F;
+  background: linear-gradient(140deg, var(--syn-copper-hi), var(--syn-copper));
+  box-shadow: 0 8px 20px rgba(147, 112, 96, 0.4);
+}
+.folio-ai-page .fa-send-button:hover:not(:disabled) { background: linear-gradient(140deg, #DDB79E, #A67F68); }
+.folio-ai-page .fa-send-button:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
+.folio-ai-page .fa-stop-button {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px;
+  border: 1px solid rgba(224, 142, 133, 0.35); border-radius: 9px;
+  background: var(--tone-red-soft); color: var(--tone-red); font-size: 10.5px; font-weight: 620;
+}
+
+/* ---- Messages ---- */
+.folio-ai-page .fa-messages { scrollbar-color: rgba(199,198,201,.22) transparent; }
+.folio-ai-page .fa-avatar.is-ai { background: var(--accent-soft); color: var(--syn-copper-hi); }
+.folio-ai-page .fa-avatar.is-user {
+  color: #14181F; font-weight: 680;
+  background: linear-gradient(135deg, var(--syn-copper-hi), var(--syn-mauve));
+}
+.folio-ai-page .fa-message-label { color: rgba(199,198,201,.5); }
+.folio-ai-page .fa-message.is-assistant .fa-message-text {
+  padding: 12px 16px; border: 1px solid var(--syn-line); border-radius: 4px 16px 16px 16px;
+  background: var(--syn-glass-2);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.folio-ai-page .fa-message.is-user .fa-message-text {
+  border: 1px solid rgba(201, 162, 136, 0.3); border-radius: 16px 4px 16px 16px;
+  background: linear-gradient(150deg, rgba(147, 112, 96, 0.3), rgba(71, 57, 52, 0.34));
+  color: #D9D2C7;
+}
+.folio-ai-page .fa-markdown code { background: rgba(12, 16, 22, 0.6); border-color: var(--syn-line); color: var(--syn-copper-hi); }
+.folio-ai-page .fa-markdown pre { background: rgba(12, 16, 22, 0.62); border-color: var(--syn-line); }
+.folio-ai-page .fa-copy { color: rgba(199,198,201,.45); }
+.folio-ai-page .fa-copy:hover { background: rgba(199, 198, 201, 0.12); color: var(--syn-ink); }
+.folio-ai-page .fa-scroll-latest { background: var(--syn-glass); border-color: var(--syn-line); color: var(--syn-ink); }
+.folio-ai-page .fa-thinking { color: rgba(199,198,201,.6); }
+.folio-ai-page .fa-thinking > i { background: var(--syn-copper-hi); }
+.folio-ai-page .fa-partial-badge { background: rgba(199, 198, 201, 0.1); color: rgba(199,198,201,.6); }
+
+/* ---- Live task bar, badges, alerts ---- */
+.folio-ai-page .fa-live-task-bar { background: rgba(147, 112, 96, 0.14); border-bottom: 1px solid var(--syn-line); }
+.folio-ai-page .fa-live-task-top strong { color: var(--syn-ink); }
+.folio-ai-page .fa-live-elapsed { background: rgba(199, 198, 201, 0.1); border-color: var(--syn-line); color: rgba(199,198,201,.65); }
+.folio-ai-page .fa-live-reassurance { color: rgba(199,198,201,.6); }
+.folio-ai-page .fa-task-badge.is-queued { background: rgba(199, 198, 201, 0.12); color: rgba(199,198,201,.7); }
+.folio-ai-page .fa-task-badge.is-running { background: var(--accent-soft); color: var(--syn-copper-hi); }
+.folio-ai-page .fa-alert {
+  background: rgba(224, 142, 133, 0.1); border-color: rgba(224, 142, 133, 0.3); color: var(--tone-red);
+}
+.folio-ai-page .fa-alert.is-limit { background: var(--tone-amber-soft); border-color: rgba(216, 164, 104, 0.3); color: var(--tone-amber); }
+.folio-ai-page .fa-task-error-card { background: rgba(224, 142, 133, 0.09); border-color: rgba(224, 142, 133, 0.3); color: var(--tone-red); }
+.folio-ai-page .fa-task-error-copy p { color: rgba(199,198,201,.72); }
+
+/* ---- Action preview card ---- */
+.folio-ai-page .fa-action-preview { background: var(--syn-glass-2); border-color: var(--syn-line); }
+.folio-ai-page .fa-action-head { background: rgba(199, 198, 201, 0.06); border-bottom-color: var(--syn-line); }
+.folio-ai-page .fa-action-head > span { background: var(--accent-soft); color: var(--syn-copper-hi); }
+.folio-ai-page .fa-action-list li { border-bottom-color: var(--syn-line); }
+.folio-ai-page .fa-confirm-row { background: var(--tone-amber-soft); color: var(--tone-amber); }
+
+/* ---- Right column ---- */
+.folio-ai-page .fa-side-heading > span { background: rgba(199, 198, 201, 0.1); color: var(--syn-copper-hi); }
+.folio-ai-page .fa-side-heading h2 { color: var(--syn-ink); }
+.folio-ai-page .fa-usage-top > strong { color: var(--syn-ink); }
+.folio-ai-page .fa-usage-track { background: rgba(199, 198, 201, 0.12); }
+.folio-ai-page .fa-usage-track > i { background: linear-gradient(90deg, var(--syn-copper), var(--syn-mauve)); }
+.folio-ai-page .fa-usage-details[open] > summary { border-bottom-color: var(--syn-line); }
+.folio-ai-page .fa-advanced-details > summary { color: var(--syn-ink); }
+.folio-ai-page .fa-advanced-details[open] > summary { border-bottom: 1px solid var(--syn-line); margin-bottom: 11px; padding-bottom: 10px; }
+.folio-ai-page .fa-chat-foot { color: rgba(199,198,201,.42); }
+.folio-ai-page .fa-chat-foot svg { color: var(--tone-green); }
+
+/* ---- Buttons inside the dark page ---- */
+.folio-ai-page .pj-btn.is-secondary {
+  border-color: rgba(199, 198, 201, 0.22); background: rgba(199, 198, 201, 0.08); color: var(--syn-ink);
+}
+.folio-ai-page .pj-btn.is-secondary:hover { background: rgba(199, 198, 201, 0.16); }
+.folio-ai-page .pj-btn.is-primary { background: var(--ink); color: var(--on-ink); }
+.folio-ai-page .pj-btn.is-primary:hover:not(:disabled) { background: var(--ink-hover); }
+.folio-ai-page .pj-btn.is-danger-ghost { color: var(--tone-red); }
+.folio-ai-page .pj-link { color: var(--syn-copper-hi); }
+
+/* ---- Modals opened from the AI page (render inline → tokens cascade) ---- */
+.folio-ai-page .modal, .folio-ai-page .fa-settings-modal, .folio-ai-page .fa-onboarding-modal, .folio-ai-page .fa-clear-modal {
+  color: var(--syn-ink);
+}
+.folio-ai-page .fa-settings-field input, .folio-ai-page .fa-settings-field select {
+  background: rgba(12, 16, 22, 0.55); border-color: rgba(199, 198, 201, 0.2); color: var(--syn-ink);
+}
+.folio-ai-page .fa-chip { background: rgba(199, 198, 201, 0.07); border-color: rgba(199, 198, 201, 0.18); color: rgba(199,198,201,.75); }
+.folio-ai-page .fa-chip.is-on { background: var(--accent-soft); border-color: rgba(201, 162, 136, 0.5); color: var(--syn-copper-hi); }
+.folio-ai-page .fa-clear-content > span { background: var(--accent-soft); color: var(--syn-copper-hi); }
+.folio-ai-page .fa-clear-content > span.is-danger { background: var(--tone-red-soft); color: var(--tone-red); }
+
+/* ---- Responsive behavior for the new hero/sidebar bits ---- */
+@media (max-width: 900px) {
+  .folio-ai-page .fa-hero-widgets, .folio-ai-page .fa-hero-recent-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 760px) {
+  .folio-ai-page .fa-side-nav, .folio-ai-page .fa-side-user { display: none; }
+  .folio-ai-page .fa-hero-greeting h2 { font-size: 26px; }
+  .folio-ai-page .fa-hero-widgets, .folio-ai-page .fa-hero-recent-grid { grid-template-columns: 1fr; }
+  .folio-ai-page .fa-chat-tools .fa-tool span { display: none; }
+  .folio-ai-page .fa-model-pill { max-width: 180px; }
+  .folio-ai-page .fa-model-pill-label { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .folio-ai-page .fa-hero-greeting h2 { text-shadow: none; }
+}
+
+/* ---- Modal surfaces inside the Synapse page ---- */
+.folio-ai-page .modal-backdrop {
+  background: rgba(8, 11, 16, 0.62);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+.folio-ai-page .modal {
+  background: rgba(19, 26, 35, 0.92);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  backdrop-filter: blur(18px) saturate(1.15);
+  border: 1px solid rgba(199, 198, 201, 0.14);
+  color: var(--syn-ink);
+  box-shadow: 0 30px 80px rgba(5, 8, 12, 0.6);
+}
+.folio-ai-page .modal-header h2 { color: var(--syn-ink); }
+.folio-ai-page .modal-header p { color: rgba(199, 198, 201, 0.6); }
+.folio-ai-page .modal .icon-button { color: rgba(199, 198, 201, 0.7); }
+.folio-ai-page .modal .icon-button:hover { color: var(--syn-ink); background: rgba(199, 198, 201, 0.12); }
+.folio-ai-page .fa-settings-section h3 { color: var(--syn-ink); }
+.folio-ai-page .fa-settings-field > span { color: rgba(199, 198, 201, 0.75); }
+.folio-ai-page .fa-key-help { color: rgba(199, 198, 201, 0.6); }
+.folio-ai-page .fa-onboarding > p { color: rgba(199, 198, 201, 0.62); }
+
+/* Portaled conversation menu, darkened for the Synapse AI page (portal mounts
+   at body level, so this variant is a global class with literal colors). */
+.fm-menu.fm-menu-synapse {
+  background: rgba(19, 26, 35, 0.96);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  backdrop-filter: blur(16px) saturate(1.15);
+  border: 1px solid rgba(199, 198, 201, 0.15);
+  box-shadow: 0 24px 60px rgba(5, 8, 12, 0.55);
+  color: #E9E8EB;
+}
+.fm-menu.fm-menu-synapse .fm-item { color: rgba(199, 198, 201, 0.85); }
+.fm-menu.fm-menu-synapse .fm-item:hover,
+.fm-menu.fm-menu-synapse .fm-item:focus-visible { background: rgba(199, 198, 201, 0.12); color: #E9E8EB; }
+.fm-menu.fm-menu-synapse .fm-icon { color: rgba(199, 198, 201, 0.6); }
+.fm-menu.fm-menu-synapse .fm-item:hover .fm-icon,
+.fm-menu.fm-menu-synapse .fm-item:focus-visible .fm-icon { color: inherit; }
+.fm-menu.fm-menu-synapse .fm-item.is-checked { color: #E9E8EB; }
+.fm-menu.fm-menu-synapse .fm-item.is-danger,
+.fm-menu.fm-menu-synapse .fm-item.is-danger .fm-icon { color: #E08E85; }
+.fm-menu.fm-menu-synapse .fm-item.is-danger:hover,
+.fm-menu.fm-menu-synapse .fm-item.is-danger:focus-visible { background: rgba(224, 142, 133, 0.14); color: #E08E85; }
+.fm-menu.fm-menu-synapse .fm-label { color: rgba(199, 198, 201, 0.5); }
+.fm-menu.fm-menu-synapse .fm-sep { background: rgba(199, 198, 201, 0.14); }
+.fm-menu.fm-menu-synapse .fm-hint { color: rgba(199, 198, 201, 0.5); border-color: rgba(199, 198, 201, 0.2); }
+
+/* Readability polish for the Synapse glass surfaces */
+.folio-ai-page .fa-message.is-assistant .fa-message-text { color: #D6D5D8; }
+.folio-ai-page .fa-message.is-assistant .fa-message-text,
+.folio-ai-page .fa-message.is-assistant .fa-markdown { color: #D6D5D8; }
+.folio-ai-page .fa-markdown h1, .folio-ai-page .fa-markdown h2,
+.folio-ai-page .fa-markdown h3, .folio-ai-page .fa-markdown h4 { color: #E9E8EB; }
+.folio-ai-page .fa-markdown strong { color: #E9E8EB; }
+.folio-ai-page .fa-markdown li::marker { color: rgba(199, 198, 201, 0.55); }
+.folio-ai-page .fa-markdown a { color: var(--syn-copper-hi); }
+.folio-ai-page .fa-chat-foot { color: rgba(199, 198, 201, 0.55); font-size: 9.5px; }
+.folio-ai-page .fa-hero-card p, .folio-ai-page .fa-hero-recent-card small { letter-spacing: .01em; }
+
+/* ==========================================================================
+   Synapse · Light edition
+   Same glass layout as the dark Synapse theme, retuned for daytime use.
+   Scoped to .folio-ai-page.is-theme-light — flips the warm copper/mauve
+   palette onto a soft cream canvas with white frosted glass surfaces.
+   ========================================================================== */
+.folio-ai-page.is-theme-light {
+  --syn-bg: #F4EEE3;
+  --syn-slate: #E2D8C7;
+  --syn-brown: #C9BCA9;
+  --syn-copper: #937060;
+  --syn-copper-hi: #7A5840;
+  --syn-gray: #8A8278;
+  --syn-mauve: #6E5F6E;
+  --syn-ink: #2A231B;
+  --syn-glass: rgba(255, 253, 250, 0.74);
+  --syn-glass-2: rgba(255, 250, 243, 0.62);
+  --syn-line: rgba(42, 35, 27, 0.1);
+
+  color-scheme: light;
+  color: var(--syn-ink);
+
+  --background: transparent;
+  --surface: rgba(255, 253, 250, 0.72);
+  --surface-2: rgba(255, 250, 243, 0.55);
+  --surface-3: rgba(42, 35, 27, 0.045);
+  --surface-hover: rgba(42, 35, 27, 0.07);
+  --text: #463E33;
+  --text-soft: #463E33;
+  --heading: #2A231B;
+  --muted: rgba(70, 62, 51, 0.66);
+  --faint: rgba(70, 62, 51, 0.4);
+  --border: var(--syn-line);
+  --border-strong: rgba(42, 35, 27, 0.16);
+  --accent: #937060;
+  --accent-strong: #7A5840;
+  --accent-soft: rgba(147, 112, 96, 0.12);
+  --accent-ring: rgba(147, 112, 96, 0.4);
+  --ink: #7A5840;
+  --ink-hover: #5E4330;
+  --on-ink: #FFFFFF;
+  --tone-violet: #6E5F6E;
+  --tone-violet-soft: rgba(110, 95, 110, 0.12);
+  --tone-green: #4E8460;
+  --tone-green-soft: rgba(78, 132, 96, 0.13);
+  --tone-amber: #A06A24;
+  --tone-amber-soft: rgba(160, 106, 36, 0.12);
+  --tone-red: #B04A47;
+  --tone-red-soft: rgba(176, 74, 71, 0.09);
+  --tone-neutral: #8A8278;
+  --tone-neutral-soft: rgba(138, 130, 120, 0.1);
+  --c-violet: #6E5F6E;
+  --c-green: #4E8460;
+  --c-peach: #7A5840;
+  --shadow-xs: 0 1px 2px rgba(42, 35, 27, 0.07);
+  --shadow-sm: 0 12px 34px rgba(42, 35, 27, 0.1);
+  --shadow-md: 0 18px 46px rgba(42, 35, 27, 0.14);
+
+  background-color: var(--syn-bg);
+  background-image:
+    radial-gradient(1200px 620px at 12% -12%, rgba(147, 112, 96, 0.12), transparent 62%),
+    radial-gradient(960px 520px at 96% 112%, rgba(110, 95, 110, 0.09), transparent 62%),
+    linear-gradient(180deg, #F8F3EB 0%, #F0E9DC 100%);
+  background-size: cover;
+  background-position: center;
+}
+
+/* Light glass surfaces */
+.folio-ai-page.is-theme-light .fa-history-sidebar,
+.folio-ai-page.is-theme-light .fa-chat-card,
+.folio-ai-page.is-theme-light .fa-usage-card,
+.folio-ai-page.is-theme-light .fa-capabilities {
+  background: var(--syn-glass);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  backdrop-filter: blur(16px) saturate(1.1);
+  border: 1px solid var(--syn-line);
+  box-shadow: var(--shadow-sm);
+  color: var(--syn-ink);
+}
+.folio-ai-page.is-theme-light .fa-chat-card { background: rgba(255, 253, 250, 0.86); }
+
+/* Page header */
+.folio-ai-page.is-theme-light .fa-page-title .eyebrow { color: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-page-title h1 { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-page-actions .pj-btn {
+  color: var(--syn-ink); border: 1px solid rgba(42, 35, 27, 0.14); background: rgba(255, 253, 250, 0.6);
+}
+.folio-ai-page.is-theme-light .fa-page-actions .pj-btn:hover { background: rgba(42, 35, 27, 0.06); }
+.folio-ai-page.is-theme-light .fa-icon-pill {
+  background: rgba(255, 253, 250, 0.6); border-color: rgba(42, 35, 27, 0.14); color: var(--syn-ink);
+}
+.folio-ai-page.is-theme-light .fa-icon-pill:hover { background: rgba(42, 35, 27, 0.06); }
+.folio-ai-page.is-theme-light .fa-plan-pill { background: rgba(255, 253, 250, 0.6); border-color: var(--syn-line); color: rgba(70, 62, 51, 0.78); }
+.folio-ai-page.is-theme-light .fa-plan-pill > span { background: var(--tone-green); box-shadow: 0 0 0 3px var(--tone-green-soft); }
+.folio-ai-page.is-theme-light .fa-brand-icon {
+  background: linear-gradient(140deg, rgba(147,112,96,.18), rgba(110,95,110,.14));
+  border-color: rgba(122, 88, 64, 0.28); color: var(--syn-copper-hi);
+  box-shadow: 0 8px 22px rgba(147, 112, 96, 0.18);
+}
+
+/* Sidebar */
+.folio-ai-page.is-theme-light .fa-history-brand { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-history-brand > span:last-child > span { color: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-new-conversation {
+  background: rgba(255, 253, 250, 0.62); border: 1px solid rgba(42, 35, 27, 0.14);
+  color: var(--syn-copper-hi); border-radius: 999px; font-weight: 600;
+}
+.folio-ai-page.is-theme-light .fa-new-conversation:hover:not(:disabled) { background: rgba(42, 35, 27, 0.06); border-color: rgba(122, 88, 64, 0.3); }
+.folio-ai-page.is-theme-light .fa-side-nav-item { color: rgba(70, 62, 51, 0.66); }
+.folio-ai-page.is-theme-light .fa-side-nav-item:hover:not(:disabled) { background: rgba(42, 35, 27, 0.05); color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-side-nav-item.is-active { background: var(--accent-soft); color: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-history-heading { color: rgba(70, 62, 51, 0.4); }
+.folio-ai-page.is-theme-light .fa-history-item { color: rgba(70, 62, 51, 0.66); }
+.folio-ai-page.is-theme-light .fa-history-item:hover:not(:disabled),
+.folio-ai-page.is-theme-light .fa-history-item.is-active {
+  background: rgba(42, 35, 27, 0.06); color: var(--syn-ink);
+  box-shadow: inset 0 0 0 1px rgba(122, 88, 64, 0.24);
+}
+.folio-ai-page.is-theme-light .fa-history-item.is-active svg { color: var(--syn-copper-hi); opacity: 1; }
+.folio-ai-page.is-theme-light .fa-history-menu-trigger { color: rgba(70, 62, 51, 0.5); }
+.folio-ai-page.is-theme-light .fa-history-menu-trigger:hover:not(:disabled),
+.folio-ai-page.is-theme-light .fa-history-menu-trigger[aria-expanded="true"] { background: rgba(42, 35, 27, 0.06); color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-history-empty { color: rgba(70, 62, 51, 0.45); }
+.folio-ai-page.is-theme-light .fa-history-footer {
+  border: 1px solid var(--syn-line); background: rgba(255, 253, 250, 0.5); color: var(--tone-green);
+}
+.folio-ai-page.is-theme-light .fa-history-footer strong { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-history-footer small { color: rgba(70, 62, 51, 0.55); }
+.folio-ai-page.is-theme-light .fa-side-user { border-top: 1px solid var(--syn-line); }
+.folio-ai-page.is-theme-light .fa-side-user-avatar {
+  color: #FFFFFF; background: linear-gradient(135deg, var(--syn-copper-hi), var(--syn-mauve));
+  box-shadow: 0 6px 16px rgba(122, 88, 64, 0.28);
+}
+.folio-ai-page.is-theme-light .fa-side-user-copy strong { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-side-user-copy small { color: rgba(70, 62, 51, 0.55); }
+
+/* Chat header */
+.folio-ai-page.is-theme-light .fa-chat-header { background: rgba(255, 253, 250, 0.4); border-bottom: 1px solid var(--syn-line); }
+.folio-ai-page.is-theme-light .fa-model-state strong { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-model-state small { color: rgba(70, 62, 51, 0.6); }
+.folio-ai-page.is-theme-light .fa-tool { color: rgba(70, 62, 51, 0.6); }
+.folio-ai-page.is-theme-light .fa-tool:hover:not(:disabled) { background: rgba(42, 35, 27, 0.06); color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-model-pill {
+  background: rgba(255, 253, 250, 0.6); border-color: rgba(42, 35, 27, 0.14); color: rgba(70, 62, 51, 0.82);
+}
+.folio-ai-page.is-theme-light .fa-model-pill:hover { background: rgba(42, 35, 27, 0.06); color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-model-pill-dot { background: var(--tone-green); box-shadow: 0 0 0 3px var(--tone-green-soft); }
+
+/* Hero */
+.folio-ai-page.is-theme-light .fa-hero-greeting h2 {
+  color: #2A231B; text-shadow: 0 0 30px rgba(147, 112, 96, 0.18);
+}
+.folio-ai-page.is-theme-light .fa-hero-greeting p { color: rgba(70, 62, 51, 0.62); }
+.folio-ai-page.is-theme-light .fa-hero-chips button {
+  border: 1px solid rgba(42, 35, 27, 0.12); background: rgba(255, 253, 250, 0.55); color: rgba(70, 62, 51, 0.82);
+}
+.folio-ai-page.is-theme-light .fa-hero-chips button svg { color: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-hero-chips button:hover:not(:disabled) {
+  background: rgba(42, 35, 27, 0.05); color: var(--syn-ink); border-color: rgba(122, 88, 64, 0.32);
+}
+.folio-ai-page.is-theme-light .fa-hero-card {
+  border: 1px solid var(--syn-line); background: var(--syn-glass-2);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.folio-ai-page.is-theme-light .fa-hero-badge { background: rgba(42, 35, 27, 0.07); color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-hero-badge::before { background: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-hero-card strong { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-hero-card p { color: rgba(70, 62, 51, 0.6); }
+.folio-ai-page.is-theme-light .fa-hero-recent-head { color: rgba(70, 62, 51, 0.6); }
+.folio-ai-page.is-theme-light .fa-hero-recent-card {
+  border: 1px solid var(--syn-line); background: var(--syn-glass-2); color: rgba(70, 62, 51, 0.82);
+}
+.folio-ai-page.is-theme-light .fa-hero-recent-card svg { color: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-hero-recent-title { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-hero-recent-card small { color: rgba(70, 62, 51, 0.5); }
+.folio-ai-page.is-theme-light .fa-hero-recent-card:hover:not(:disabled) { border-color: rgba(122, 88, 64, 0.32); background: rgba(255, 253, 250, 0.7); }
+
+/* Composer */
+.folio-ai-page.is-theme-light .fa-composer {
+  border: 1px solid rgba(42, 35, 27, 0.14); border-radius: 15px;
+  background:
+    linear-gradient(150deg, rgba(255, 253, 250, 0.86), rgba(244, 238, 227, 0.7));
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-sm);
+}
+.folio-ai-page.is-theme-light .fa-composer:focus-within { border-color: rgba(122, 88, 64, 0.46); box-shadow: 0 0 0 3px rgba(147, 112, 96, 0.14); }
+.folio-ai-page.is-theme-light .fa-composer > textarea { color: var(--syn-ink); caret-color: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-composer > textarea::placeholder { color: rgba(70, 62, 51, 0.42); }
+.folio-ai-page.is-theme-light .fa-composer-footer { border-top: 1px solid var(--syn-line); }
+.folio-ai-page.is-theme-light .fa-composer-count { color: rgba(70, 62, 51, 0.45); }
+.folio-ai-page.is-theme-light .fa-send-button {
+  color: #FFFFFF; background: linear-gradient(140deg, var(--syn-copper-hi), var(--syn-copper));
+  box-shadow: 0 8px 20px rgba(122, 88, 64, 0.32);
+}
+.folio-ai-page.is-theme-light .fa-send-button:hover:not(:disabled) { background: linear-gradient(140deg, #8E6A4E, #6F5640); }
+.folio-ai-page.is-theme-light .fa-stop-button {
+  border: 1px solid rgba(176, 74, 71, 0.32); background: var(--tone-red-soft); color: var(--tone-red);
+}
+
+/* Messages */
+.folio-ai-page.is-theme-light .fa-avatar.is-ai { background: var(--accent-soft); color: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-avatar.is-user {
+  color: #FFFFFF; font-weight: 680;
+  background: linear-gradient(135deg, var(--syn-copper-hi), var(--syn-mauve));
+}
+.folio-ai-page.is-theme-light .fa-message-label { color: rgba(70, 62, 51, 0.5); }
+.folio-ai-page.is-theme-light .fa-message.is-assistant .fa-message-text {
+  padding: 12px 16px; border: 1px solid var(--syn-line); border-radius: 4px 16px 16px 16px;
+  background: var(--syn-glass-2); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  color: #3B342B;
+}
+.folio-ai-page.is-theme-light .fa-message.is-user .fa-message-text {
+  border: 1px solid rgba(122, 88, 64, 0.26); border-radius: 16px 4px 16px 16px;
+  background: linear-gradient(150deg, rgba(147, 112, 96, 0.18), rgba(110, 95, 110, 0.16));
+  color: #2E271F;
+}
+.folio-ai-page.is-theme-light .fa-markdown code { background: rgba(42, 35, 27, 0.06); border-color: var(--syn-line); color: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-markdown pre { background: rgba(42, 35, 27, 0.04); border-color: var(--syn-line); }
+.folio-ai-page.is-theme-light .fa-copy { color: rgba(70, 62, 51, 0.45); }
+.folio-ai-page.is-theme-light .fa-copy:hover { background: rgba(42, 35, 27, 0.06); color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-scroll-latest { background: var(--syn-glass); border-color: var(--syn-line); color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-thinking { color: rgba(70, 62, 51, 0.6); }
+.folio-ai-page.is-theme-light .fa-thinking > i { background: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-partial-badge { background: rgba(42, 35, 27, 0.06); color: rgba(70, 62, 51, 0.6); }
+
+/* Live task bar, badges, alerts */
+.folio-ai-page.is-theme-light .fa-live-task-bar { background: rgba(147, 112, 96, 0.1); border-bottom: 1px solid var(--syn-line); }
+.folio-ai-page.is-theme-light .fa-live-task-top strong { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-live-elapsed { background: rgba(42, 35, 27, 0.06); border-color: var(--syn-line); color: rgba(70, 62, 51, 0.62); }
+.folio-ai-page.is-theme-light .fa-live-reassurance { color: rgba(70, 62, 51, 0.6); }
+.folio-ai-page.is-theme-light .fa-task-badge.is-queued { background: rgba(42, 35, 27, 0.07); color: rgba(70, 62, 51, 0.66); }
+.folio-ai-page.is-theme-light .fa-task-badge.is-running { background: var(--accent-soft); color: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-alert { background: var(--tone-red-soft); border-color: rgba(176, 74, 71, 0.28); color: var(--tone-red); }
+.folio-ai-page.is-theme-light .fa-alert.is-limit { background: var(--tone-amber-soft); border-color: rgba(160, 106, 36, 0.28); color: var(--tone-amber); }
+.folio-ai-page.is-theme-light .fa-task-error-card { background: rgba(176, 74, 71, 0.07); border-color: rgba(176, 74, 71, 0.26); color: var(--tone-red); }
+.folio-ai-page.is-theme-light .fa-task-error-copy p { color: rgba(70, 62, 51, 0.7); }
+
+/* Action preview card */
+.folio-ai-page.is-theme-light .fa-action-preview { background: var(--syn-glass-2); border-color: var(--syn-line); }
+.folio-ai-page.is-theme-light .fa-action-head { background: rgba(42, 35, 27, 0.04); border-bottom-color: var(--syn-line); }
+.folio-ai-page.is-theme-light .fa-action-head > span { background: var(--accent-soft); color: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-action-list li { border-bottom-color: var(--syn-line); }
+.folio-ai-page.is-theme-light .fa-confirm-row { background: var(--tone-amber-soft); color: var(--tone-amber); }
+
+/* Right column */
+.folio-ai-page.is-theme-light .fa-side-heading > span { background: rgba(42, 35, 27, 0.06); color: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-side-heading h2 { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-usage-top > strong { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-usage-track { background: rgba(42, 35, 27, 0.08); }
+.folio-ai-page.is-theme-light .fa-usage-track > i { background: linear-gradient(90deg, var(--syn-copper), var(--syn-mauve)); }
+.folio-ai-page.is-theme-light .fa-usage-details[open] > summary { border-bottom-color: var(--syn-line); }
+.folio-ai-page.is-theme-light .fa-advanced-details > summary { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-advanced-details[open] > summary { border-bottom: 1px solid var(--syn-line); }
+.folio-ai-page.is-theme-light .fa-chat-foot { color: rgba(70, 62, 51, 0.5); }
+.folio-ai-page.is-theme-light .fa-chat-foot svg { color: var(--tone-green); }
+
+/* Buttons */
+.folio-ai-page.is-theme-light .pj-btn.is-secondary {
+  border-color: rgba(42, 35, 27, 0.16); background: rgba(255, 253, 250, 0.6); color: var(--syn-ink);
+}
+.folio-ai-page.is-theme-light .pj-btn.is-secondary:hover { background: rgba(42, 35, 27, 0.06); }
+.folio-ai-page.is-theme-light .pj-btn.is-primary { background: var(--ink); color: var(--on-ink); }
+.folio-ai-page.is-theme-light .pj-btn.is-primary:hover:not(:disabled) { background: var(--ink-hover); }
+.folio-ai-page.is-theme-light .pj-btn.is-danger-ghost { color: var(--tone-red); }
+.folio-ai-page.is-theme-light .pj-link { color: var(--syn-copper-hi); }
+
+/* Markdown readability on light */
+.folio-ai-page.is-theme-light .fa-markdown h1, .folio-ai-page.is-theme-light .fa-markdown h2,
+.folio-ai-page.is-theme-light .fa-markdown h3, .folio-ai-page.is-theme-light .fa-markdown h4 { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-markdown strong { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-markdown li::marker { color: rgba(70, 62, 51, 0.5); }
+.folio-ai-page.is-theme-light .fa-markdown a { color: var(--syn-copper-hi); }
+
+/* Modals in light mode */
+.folio-ai-page.is-theme-light .modal-backdrop { background: rgba(244, 238, 227, 0.62); -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px); }
+.folio-ai-page.is-theme-light .modal {
+  background: rgba(255, 253, 250, 0.94);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1); backdrop-filter: blur(18px) saturate(1.1);
+  border: 1px solid rgba(42, 35, 27, 0.1); color: var(--syn-ink);
+  box-shadow: 0 30px 80px rgba(42, 35, 27, 0.18);
+}
+.folio-ai-page.is-theme-light .modal-header h2 { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .modal-header p { color: rgba(70, 62, 51, 0.6); }
+.folio-ai-page.is-theme-light .modal .icon-button { color: rgba(70, 62, 51, 0.6); }
+.folio-ai-page.is-theme-light .modal .icon-button:hover { color: var(--syn-ink); background: rgba(42, 35, 27, 0.06); }
+.folio-ai-page.is-theme-light .fa-settings-section h3 { color: var(--syn-ink); }
+.folio-ai-page.is-theme-light .fa-settings-field > span { color: rgba(70, 62, 51, 0.72); }
+.folio-ai-page.is-theme-light .fa-settings-field input,
+.folio-ai-page.is-theme-light .fa-settings-field select {
+  background: rgba(255, 253, 250, 0.7); border-color: rgba(42, 35, 27, 0.16); color: var(--syn-ink);
+}
+.folio-ai-page.is-theme-light .fa-key-help { color: rgba(70, 62, 51, 0.6); }
+.folio-ai-page.is-theme-light .fa-onboarding > p { color: rgba(70, 62, 51, 0.62); }
+.folio-ai-page.is-theme-light .fa-chip { background: rgba(42, 35, 27, 0.04); border-color: rgba(42, 35, 27, 0.14); color: rgba(70, 62, 51, 0.75); }
+.folio-ai-page.is-theme-light .fa-chip.is-on { background: var(--accent-soft); border-color: rgba(122, 88, 64, 0.46); color: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-clear-content > span { background: var(--accent-soft); color: var(--syn-copper-hi); }
+.folio-ai-page.is-theme-light .fa-clear-content > span.is-danger { background: var(--tone-red-soft); color: var(--tone-red); }
+
+/* Portaled conversation menu — light variant */
+.fm-menu.fm-menu-synapse.is-light {
+  background: rgba(255, 253, 250, 0.96);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1); backdrop-filter: blur(16px) saturate(1.1);
+  border: 1px solid rgba(42, 35, 27, 0.12);
+  box-shadow: 0 24px 60px rgba(42, 35, 27, 0.16);
+  color: #2A231B;
+}
+.fm-menu.fm-menu-synapse.is-light .fm-item { color: rgba(70, 62, 51, 0.85); }
+.fm-menu.fm-menu-synapse.is-light .fm-item:hover,
+.fm-menu.fm-menu-synapse.is-light .fm-item:focus-visible { background: rgba(42, 35, 27, 0.06); color: #2A231B; }
+.fm-menu.fm-menu-synapse.is-light .fm-icon { color: rgba(70, 62, 51, 0.55); }
+.fm-menu.fm-menu-synapse.is-light .fm-item.is-checked { color: #2A231B; }
+.fm-menu.fm-menu-synapse.is-light .fm-item.is-danger,
+.fm-menu.fm-menu-synapse.is-light .fm-item.is-danger .fm-icon { color: #B04A47; }
+.fm-menu.fm-menu-synapse.is-light .fm-item.is-danger:hover,
+.fm-menu.fm-menu-synapse.is-light .fm-item.is-danger:focus-visible { background: rgba(176, 74, 71, 0.1); color: #B04A47; }
+.fm-menu.fm-menu-synapse.is-light .fm-label { color: rgba(70, 62, 51, 0.5); }
+.fm-menu.fm-menu-synapse.is-light .fm-sep { background: rgba(42, 35, 27, 0.1); }
+.fm-menu.fm-menu-synapse.is-light .fm-hint { color: rgba(70, 62, 51, 0.5); border-color: rgba(42, 35, 27, 0.16); }
+
+/* ==========================================================================
+   Folio AI · full-window takeover shell
+   When the user opens Folio AI from the sidebar, the workspace chrome
+   (sidebar, topbar, footer) is removed and this shell fills the viewport.
+   ========================================================================== */
+.folio-ai-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  background: var(--syn-bg, #0C1016);
+}
+.folio-ai-fullscreen .folio-ai-page {
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+  min-height: 100dvh;
+  padding: 16px clamp(12px, 1.6vw, 24px) 22px;
+  display: flex;
+  flex-direction: column;
+}
+.folio-ai-fullscreen .folio-ai-page .fa-page-header { margin-bottom: 14px; flex-shrink: 0; }
+.folio-ai-fullscreen .folio-ai-page .fa-layout {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+.folio-ai-fullscreen .folio-ai-page .fa-history-sidebar,
+.folio-ai-fullscreen .folio-ai-page .fa-chat-card { min-height: 0; height: 100%; }
+.folio-ai-fullscreen .folio-ai-page .fa-chat-card { display: flex; flex-direction: column; }
+.folio-ai-fullscreen .folio-ai-page .fa-messages { flex: 1; min-height: 0; max-height: none; }
+.folio-ai-fullscreen .folio-ai-page .fa-hero { flex: 1; min-height: 0; }
+@media (max-width: 1120px) {
+  .folio-ai-fullscreen .folio-ai-page .fa-side-column { max-height: none; }
+}
+@media (max-width: 760px) {
+  .folio-ai-fullscreen .folio-ai-page { padding: 10px 8px 14px; }
+  .folio-ai-fullscreen .folio-ai-page .fa-history-sidebar { height: auto; }
+  .folio-ai-fullscreen .folio-ai-page .fa-chat-card { min-height: calc(100dvh - 150px); height: auto; }
+  .folio-ai-fullscreen .folio-ai-page .fa-messages { flex: 1; min-height: 240px; }
+}
+
+/* "Go back to Folio" button + AI theme toggle in the page header */
+.fa-back-button {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 34px; padding: 0 14px 0 12px;
+  border: 1px solid rgba(199, 198, 201, 0.22);
+  border-radius: 999px;
+  background: rgba(199, 198, 201, 0.1);
+  color: var(--syn-ink);
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+  transition: background .15s ease, border-color .15s ease;
+}
+.fa-back-button:hover { background: rgba(199, 198, 201, 0.18); border-color: rgba(201, 162, 136, 0.4); }
+.folio-ai-page.is-theme-light .fa-back-button {
+  border-color: rgba(42, 35, 27, 0.16);
+  background: rgba(255, 253, 250, 0.62);
+  color: var(--syn-ink);
+}
+.folio-ai-page.is-theme-light .fa-back-button:hover { background: rgba(42, 35, 27, 0.06); border-color: rgba(122, 88, 64, 0.34); }
+.fa-back-button svg { flex-shrink: 0; }
+
+.fa-theme-toggle {
+  display: grid; place-items: center; width: 34px; height: 34px;
+  border: 1px solid rgba(199, 198, 201, 0.22); border-radius: 999px;
+  background: rgba(199, 198, 201, 0.1); color: var(--syn-ink);
+  transition: background .15s ease, border-color .15s ease, transform .2s ease;
+}
+.fa-theme-toggle:hover { background: rgba(199, 198, 201, 0.18); border-color: rgba(201, 162, 136, 0.4); transform: rotate(12deg); }
+.folio-ai-page.is-theme-light .fa-theme-toggle {
+  border-color: rgba(42, 35, 27, 0.16); background: rgba(255, 253, 250, 0.62); color: var(--syn-ink);
+}
+.folio-ai-page.is-theme-light .fa-theme-toggle:hover { background: rgba(42, 35, 27, 0.06); border-color: rgba(122, 88, 64, 0.34); }
+
+/* Folio AI brand logo — purple-tile edition (self-contained, theme-agnostic) */
+.fa-ai-logo { display: block; flex-shrink: 0; border-radius: 13px; }
+.fa-ai-logo .fa-ai-logo-tile { rx: 12px; }
+.fa-ai-logo .fa-ai-logo-badge { transition: filter .25s ease; }
+.fa-ai-logo:hover .fa-ai-logo-badge { filter: brightness(1.12); }
+@media (prefers-reduced-motion: reduce) { .fa-ai-logo .fa-ai-logo-badge { transition: none; } .fa-ai-logo:hover .fa-ai-logo-badge { filter: none; } }
+
+/* ==========================================================================
+   Fullscreen scroll fixes
+   The sidebar chat list and the hero (recent chats) must scroll independently
+   inside the fullscreen shell so nothing is cut off or hidden behind the fold.
+   ========================================================================== */
+.folio-ai-fullscreen .folio-ai-page .fa-history-sidebar { min-height: 0; }
+.folio-ai-fullscreen .folio-ai-page .fa-history-list {
+  flex: 1; min-height: 0; overflow-y: auto;
+}
+/* Hero: compact the vertical rhythm so recent chats are reachable, and make
+   the scroll affordance visible on both themes / both browser engines. */
+.folio-ai-fullscreen .folio-ai-page .fa-hero {
+  padding: clamp(14px, 2.6vh, 26px) clamp(14px, 2.5vw, 30px) 20px;
+  scrollbar-width: auto;
+  scrollbar-color: color-mix(in srgb, var(--syn-copper-hi, #C9A288) 45%, transparent) transparent;
+}
+.folio-ai-fullscreen .folio-ai-page .fa-hero-greeting { margin-bottom: 14px; }
+.folio-ai-fullscreen .folio-ai-page .fa-hero-chips { margin-top: 12px; }
+.folio-ai-fullscreen .folio-ai-page .fa-hero-widgets { margin-top: 18px; }
+.folio-ai-fullscreen .folio-ai-page .fa-hero-recent { margin-top: 18px; }
+.folio-ai-fullscreen .folio-ai-page .fa-hero::-webkit-scrollbar { width: 9px; }
+.folio-ai-fullscreen .folio-ai-page .fa-hero::-webkit-scrollbar-track { background: transparent; }
+.folio-ai-fullscreen .folio-ai-page .fa-hero::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--syn-copper-hi, #C9A288) 40%, transparent);
+  border-radius: 5px; border: 2px solid transparent; background-clip: padding-box;
+}
+.folio-ai-fullscreen .folio-ai-page .fa-hero::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--syn-copper-hi, #C9A288) 65%, transparent);
+  background-clip: padding-box;
+}
+/* Sidebar chat list: same visible scrollbar treatment */
+.folio-ai-fullscreen .folio-ai-page .fa-history-list {
+  scrollbar-width: auto;
+  scrollbar-color: color-mix(in srgb, var(--syn-copper-hi, #C9A288) 40%, transparent) transparent;
+}
+.folio-ai-fullscreen .folio-ai-page .fa-history-list::-webkit-scrollbar { width: 8px; }
+.folio-ai-fullscreen .folio-ai-page .fa-history-list::-webkit-scrollbar-track { background: transparent; }
+.folio-ai-fullscreen .folio-ai-page .fa-history-list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--syn-copper-hi, #C9A288) 38%, transparent);
+  border-radius: 4px; border: 2px solid transparent; background-clip: padding-box;
+}
+.folio-ai-fullscreen .folio-ai-page .fa-history-list::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--syn-copper-hi, #C9A288) 60%, transparent);
+  background-clip: padding-box;
+}
+/* Messages pane: also ensure it never loses its scroll affordance in fullscreen */
+.folio-ai-fullscreen .folio-ai-page .fa-messages {
+  scrollbar-width: auto;
+  scrollbar-color: color-mix(in srgb, var(--syn-copper-hi, #C9A288) 40%, transparent) transparent;
+}
+.folio-ai-fullscreen .folio-ai-page .fa-messages::-webkit-scrollbar { width: 9px; }
+.folio-ai-fullscreen .folio-ai-page .fa-messages::-webkit-scrollbar-track { background: transparent; }
+.folio-ai-fullscreen .folio-ai-page .fa-messages::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--syn-copper-hi, #C9A288) 38%, transparent);
+  border-radius: 5px; border: 2px solid transparent; background-clip: padding-box;
+}
+.folio-ai-fullscreen .folio-ai-page .fa-messages::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--syn-copper-hi, #C9A288) 60%, transparent);
+  background-clip: padding-box;
 }

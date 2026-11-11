@@ -1,6 +1,6 @@
 # Folio Phase 3 — Public website, authentication and personalized onboarding
 
-> Historical implementation notes: the local-AI descriptions below refer to an earlier provider and have been superseded. Current Gemini setup and usage limits live in the [README's Google Gemini AI section](README.md#google-gemini-ai) and the app's `/docs` route.
+> Historical implementation notes: the local-AI descriptions below refer to an earlier provider and have been superseded. Folio AI is now bring-your-own-key; current setup and usage limits live in the [README's Bring Your Own Key AI section](README.md#bring-your-own-key-ai) and the app's `/docs` route.
 
 ## What is implemented
 

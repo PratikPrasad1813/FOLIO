@@ -11,6 +11,8 @@ interface MenuButtonProps {
   label: string;
   trigger: ReactNode;
   triggerClassName?: string;
+  /** Extra classes for the portaled menu surface (e.g. a dark theme variant). */
+  menuClassName?: string;
   width?: number;
   disabled?: boolean;
   children: (close: () => void) => ReactNode;
@@ -21,7 +23,7 @@ interface MenuButtonProps {
  * headers never clip it; arrow keys / Home / End move focus, Escape closes and
  * returns focus to the trigger, Tab closes and moves on naturally.
  */
-export function MenuButton({ label, trigger, triggerClassName = "", width = 236, disabled, children }: MenuButtonProps) {
+export function MenuButton({ label, trigger, triggerClassName = "", menuClassName = "", width = 236, disabled, children }: MenuButtonProps) {
   const [position, setPosition] = useState<Position | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -101,7 +103,7 @@ export function MenuButton({ label, trigger, triggerClassName = "", width = 236,
         <>
           {/* Events from portals bubble through React parents, so stop them reaching clickable cards/rows. */}
           <div className="fm-scrim" aria-hidden="true" onClick={(event) => { event.stopPropagation(); close(false); }} />
-          <div ref={menuRef} id={menuId} role="menu" aria-label={label} className={`fm-menu ${position?.bottom !== undefined ? "is-above" : ""}`} style={style} onClick={(event) => event.stopPropagation()}>
+          <div ref={menuRef} id={menuId} role="menu" aria-label={label} className={`fm-menu ${menuClassName} ${position?.bottom !== undefined ? "is-above" : ""}`} style={style} onClick={(event) => event.stopPropagation()}>
             {children(() => close())}
           </div>
         </>,

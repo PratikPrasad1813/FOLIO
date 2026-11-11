@@ -3,7 +3,7 @@
 <div align="center">
   <h2>A little clarity. A lot of possibility.</h2>
   <p><strong>A calm, private workspace for the things you’re working toward.</strong></p>
-  <p>Bring projects, tasks, ideas, and your schedule into one thoughtful space—with optional Google Gemini AI.</p>
+  <p>Bring projects, tasks, ideas, and your schedule into one thoughtful space—with optional bring-your-own-key AI.</p>
   <p>
     <a href="#core-features">Explore Folio</a> ·
     <a href="#quickstart--local-installation">Get started</a> ·
@@ -13,7 +13,7 @@
     <a href="https://github.com/PratikPrasad1813/Folio"><img src="https://img.shields.io/badge/Repository-Folio-25232c?style=for-the-badge&logo=github&logoColor=white" alt="Folio on GitHub" /></a>
     <a href="https://nextjs.org"><img src="https://img.shields.io/badge/Next.js-16-25232c?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js 16" /></a>
     <a href="https://www.postgresql.org"><img src="https://img.shields.io/badge/PostgreSQL-15%2B-5b7195?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL 15 or later" /></a>
-    <a href="https://ai.google.dev/gemini-api/docs"><img src="https://img.shields.io/badge/AI-Google%20Gemini-8572b5?style=for-the-badge" alt="Google Gemini AI" /></a>
+    <a href="https://github.com/PratikPrasad1813/FOLIO#bring-your-own-key-ai"><img src="https://img.shields.io/badge/AI-BYOK%20(Claude%20%C2%B7%20GPT%20%C2%B7%20Gemini%20%C2%B7%20OpenRouter)-8572b5?style=for-the-badge" alt="Bring your own key AI" /></a>
   </p>
 </div>
 
@@ -40,7 +40,7 @@
    - [Google Calendar Bidirectional Sync](#google-calendar-bidirectional-sync)
    - [Idea Board with One-Click Conversion](#idea-board-with-one-click-conversion)
    - [Task Insights & Velocity Metrics](#task-insights--velocity-metrics)
-   - [Google Gemini AI](#google-gemini-ai)
+   - [Bring Your Own Key AI](#bring-your-own-key-ai)
    - [Contextual Notifications & Quiet Hours](#contextual-notifications--quiet-hours)
    - [Complete Secure Account Deletion](#complete-secure-account-deletion)
    - [VIP Transactional Email Design System](#vip-transactional-email-design-system)
@@ -69,7 +69,7 @@ Rather than scattering your focus across disjointed apps—one for notes, one fo
 
 ### Key Tenets
 - **Self-Managed Security:** Authentication and workspace records remain under your control. Sessions use opaque SHA-256 tokens in secure, HTTP-only, SameSite=Lax cookies with `scrypt` password hashing.
-- **Google Gemini AI with server-side credentials:** Folio sends prompts and bounded workspace context to Google through an authenticated server route. The API key never reaches the browser; responses, conversation history, task progress, and usage metadata are stored with the signed-in Folio account. Folio enforces a 10,000-token daily allowance per user.
+- **Bring-your-own-key AI engine:** Folio AI runs on the user's own Anthropic (Claude 3.5 Sonnet/Haiku), OpenAI (GPT-4o / GPT-4o-mini), OpenRouter, or Google AI Studio (Gemini) key. Keys live in the user's browser and travel per request to an authenticated server route that streams from the chosen provider; the server holds no central AI credential. Responses, conversation history, task progress, and usage metadata are stored with the signed-in Folio account. Folio enforces a 10,000-token daily allowance per user.
 - **Complete Data Ownership:** At any point, export your entire workspace as readable JSON or permanently delete your account with guaranteed zero orphaned records across all 25 PostgreSQL tables.
 - **Calm, Human Design:** Polished typography (`Instrument Serif` & `DM Sans`), thoughtful light/dark themes, subtle animations, and zero spam.
 
@@ -85,7 +85,7 @@ Rather than scattering your focus across disjointed apps—one for notes, one fo
 | **ORM & Migrations**| Drizzle ORM 0.45.2 & Drizzle Kit | Type-safe schema definition, transactional queries, 28 tables |
 | **Styling** | Tailwind CSS 4 & PostCSS 8 | Custom CSS design tokens, CSS variables, fluid responsive layouts |
 | **Icons & Visuals** | Lucide React 1.66.0 | Semantic SVG iconography across all components |
-| **AI Provider** | Google AI Studio Gemini API | Authenticated server-side streaming with bounded per-user token usage |
+| **AI Provider** | BYOK: Anthropic, OpenAI, OpenRouter, or Google AI Studio | User-supplied keys, authenticated server-side streaming with bounded per-user token usage |
 | **Image Processing**| Sharp 0.35.5 | High-efficiency PNG palette optimization and metadata extraction |
 | **Automation & E2E**| Playwright 1.64.1 | Headless Chromium automation for screenshot generation and test suites |
 | **Email Delivery** | Nodemailer 10.3.1 | TLS SMTP client for transactional emails (welcome, verification, reset) |
@@ -121,7 +121,7 @@ Folio/
 │   │   ├── task-board.tsx             # Kanban workflow columns with drag-and-drop
 │   │   ├── task-list.tsx              # High-density filtered task table with bulk operations
 │   │   ├── task-calendar.tsx          # Month and week calendar views with deadline overlays
-│ │ ├── folio-ai-panel.tsx # Gemini assistant UI & plan review
+│ │ ├── folio-ai-panel.tsx # BYOK assistant UI, AI Settings & plan review
 │   │   └── global-search.tsx          # ⌘K workspace spotlight search
 │   ├── db/                            # Database Schema & Migration Engine
 │   │   ├── schema.ts                  # Drizzle ORM schema defining 28 PostgreSQL tables
@@ -170,7 +170,7 @@ All screenshots are captured from the actual running application using Playwrigh
 | **Calendar Sync** | Google Calendar integration showing external meetings beside Folio deadlines | `public/screenshots/calendar.png` |
 | **Idea Board** | Fleeting thought capture with stages (Just an idea, Exploring, Ready to start) | `public/screenshots/ideas.png` |
 | **Analytics & Insights** | Task completion velocity, weekly goal trends, and overdue metrics | `public/screenshots/analytics.png` |
-| **Folio AI Assistant** | Gemini-powered hosted assistant with reviewable workspace action plans | `public/screenshots/folio-ai.png` |
+| **Folio AI Assistant** | Bring-your-own-key assistant with reviewable workspace action plans | `public/screenshots/folio-ai.png` |
 
 ---
 
@@ -200,10 +200,10 @@ All screenshots are captured from the actual running application using Playwrigh
 - Stages: *Just an idea*, *Exploring*, and *Ready to start*.
 - One-click **"Make it a project"** converts an idea into a full project with notes intact.
 
-### Google Gemini AI
-- Folio uses Google AI Studio's Gemini API through an authenticated server-side streaming route. Create a key in [Google AI Studio](https://aistudio.google.com/app/apikey), then set `GEMINI_API_KEY` in the server environment; never expose it with a `NEXT_PUBLIC_` prefix or send it to the browser.
-- **Honest data flow:** The current prompt and a bounded selection of workspace context are sent to Google for inference. Conversation history, task progress, and usage accounting are stored by Folio for the signed-in user. Avoid sending secrets or unnecessary sensitive information in prompts.
-- **Folio usage cap:** The server enforces a maximum 10,000-token daily allowance per user, reserves a bounded amount per request, and limits each response to 1,024 output tokens. The UI shows usage as a percentage. Google's project-level rate limits and any billing configured for the API key remain separate.
+### Bring Your Own Key AI
+- Folio AI is BYOK: each user connects their own provider key in **AI Settings** (Folio AI panel → *AI key*). Supported providers are Anthropic (Claude 3.5 Sonnet / Claude 3.5 Haiku), OpenAI (GPT-4o / GPT-4o-mini), OpenRouter, and Google AI Studio (Gemini — default `gemini-3.5-flash-lite`; also 3.8 Flash, 4 Argon, 3.1 Pro preview). Keys are stored in the browser (`folio_ai_key_<provider>` in localStorage) and sent per request through `x-user-ai-key` / `x-user-ai-provider` / `x-user-ai-model` headers; the server holds no central AI key and returns `400 api_key_required` without one.
+- **Honest data flow:** The current prompt and a bounded selection of workspace context are sent to the user's chosen provider for inference. Conversation history, task progress, and usage accounting are stored by Folio for the signed-in user. Avoid sending secrets or unnecessary sensitive information in prompts.
+- **Folio usage cap:** The server enforces a maximum 10,000-token daily allowance per user, reserves a bounded amount per request, and limits each response to 1,024 output tokens. The UI shows usage as a percentage. Each user remains subject to their own provider's rate limits and any billing configured on their key.
 - **Mobile-friendly:** Inference is hosted, so Folio AI does not require WebGPU, model downloads, or a minimum device-memory threshold.
 - **Readable responses:** Assistant output renders Markdown as formatted content rather than showing raw heading and emphasis markers. Oversized prompts are rejected with a request to split them into smaller prompts.
 - **Verified Action Plans:** When AI prepares workspace changes, you inspect the exact proposed plan before confirming execution.
@@ -246,14 +246,16 @@ Create a `.env.local` file in the project root (see [Environment Variables Refer
 ```sh
 cp .env.example .env.local
 ```
-Set `GEMINI_API_KEY` in `.env.local` to enable Folio AI. Keep it server-side; never prefix it with `NEXT_PUBLIC_`.
+Folio AI needs no server-side AI key: each user supplies their own Anthropic, OpenAI, OpenRouter, or Google AI Studio key in the app's AI Settings.
 
 ### 3. Initialize the Database
-Folio's database initializes in two ordered layers (Base Application Schema + Drizzle Migrations):
+Folio's database initializes in two ordered layers (Base Application Schema + Drizzle Migrations). First verify the connection, then initialize:
 ```sh
+npm run db:check     # verifies DATABASE_URL is reachable and the password is accepted
 npm run db:init
 npm run db:verify
 ```
+If `db:check` reports `password authentication failed`, see [Troubleshooting Guide](#troubleshooting-guide) and [DATABASE_SETUP.md → Troubleshooting](./DATABASE_SETUP.md#7-troubleshooting-connection-errors).
 
 ### 4. Start Development Server
 ```sh
@@ -271,7 +273,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | `APP_URL` | **Yes** | Canonical public origin (`http://localhost:3000` in dev, `https://folio-management-studio.onrender.com` in production) |
 | `NEXT_PUBLIC_APP_URL` | Optional | Same public origin as `APP_URL`; used by client-side integrations |
 | `FOLIO_ENCRYPTION_KEY` | **Yes** (prod) | 32+ character secret for AES-256-GCM token encryption (`openssl rand -base64 32`) |
-| `GEMINI_API_KEY` | Optional | Server-only Google AI Studio key for Gemini-powered Folio AI; never expose it with `NEXT_PUBLIC_` |
+| _(no AI key variable)_ | — | Folio AI is BYOK: users add their own provider key in AI Settings; the server holds none |
 | `GOOGLE_CLIENT_ID` | Optional | Google OAuth client ID for sign-in & Google Calendar |
 | `GOOGLE_CLIENT_SECRET` | Optional | Google OAuth client secret |
 | `GITHUB_CLIENT_ID` | Optional | GitHub OAuth client ID for sign-in |
@@ -297,6 +299,7 @@ Folio connects to PostgreSQL using Drizzle ORM and node-postgres (`pg`).
 ### Available Commands
 ```sh
 npm run db:init      # Idempotently executes Layer 1 + Layer 2 with an advisory lock
+npm run db:check     # Read-only connection test: pings DATABASE_URL, prints the cause and fix on failure
 npm run db:migrate   # Alias for db:init, suitable for deployment hooks
 npm run db:verify    # Read-only verification comparing PostgreSQL against src/db/schema.ts
 ```
@@ -499,9 +502,11 @@ npm run start
 
 | Issue | Cause | Solution |
 | --- | --- | --- |
+| `password authentication failed for user 'neondb_owner'` | The password in `DATABASE_URL` was rejected (placeholder, reset, or not URL-encoded) | Copy a fresh connection string from your provider (Neon: Dashboard → Connect), URL-encode special characters (`@`→`%40`, `#`→`%23`, `%`→`%25`), restart the dev server, verify with `npm run db:check`. See [DATABASE_SETUP.md → Troubleshooting](./DATABASE_SETUP.md#7-troubleshooting-connection-errors). |
+| Sign-in page shows a database notice instead of the form | Folio cannot reach or authenticate to its database | Read the notice: it names the exact cause and fix; run `npm run db:check` to re-test `DATABASE_URL`. |
 | `relation "folio_users" does not exist` | Ran raw Drizzle migration without base schema | Run `npm run db:init` to apply Layer 1 base schema followed by Layer 2 migrations. |
 | `Screenshot safety check failed` | Target is remote Neon DB or matches `DATABASE_URL` | Screenshots must run with `FOLIO_SCREENSHOT_MODE=local` and a dedicated database named `folio_screenshots`. |
-| Folio AI says it is not configured | Server is missing its Gemini API key | Set `GEMINI_API_KEY` in the server environment and restart/redeploy Folio. Do not expose it with `NEXT_PUBLIC_`. |
+| Folio AI asks for an API key | No BYOK key stored in this browser | Open the Folio AI panel → **AI key** → pick a provider and paste your own Anthropic, OpenAI, OpenRouter, or Google AI Studio key. |
 | Google Calendar says `Not configured` | Client ID / Secret missing | Provide `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` and register redirect URI in Google Cloud Console. |
 | Verification or recovery link is missing | Frontend flag is off, or SMTP is not configured | Email actions are hidden while `NEXT_PUBLIC_EMAIL_FEATURES_ENABLED` is not `true`. To deliver mail, set `SMTP_URL` and `SMTP_FROM` with a verified sending domain, then enable the flag and rebuild. |
 | Recovery or verification shows "temporarily unavailable" | Delivery not configured on this server | Expected while the flag is off or SMTP is absent. Users see a calm notice; technical details stay in server logs only. |

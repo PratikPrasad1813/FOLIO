@@ -733,15 +733,26 @@ export async function getAITaskById(
   return row ? mapTaskRow(row) : null;
 }
 
-export async function claimGeminiRequest(userId: string, taskId: string): Promise<boolean> {
+export async function claimProviderRequest(userId: string, taskId: string): Promise<boolean> {
   await ensureSchema();
+  const now = new Date();
   const [claimed] = await db
     .update(folioAiTasks)
-    .set({ providerRequestStartedAt: new Date(), updatedAt: new Date() })
+    .set({
+      status: "running",
+      providerRequestStartedAt: now,
+      heartbeatAt: now,
+      updatedAt: now,
+    })
     .where(and(
       eq(folioAiTasks.id, taskId),
       eq(folioAiTasks.userId, userId),
-      eq(folioAiTasks.status, "running"),
+      // A freshly created task is still "queued": the client streams its first
+      // generation request long before the first heartbeat (10s interval) can
+      // flip the row to "running". Activating queued tasks here — atomically,
+      // under the providerRequestStartedAt IS NULL guard — wins that race on
+      // the server and keeps double-claim protection intact.
+      inArray(folioAiTasks.status, ["queued", "running"]),
       isNull(folioAiTasks.providerRequestStartedAt),
     ))
     .returning({ id: folioAiTasks.id });

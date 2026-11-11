@@ -1,6 +1,7 @@
 import { estimateTokenCount, FOLIO_AI_CONFIG } from "@/lib/folio-ai/config";
 import { aiError, aiJson, parseSmallJson, requireAIUser } from "@/lib/folio-ai/http";
-import { claimGeminiRequest, getAITaskById, updateAITaskProgress } from "@/lib/folio-ai/tasks-service";
+import { requireBYOKConfig, streamBYOKChat, type BYOKConfig } from "@/lib/folio-ai/byok-service";
+import { claimProviderRequest, getAITaskById, updateAITaskProgress } from "@/lib/folio-ai/tasks-service";
 import { AIUsageError } from "@/lib/folio-ai/usage";
 
 export const dynamic = "force-dynamic";
@@ -14,38 +15,25 @@ interface ChatMessage {
   content: string;
 }
 
-interface GeminiChunk {
-  error?: { code?: number; message?: string; status?: string };
-  candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  usageMetadata?: {
-    promptTokenCount?: number;
-    candidatesTokenCount?: number;
-    totalTokenCount?: number;
-  };
-}
-
-function parseChunk(event: string): GeminiChunk | null {
-  const data = event
-    .split(/\r?\n/)
-    .filter(line => line.startsWith("data:"))
-    .map(line => line.slice(5).trim())
-    .join("\n");
-  if (!data) return null;
-  return JSON.parse(data) as GeminiChunk;
-}
-
-function upstreamErrorMessage(body: unknown): string {
-  if (body && typeof body === "object" && "error" in body) {
-    const error = (body as { error?: { message?: unknown } }).error;
-    if (typeof error?.message === "string") return error.message.slice(0, 400);
-  }
-  return "Google Gemini could not complete the request.";
-}
-
+/**
+ * GET: reports whether the request carries usable BYOK credentials.
+ * No server-side provider key exists; the user's own key is the only key.
+ */
 export async function GET(request: Request) {
   try {
     await requireAIUser(request);
-    return aiJson({ configured: Boolean(process.env.GEMINI_API_KEY), model: FOLIO_AI_CONFIG.modelName });
+    let configured = false;
+    let provider = "";
+    let model = "";
+    try {
+      const config = requireBYOKConfig(request);
+      configured = true;
+      provider = config.provider;
+      model = config.model;
+    } catch {
+      configured = false;
+    }
+    return aiJson({ configured, provider, model });
   } catch (error) {
     return aiError(error);
   }
@@ -84,117 +72,88 @@ export async function POST(request: Request) {
     if (inputTokens > MAX_INPUT_TOKENS || inputCharacters > MAX_INPUT_TOKENS * FOLIO_AI_CONFIG.approximateCharactersPerToken) {
       throw new AIUsageError("This conversation is too long to fit within the Folio AI token allowance. Start a new chat or shorten the prompt.", 413, "context_too_large");
     }
-    const systemText = messages.filter(message => message.role === "system").map(message => message.content).join("\n\n");
-    const contents = messages
-      .filter(message => message.role !== "system")
-      .map(message => ({
-        role: message.role === "assistant" ? "model" : "user",
-        parts: [{ text: message.content }],
-      }));
-    if (!contents.some(message => message.role === "user")) {
+    if (!messages.some(message => message.role === "user")) {
       throw new AIUsageError("A user message is required to generate a response.", 400, "user_message_required");
     }
-    if (!process.env.GEMINI_API_KEY) {
-      throw new AIUsageError("Folio AI is not configured. Add GEMINI_API_KEY to the server environment.", 503, "provider_not_configured");
+
+    // BYOK: credentials come from the user, never from the server environment.
+    let config: BYOKConfig;
+    try {
+      config = requireBYOKConfig(request);
+    } catch (error) {
+      if (error instanceof AIUsageError) throw error;
+      throw new AIUsageError("Please provide an API key in AI Settings.", 400, "api_key_required");
     }
 
     const task = await getAITaskById(user.id, body.taskId);
-    if (!task || task.status !== "running") {
+    // "queued" is the fresh state right after POST /api/ai/tasks: the first
+    // generation request always arrives before any heartbeat could mark the
+    // row "running". claimProviderRequest activates it atomically below.
+    if (!task || (task.status !== "running" && task.status !== "queued")) {
       throw new AIUsageError("This Folio AI task is no longer active. Start a new message and try again.", 409, "task_not_active");
     }
-    if (!await claimGeminiRequest(user.id, task.id)) {
-      throw new AIUsageError("This task has already started a Gemini request. Start a new message to retry.", 409, "request_already_started");
+    if (!await claimProviderRequest(user.id, task.id)) {
+      throw new AIUsageError("This task has already started an AI request. Start a new message to retry.", 409, "request_already_started");
     }
 
     const controller = new AbortController();
     const abortUpstream = () => controller.abort(request.signal.reason);
     request.signal.addEventListener("abort", abortUpstream, { once: true });
 
-    const upstream = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${FOLIO_AI_CONFIG.modelId}:streamGenerateContent?alt=sse`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": process.env.GEMINI_API_KEY,
-        },
-        body: JSON.stringify({
-          ...(systemText ? { systemInstruction: { parts: [{ text: systemText }] } } : {}),
-          contents,
-          generationConfig: {
-            maxOutputTokens: FOLIO_AI_CONFIG.maxOutputTokens,
-            thinkingConfig: { thinkingLevel: "low" },
-          },
-        }),
-        signal: controller.signal,
-      },
-    );
-    if (!upstream.ok || !upstream.body) {
-      const message = upstreamErrorMessage(await upstream.json().catch(() => null));
-      throw new AIUsageError(message, upstream.status >= 400 && upstream.status < 500 ? upstream.status : 502, "gemini_request_failed");
-    }
-
-    const reader = upstream.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let observedTokens = 0;
+    let observedPromptTokens: number | undefined;
+    let observedOutputTokens = 0;
     let generatedText = "";
     let usageRecorded = false;
-    const recordEvent = (event: string) => {
-      const chunk = parseChunk(event);
-      if (!chunk) return;
-      if (chunk.error) throw new Error(upstreamErrorMessage(chunk));
-      for (const candidate of chunk.candidates ?? []) {
-        for (const part of candidate.content?.parts ?? []) {
-          if (typeof part.text === "string") generatedText += part.text;
-        }
-      }
-      const usage = chunk.usageMetadata;
-      if (usage?.totalTokenCount !== undefined) observedTokens = Math.max(observedTokens, usage.totalTokenCount);
-      else if (usage?.promptTokenCount !== undefined) {
-        observedTokens = Math.max(observedTokens, usage.promptTokenCount + (usage.candidatesTokenCount ?? 0));
-      }
-    };
     const estimatedUsage = () => Math.min(
       FOLIO_AI_CONFIG.maxReservedTokensPerGeneration,
-      Math.max(observedTokens, inputTokens + estimateTokenCount(generatedText)),
+      Math.max(observedPromptTokens === undefined ? 0 : observedPromptTokens + observedOutputTokens, inputTokens + estimateTokenCount(generatedText)),
     );
 
+    const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       async start(streamController) {
+        const send = (payload: Record<string, unknown>) => {
+          streamController.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        };
         try {
-          while (true) {
-            const { done, value } = await reader.read();
-            buffer += decoder.decode(value, { stream: !done });
-            const events = buffer.split(/\r?\n\r?\n/);
-            buffer = events.pop() ?? "";
-            for (const event of events) recordEvent(event);
-            if (value) streamController.enqueue(value);
-            if (done) {
-              if (buffer.trim()) recordEvent(buffer);
-              break;
-            }
-          }
+          await streamBYOKChat(config, {
+            messages,
+            signal: controller.signal,
+            maxOutputTokens: FOLIO_AI_CONFIG.maxOutputTokens,
+            onToken: token => {
+              generatedText += token;
+              send({ type: "token", text: token });
+            },
+            onUsage: usage => {
+              if (typeof usage.promptTokens === "number") observedPromptTokens = usage.promptTokens;
+              if (typeof usage.outputTokens === "number") observedOutputTokens = usage.outputTokens;
+              send({ type: "usage", promptTokens: usage.promptTokens, outputTokens: usage.outputTokens });
+            },
+          });
           await updateAITaskProgress(user.id, task.id, { usageTokens: estimatedUsage() });
           usageRecorded = true;
           streamController.close();
         } catch (error) {
           controller.abort(error);
-          await reader.cancel().catch(() => {});
-          console.error("Folio AI Gemini stream failed:", error);
-          streamController.error(error instanceof Error ? error : new Error("Google Gemini stream ended unexpectedly."));
+          const message = error instanceof Error ? error.message.slice(0, 400) : "Your AI provider stream ended unexpectedly.";
+          try {
+            send({ type: "error", message });
+          } catch {
+            // stream already closed
+          }
+          console.error("Folio AI BYOK stream failed:", error);
+          streamController.error(error instanceof Error ? error : new Error("Your AI provider stream ended unexpectedly."));
         } finally {
           request.signal.removeEventListener("abort", abortUpstream);
           if (!usageRecorded) {
             await updateAITaskProgress(user.id, task.id, { usageTokens: estimatedUsage() }).catch(error => {
-              console.error("Folio AI Gemini usage could not be recorded:", error);
+              console.error("Folio AI usage could not be recorded:", error);
             });
           }
         }
       },
       async cancel(reason) {
         controller.abort(reason);
-        await reader.cancel(reason).catch(() => {});
       },
     });
 

@@ -6,7 +6,11 @@ export interface FolioAIModelInfo {
   contextWindowTokens: number;
 }
 
-export const GEMINI_MODEL_INFO: FolioAIModelInfo = {
+/**
+ * Display info for the user's own BYOK model. Concrete model identifiers live
+ * in AI Settings (localStorage) and travel with each request.
+ */
+export const BYOK_MODEL_INFO: FolioAIModelInfo = {
   modelId: FOLIO_AI_CONFIG.modelId,
   modelName: FOLIO_AI_CONFIG.modelName,
   contextWindowTokens: FOLIO_AI_CONFIG.contextWindowTokens,
