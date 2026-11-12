@@ -309,9 +309,9 @@ class DesktopSyncEngine {
       await clearLocalMetadata([META_KEYS.profileDirty]);
       return;
     }
-    let pending: { name?: string; weeklyGoal?: number; complete?: boolean };
+    let pending: { name?: string; weeklyGoal?: number; complete?: boolean; guideDismissed?: boolean };
     try {
-      pending = JSON.parse(pendingRaw) as { name?: string; weeklyGoal?: number; complete?: boolean };
+      pending = JSON.parse(pendingRaw) as { name?: string; weeklyGoal?: number; complete?: boolean; guideDismissed?: boolean };
     } catch {
       await clearLocalMetadata([META_KEYS.profileDirty, META_KEYS.profilePending]);
       return;

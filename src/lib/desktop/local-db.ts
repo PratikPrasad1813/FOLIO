@@ -570,6 +570,7 @@ export interface PendingProfilePatch {
   name?: string;
   weeklyGoal?: number;
   complete?: boolean;
+  guideDismissed?: boolean;
 }
 
 /**

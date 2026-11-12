@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import {
   ArrowUpRight,
   Check,
@@ -19,17 +19,83 @@ import {
 import type { readProfile } from "@/lib/profile-service";
 import { Spinner } from "@/components/ui";
 import { EMAIL_FEATURES_ENABLED, EMAIL_FEATURES_NOTICE } from "@/lib/feature-flags";
+import { DEFAULT_PERSONAL } from "@/lib/personalization";
+import { isDesktopRuntime } from "@/lib/desktop/runtime";
+import { getCachedProfile, markLocalProfilePending } from "@/lib/desktop/local-db";
+import type { User } from "@/lib/types";
+
+type ProfileData = Awaited<ReturnType<typeof readProfile>>;
+
+/**
+ * Reads the connection-error notice from the URL. Isolated in its own
+ * component and wrapped in <Suspense>: `useSearchParams()` inside a
+ * statically prerendered route (the desktop export prerenders every
+ * workspace view) requires a Suspense boundary, or Next.js fails the
+ * prerender with a client-side-rendering bailout.
+ */
+function ConnectionNotice() {
+  const connectionNotice = useSearchParams().get("error")?.slice(0, 240) || "";
+  if (!connectionNotice) return null;
+  return (
+    <p className="form-error" role="alert">
+      {connectionNotice}
+    </p>
+  );
+}
+
+/** Map the cached desktop profile snapshot onto the settings-card shape. */
+function desktopProfile(user: User): ProfileData {
+  return {
+    user,
+    personal: { ...DEFAULT_PERSONAL, ...user.personal },
+    timezone: user.timezone || "UTC",
+    // Linked providers are a web-side OAuth concern; the desktop mirror has
+    // no authIdentities table, so the chips simply render as unlinked.
+    linkedProviders: [],
+    onboardingStep: 0,
+    onboardingCompleted: user.onboardingCompleted,
+  } as unknown as ProfileData;
+}
 
 export function ProfileSettings() {
-  const [profile, setProfile] = useState<Awaited<ReturnType<typeof readProfile>> | null>(null);
-  const connectionNotice = useSearchParams().get("error")?.slice(0, 240) || "";
+  const [profile, setProfile] = useState<ProfileData | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [verifyBusy, setVerifyBusy] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   const [guideBusy, setGuideBusy] = useState(false);
+  // Hydration guard: the desktop probe is only trusted after mount so the
+  // server render and the hydration pass stay identical (Category 2).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isDesktop = mounted && isDesktopRuntime();
 
   useEffect(() => {
+    // Local-first desktop path: folio.db's profile snapshot is the source of
+    // truth. A relative fetch("/api/profile") can never succeed inside the
+    // Tauri webview (there is no same-origin server), so the card reads the
+    // cached snapshot instead and refreshes itself after every sync cycle.
+    if (isDesktopRuntime()) {
+      let cancelled = false;
+      const loadCached = () => {
+        void getCachedProfile()
+          .then((user) => {
+            if (cancelled || !user) return;
+            setProfile(desktopProfile(user));
+            setError("");
+          })
+          .catch(() => {
+            if (!cancelled) setError("Your preferences will appear once your first sync finishes.");
+          });
+      };
+      loadCached();
+      window.addEventListener("folio:workspace-sync", loadCached);
+      return () => {
+        cancelled = true;
+        window.removeEventListener("folio:workspace-sync", loadCached);
+      };
+    }
+
     const controller = new AbortController();
     fetch("/api/profile", { cache: "no-store", signal: controller.signal })
       .then(async (res) => {
@@ -76,15 +142,26 @@ export function ProfileSettings() {
     if (guideBusy) return;
     setGuideBusy(true);
     try {
-      const res = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guideDismissed: false }),
-      });
-      if (res.ok) {
-        const next = await res.json();
-        setProfile(next);
+      if (isDesktopRuntime()) {
+        // Queue the change for the background sync engine (works offline);
+        // update the local snapshot + UI immediately.
+        await markLocalProfilePending({ guideDismissed: false });
+        setProfile((current) =>
+          current ? { ...current, user: { ...current.user, guideDismissed: false } } : current,
+        );
+      } else {
+        const res = await fetch("/api/profile", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guideDismissed: false }),
+        });
+        if (res.ok) {
+          const next = await res.json();
+          setProfile(next);
+        }
       }
+    } catch {
+      // The guide can be re-opened later; never block the settings card.
     } finally {
       setGuideBusy(false);
     }
@@ -97,11 +174,9 @@ export function ProfileSettings() {
         <p>Your profile, email verification, and connected sign-in accounts.</p>
       </div>
 
-      {connectionNotice && (
-        <p className="form-error" role="alert">
-          {connectionNotice}
-        </p>
-      )}
+      <Suspense fallback={null}>
+        <ConnectionNotice />
+      </Suspense>
 
       {error ? (
         <p role="alert">
@@ -145,10 +220,14 @@ export function ProfileSettings() {
             </p>
           )}
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <Link href="/preferences" className="pj-btn is-secondary">
-              Edit profile &amp; preferences
-              <ArrowUpRight size={14} />
-            </Link>
+            {/* The full preferences editor is a server-rendered web page — the
+                desktop shell edits the same fields in the form below instead. */}
+            {!isDesktop && (
+              <Link href="/preferences" className="pj-btn is-secondary">
+                Edit profile &amp; preferences
+                <ArrowUpRight size={14} />
+              </Link>
+            )}
             {EMAIL_FEATURES_ENABLED && !profile.user.emailVerified && profile.user.provider === "email" && (
               <button
                 type="button"

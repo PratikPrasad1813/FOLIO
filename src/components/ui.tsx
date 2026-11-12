@@ -4,8 +4,23 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 import { BookOpen, Check, Code2, Coffee, FolderKanban, Heart, LayoutTemplate, Lightbulb, LoaderCircle, Megaphone, PenTool, Smartphone, X } from "lucide-react";
 import { initials, statusLabel } from "@/lib/types";
 
+/**
+ * The Folio brand mark — the two-tone "F" glyph from the official icon
+ * (public/icon.svg, mirrored across every desktop + AI surface). The main
+ * mass uses `currentColor` so it stays legible on both themes; the accent
+ * arm carries the brand lavender.
+ */
 export function Logo({ compact = false }: { compact?: boolean }) {
-  return <span className="brand"><svg width="33" height="35" viewBox="0 0 33 35" fill="none" aria-hidden="true"><path d="M6 6.5C6 3.46 8.46 1 11.5 1H27v9H15v7H6V6.5Z" fill="currentColor"/><path d="M6 17h9v11.5a5.5 5.5 0 0 1-5.5 5.5H6V17Z" fill="currentColor"/><path d="M18 13h9v4.5a5.5 5.5 0 0 1-5.5 5.5H18V13Z" fill="#A89AE9"/></svg>{!compact && <span>folio<span className="brand-dot">.</span></span>}</span>;
+  return <span className="brand"><svg width="33" height="33" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M19 19a8 8 0 0 1 8-8h23v13H32v10H19V19Zm0 15h13v16a8 8 0 0 1-8 8h-5V34Z" fill="currentColor"/><path d="M36 28h14v7a8 8 0 0 1-8 8h-6V28Z" fill="#aa92c2"/></svg>{!compact && <span>folio<span className="brand-dot">.</span></span>}</span>;
+}
+
+/**
+ * The full app-icon mark (lavender tile + F glyph) for hero surfaces:
+ * the desktop boot splash, the desktop sign-in card and anywhere the
+ * product presents itself as an app rather than a wordmark.
+ */
+export function LogoMark({ size = 40 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 64 64" fill="none" role="img" aria-label="Folio"><rect width="64" height="64" rx="16" fill="#f0edf8"/><path d="M19 19a8 8 0 0 1 8-8h23v13H32v10H19V19Zm0 15h13v16a8 8 0 0 1-8 8h-5V34Z" fill="#39313f"/><path d="M36 28h14v7a8 8 0 0 1-8 8h-6V28Z" fill="#aa92c2"/></svg>;
 }
 
 export const PROJECT_ICONS = { layout: LayoutTemplate, smartphone: Smartphone, pen: PenTool, code: Code2, book: BookOpen, megaphone: Megaphone, heart: Heart, coffee: Coffee };
