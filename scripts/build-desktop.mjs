@@ -51,6 +51,8 @@ const EXCLUDED_PATHS = [
   // Dynamic /projects/<id> detail route: cannot be prerendered (runtime
   // UUIDs). The desktop shell opens projects through client state instead
   // (see workspace.tsx → desktopProjectId).
+// Dynamic routes: cannot be prerendered statically
+  "(workspace)/[view]",
   "(workspace)/[view]/[id]",
 ];
 

@@ -47,7 +47,11 @@ export const currentUser = cache(async (): Promise<FolioUser | null> => userFrom
 export async function currentUserSafe(): Promise<{ user: FolioUser | null; dbError: DatabaseUnavailableError | null }> {
   try {
     return { user: await currentUser(), dbError: null };
-  } catch (error) {
+  } catch (error: any) {
+    // DO NOT catch Next.js internal dynamic render or redirect signals!
+    if (error?.digest === "DYNAMIC_SERVER_USAGE" || error?.message?.includes("NEXT_REDIRECT")) {
+      throw error;
+    }
     if (error instanceof DatabaseUnavailableError) return { user: null, dbError: error };
     throw error;
   }
