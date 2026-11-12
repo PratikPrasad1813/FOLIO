@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 const VIEWS = ["overview", "projects", "tasks", "ideas", "calendar", "ai", "settings"];
 
 /**
