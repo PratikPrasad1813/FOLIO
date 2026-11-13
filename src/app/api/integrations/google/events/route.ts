@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { googleAccounts, googleEvents } from "@/db/schema";
-import { getUser, sameOrigin } from "@/lib/auth";
+import { requireUser, sameOrigin } from "@/lib/auth";
 import { GoogleError, createEvent } from "@/lib/google";
 import { accessTokenFor, loadAccount, readEvents, syncAccount } from "@/lib/calendar-sync";
 
@@ -12,7 +12,7 @@ const RFC3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
 /** Google events for a date range, read from Folio's mirror (no live Google call). */
 export async function GET(request: Request) {
-  const user = await getUser();
+  const user = await requireUser();
   const account = await loadAccount(user.id);
   if (!account) return Response.json({ connected: false, events: [] });
   const params = new URL(request.url).searchParams;
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
 /** Creates a Google Calendar event, optionally linked to a Folio task. */
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
-  const user = await getUser();
+  const user = await requireUser();
   const account = await loadAccount(user.id);
   if (!account) return Response.json({ error: "Connect Google Calendar first." }, { status: 400 });
   if (!account.writeEnabled) return Response.json({ error: "Folio doesn’t have permission to create events. Enable event access in Settings → Integrations.", upgradeRequired: true }, { status: 403 });
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
 /** Manual full resync for the current user. */
 export async function PUT(request: Request) {
   if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
-  const user = await getUser();
+  const user = await requireUser();
   try {
     const summary = await syncAccount(user.id, { full: new URL(request.url).searchParams.get("full") === "1" });
     return Response.json({ summary });

@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { cache } from "react";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { db, DatabaseUnavailableError } from "@/db";
@@ -38,31 +39,87 @@ export async function userFromToken(token: string | undefined): Promise<FolioUse
     .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, new Date()))).limit(1);
   return row?.user ?? null;
 }
-export const currentUser = cache(async (): Promise<FolioUser | null> => userFromToken((await cookies()).get(SESSION_COOKIE)?.value));
+
+/**
+ * Extracts the session token from an `Authorization: Bearer <token>` header
+ * (the desktop sync/Bearer transport), or null when the header is absent or
+ * malformed. Shared by the web session resolver and the sync endpoints so
+ * both transports validate tokens identically.
+ */
+export function bearerToken(header: string | null | undefined): string | null {
+  if (!header) return null;
+  const match = /^Bearer\s+([A-Za-z0-9_-]+)$/i.exec(header.trim());
+  return match ? match[1] : null;
+}
+
+/**
+ * The signed-in user for the current request.
+ *
+ * DYNAMIC_SERVER_USAGE CONTRACT (post-mortem #1): the `cookies()` and
+ * `headers()` calls below must NEVER be wrapped in try…catch, not even when
+ * the caught error is rethrown. `cookies()`/`headers()` signal Next.js's
+ * switch to dynamic rendering by throwing an internal bail-out exception;
+ * intercepting that exception aborts the switch and crashes production
+ * renders with a 500 (digest `DYNAMIC_SERVER_USAGE`). Only the DATABASE
+ * work is guarded — by `currentUserSafe()` below.
+ *
+ * Dual-auth resolution order (desktop-first):
+ *   1. `Authorization: Bearer <token>` — the desktop shell and API clients.
+ *   2. The `folio_session` cookie — the web browser.
+ */
+export const currentUser = cache(async (): Promise<FolioUser | null> => {
+  // Bare dynamic-API reads — never inside try…catch (see above).
+  const bearer = bearerToken((await headers()).get("authorization"));
+  if (bearer) return userFromToken(bearer);
+  return userFromToken((await cookies()).get(SESSION_COOKIE)?.value);
+});
+
 /**
  * Like `currentUser`, but reports an unreachable or misconfigured database
  * instead of throwing, so auth pages can render a fix-it notice rather than a
  * hard 500 (see DATABASE_SETUP.md → Troubleshooting).
+ *
+ * The dynamic-API reads happen BEFORE the try block: only database failures
+ * are classified here, so the Next.js dynamic bail-out always propagates.
  */
 export async function currentUserSafe(): Promise<{ user: FolioUser | null; dbError: DatabaseUnavailableError | null }> {
+  const bearer = bearerToken((await headers()).get("authorization"));
+  const token = bearer ?? (await cookies()).get(SESSION_COOKIE)?.value;
   try {
-    return { user: await currentUser(), dbError: null };
-  } catch (error: any) {
-    // DO NOT catch Next.js internal dynamic render or redirect signals!
-    if (error?.digest === "DYNAMIC_SERVER_USAGE" || error?.message?.includes("NEXT_REDIRECT")) {
-      throw error;
-    }
+    return { user: await userFromToken(token), dbError: null };
+  } catch (error) {
     if (error instanceof DatabaseUnavailableError) return { user: null, dbError: error };
     throw error;
   }
 }
+
+/**
+ * Server-Component / page helper: resolves the signed-in user or cleanly
+ * redirects the browser to `/login` (post-mortem #2 — an unauthenticated
+ * visitor must never crash a render with an escaped AuthenticationError).
+ * Only `/api/*` endpoints should throw a 401 instead — use `requireUser()`.
+ */
 export async function getUser(): Promise<FolioUser> {
+  const user = await currentUser();
+  if (!user) redirect("/login");
+  return user;
+}
+
+/**
+ * API-route helper: resolves the signed-in user or throws the 401-able
+ * `AuthenticationError`. Route handlers translate it into a JSON 401
+ * response; it must never leak into a Server Component render (use
+ * `getUser()` there, which redirects instead of throwing).
+ */
+export async function requireUser(): Promise<FolioUser> {
   const user = await currentUser();
   if (!user) throw new AuthenticationError();
   return user;
 }
+
 export async function sessionTokenHash() {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const bearer = bearerToken((await headers()).get("authorization"));
+  const token = bearer ?? (await cookies()).get(SESSION_COOKIE)?.value;
   return token ? hashToken(token) : null;
 }
 function cookieOptions(expires: Date) {

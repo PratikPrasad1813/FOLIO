@@ -1,11 +1,11 @@
-import { AuthenticationError, getUser, sameOrigin } from "@/lib/auth";
+import { AuthenticationError, requireUser, sameOrigin } from "@/lib/auth";
 import { AIUsageError } from "@/lib/folio-ai/usage";
 
 export async function requireAIUser(request: Request) {
   if (!sameOrigin(request) || request.headers.get("sec-fetch-site") === "cross-site") {
     throw new AIUsageError("This AI request is not allowed.", 403, "forbidden");
   }
-  return getUser();
+  return requireUser();
 }
 export async function parseSmallJson(request: Request, maxBytes = 2_048): Promise<Record<string, unknown>> {
   if (Number(request.headers.get("content-length") || 0) > maxBytes) throw new AIUsageError("The request is too large.", 413, "payload_too_large");

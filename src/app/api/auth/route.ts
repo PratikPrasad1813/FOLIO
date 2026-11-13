@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db, DatabaseUnavailableError } from "@/db";
 import { users } from "@/db/schema";
-import { allowAuthAttempt, createSession, destroySession, getUser, hashPassword, publicUser, requestOrigin, sameOrigin, signedInDestination, verifyPassword } from "@/lib/auth";
+import { allowAuthAttempt, createSession, destroySession, requireUser, hashPassword, publicUser, requestOrigin, sameOrigin, signedInDestination, verifyPassword } from "@/lib/auth";
 import { onAccountCreated } from "@/lib/account-events";
 export const dynamic = "force-dynamic";
 const DUMMY_HASH = "00000000000000000000000000000000:" + "0".repeat(128);
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
   try {
-    const user = await getUser();
+    const user = await requireUser();
     const body = await request.json();
     const name = typeof body.name === "string" ? body.name.trim().slice(0, 80) : user.name;
     const weeklyGoal = body.weeklyGoal === undefined ? user.weeklyGoal : Number(body.weeklyGoal);

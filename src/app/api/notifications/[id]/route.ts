@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { notifications } from "@/db/schema";
-import { getUser, sameOrigin } from "@/lib/auth";
+import { requireUser, sameOrigin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,7 @@ export async function PATCH(
   }
   try {
     await ensureSchema();
-    const user = await getUser();
+    const user = await requireUser();
     if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
 
     const { id } = await context.params;
@@ -79,7 +79,7 @@ export async function DELETE(
   }
   try {
     await ensureSchema();
-    const user = await getUser();
+    const user = await requireUser();
     if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
 
     const { id } = await context.params;

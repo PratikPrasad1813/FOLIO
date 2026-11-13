@@ -1,4 +1,4 @@
-import { getUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { FOLIO_AI_CONFIG } from "@/lib/folio-ai/config";
 import { aiError, aiJson, parseSmallJson, requireAIUser } from "@/lib/folio-ai/http";
 import {
@@ -15,7 +15,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 
 export async function GET(request: Request) {
   try {
-    const user = await getUser();
+    const user = await requireUser();
     const url = new URL(request.url);
     const conversationId = url.searchParams.get("conversationId");
     const interruptedParam = url.searchParams.get("interrupted") || "";

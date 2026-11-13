@@ -1,4 +1,4 @@
-import { AuthenticationError, getUser, sameOrigin } from "@/lib/auth";
+import { AuthenticationError, requireUser, sameOrigin } from "@/lib/auth";
 import { SearchInputError, objectInput } from "@/lib/search-types";
 
 export const privateJson = (data: unknown, status = 200) => Response.json(data, { status, headers: { "Cache-Control": "private, no-store", Vary: "Cookie" } });
@@ -6,7 +6,7 @@ export const privateJson = (data: unknown, status = 200) => Response.json(data, 
 /** Resolve identity from Folio's existing session system; never from input. */
 export async function searchUser(request: Request) {
   if (!sameOrigin(request) || request.headers.get("sec-fetch-site") === "cross-site") throw new SearchInputError("This request is not allowed.", 403);
-  return getUser();
+  return requireUser();
 }
 export async function readSearchBody(request: Request) {
   if (Number(request.headers.get("content-length") || 0) > 16_384) throw new SearchInputError("Request is too large.", 413);

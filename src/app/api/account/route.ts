@@ -1,4 +1,4 @@
-import { AuthenticationError, allowAuthAttempt, getUser, sameOrigin } from "@/lib/auth";
+import { AuthenticationError, allowAuthAttempt, requireUser, sameOrigin } from "@/lib/auth";
 import {
   deleteUserAccount,
   DeletionAuthError,
@@ -14,7 +14,7 @@ export async function DELETE(request: Request) {
 
   let user;
   try {
-    user = await getUser();
+    user = await requireUser();
   } catch (error) {
     return Response.json(
       {

@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { folioAiConversations, folioAiMessages } from "@/db/schema";
-import { getUser, sameOrigin } from "@/lib/auth";
+import { requireUser, sameOrigin } from "@/lib/auth";
 import { SearchInputError } from "@/lib/search-types";
 import { aiJson, aiError, parseSmallJson } from "@/lib/folio-ai/http";
 
@@ -79,7 +79,7 @@ function deriveTitle(messages: { role: string; content: string }[]): string {
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     if (!sameOrigin(request)) return aiJson({ error: "Request not allowed." }, 403);
-    const user = await getUser();
+    const user = await requireUser();
     await ensureSchema();
     const { id } = await context.params;
     if (!UUID.test(id)) throw new SearchInputError("Invalid conversation ID.");

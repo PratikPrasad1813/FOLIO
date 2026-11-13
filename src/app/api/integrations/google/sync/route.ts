@@ -1,4 +1,4 @@
-import { getUser, sameOrigin } from "@/lib/auth";
+import { requireUser, sameOrigin } from "@/lib/auth";
 import { GoogleError } from "@/lib/google";
 import { syncAccount } from "@/lib/calendar-sync";
 
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
-  const user = await getUser();
+  const user = await requireUser();
   const full = new URL(request.url).searchParams.get("full") === "1";
   try {
     const summary = await syncAccount(user.id, { full });

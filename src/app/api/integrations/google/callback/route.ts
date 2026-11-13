@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { googleAccounts, googleCalendars } from "@/db/schema";
-import { getUser, requestOrigin } from "@/lib/auth";
+import { requireUser, requestOrigin } from "@/lib/auth";
 import { decodeIdToken, exchangeCode, googleConfig, isWriteGranted, listCalendars, redirectUri } from "@/lib/google";
 import { onGoogleCalendarConnected } from "@/lib/account-events";
 import { openToken, sealToken, verifyState } from "@/lib/crypto";
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   const stored = verifyState(jar.get(COOKIE)?.value);
   jar.set(COOKIE, "", { path: "/", maxAge: 0 });
 
-  const user = await getUser();
+  const user = await requireUser();
   if (params.get("error")) return bail(request, "cancelled", params.get("error") === "access_denied" ? "You cancelled the Google Calendar connection." : `Google returned an error: ${params.get("error")}`);
   const code = params.get("code");
   if (!code) return bail(request, "missing_code", "Google didn’t return an authorization code.");

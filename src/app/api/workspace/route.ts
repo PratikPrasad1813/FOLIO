@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { activities, ideas, milestones, notificationPreferences, projects, subtasks, tasks } from "@/db/schema";
-import { getUser, publicUser, sameOrigin } from "@/lib/auth";
+import { requireUser, publicUser, sameOrigin } from "@/lib/auth";
 import { formatDate, statusLabel, TASK_PRIORITIES, TASK_PRIORITY_LABELS, TASK_STATUSES, TASK_STATUS_LABELS, type TaskPriority, type TaskStatus } from "@/lib/types";
 import {
   emitMilestoneMutationNotifications,
@@ -446,7 +446,7 @@ async function handleIdeas(method: Method, userId: string, id: string, data: Inp
 
 export async function GET(request: Request) {
   try {
-    const user = await getUser();
+    const user = await requireUser();
     if (!user) return Response.json({ error: "Please sign in to see your workspace." }, { status: 401 });
     const params = new URL(request.url).searchParams;
     const taskActivity = params.get("taskActivity");
@@ -477,7 +477,7 @@ export async function GET(request: Request) {
 async function mutate(request: Request, method: Method) {
   if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
   try {
-    const user = await getUser();
+    const user = await requireUser();
     if (!user) return Response.json({ error: "Your session expired. Please refresh and sign in." }, { status: 401 });
     const body = await request.json();
     const { kind, id } = body as { kind: unknown; id: unknown };

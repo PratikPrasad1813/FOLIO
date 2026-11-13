@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { googleAccounts, googleCalendars, googleEvents } from "@/db/schema";
-import { getUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { googleConfig, redirectUri, revokeToken } from "@/lib/google";
 import { loadAccount } from "@/lib/calendar-sync";
 import { openToken } from "@/lib/crypto";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 /** Connection status for the integration card. Never returns tokens. */
 export async function GET(request: Request) {
-  const user = await getUser();
+  const user = await requireUser();
   const config = googleConfig();
   if (!config.configured) {
     return Response.json({ connected: false, notConfigured: true, redirectUri: redirectUri(request), hint: "Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, then register the redirect URI below in Google Cloud Console." });
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
  * Folio can no longer see or change those events.
  */
 export async function DELETE() {
-  const user = await getUser();
+  const user = await requireUser();
   const account = await loadAccount(user.id);
   if (account) {
     const refreshToken = openToken(account.refreshTokenEnc);

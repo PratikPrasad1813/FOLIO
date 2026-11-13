@@ -229,25 +229,22 @@ const STATUS_BADGE_LABELS: Record<AITaskStatus, string> = {
 };
 
 export function AIAvatar({ state = "idle", size = 34 }: { state?: "idle" | "thinking" | "processing" | "responding" | "success" | "error"; size?: number }) {
-  // Unique gradient/filter ids per instance (several avatars render per page).
-  const uid = useId().replace(/[:]/g, "");
-  const tileId = `fa-avatar-tile-${uid}`;
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" className={`fa-avatar-svg is-${state}`} aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" className={`fa-avatar-svg is-${state}`} aria-hidden="true">
       <defs>
-        <linearGradient id={tileId} x1="8" y1="6" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+        <linearGradient id="fa-avatar-body" x1="8" y1="6" x2="40" y2="42" gradientUnits="userSpaceOnUse">
           <stop stopColor="var(--c-violet)" /><stop offset="1" stopColor="var(--accent-strong)" />
         </linearGradient>
       </defs>
-      {/* The official Folio F mark on the assistant tile. */}
-      <rect x="6" y="6" width="52" height="52" rx="14" fill={`url(#${tileId})`} />
-      <g transform="translate(15.5 15.5) scale(0.515)">
-        <path d="M19 19a8 8 0 0 1 8-8h23v13H32v10H19V19Zm0 15h13v16a8 8 0 0 1-8 8h-5V34Z" fill="var(--surface)" />
-        <path d="M36 28h14v7a8 8 0 0 1-8 8h-6V28Z" fill="var(--surface)" opacity="0.7" />
-      </g>
-      {/* Status feedback: activity dot (reuses the blink keyframes) + pulse ring. */}
-      <circle cx="47" cy="47" r="4.6" fill="var(--surface)" className="fa-avatar-eye" />
-      <circle cx="32" cy="32" r="29" stroke="var(--accent)" strokeWidth="1.5" opacity="0" className="fa-avatar-ring" />
+      <rect x="10" y="11" width="28" height="25" rx="7" fill="url(#fa-avatar-body)" />
+      <rect x="14" y="7" width="7" height="7" rx="2.5" fill="var(--surface)" stroke="var(--accent-strong)" strokeWidth="1.4" />
+      <rect x="27" y="7" width="7" height="7" rx="2.5" fill="var(--surface)" stroke="var(--accent-strong)" strokeWidth="1.4" />
+      <rect x="21" y="4" width="6" height="4" rx="1.5" fill="var(--accent-strong)" />
+      <circle cx="18" cy="23" r="2.7" fill="var(--surface)" className="fa-avatar-eye" />
+      <circle cx="30" cy="23" r="2.7" fill="var(--surface)" className="fa-avatar-eye" />
+      <rect x="19" y="30" width="10" height="3" rx="1.5" fill="var(--surface)" opacity=".85" />
+      <path d="M9 17h4M35 17h4M9 25h4M35 25h4" stroke="var(--accent-strong)" strokeWidth="1.5" strokeLinecap="round" className="fa-avatar-antennae" />
+      <circle cx="24" cy="24" r="17" stroke="var(--accent)" strokeWidth="1.5" opacity="0" className="fa-avatar-ring" />
     </svg>
   );
 }
@@ -263,20 +260,31 @@ export function AIAvatar({ state = "idle", size = 34 }: { state?: "idle" | "thin
  */
 export function FolioAILogo({ size = 40, className = "" }: { size?: number; className?: string }) {
   const uid = useId().replace(/[:]/g, "");
+  const tileId = `fa-logo-tile-${uid}`;
+  const armId = `fa-logo-arm-${uid}`;
   const badgeId = `fa-logo-badge-${uid}`;
   const glowId = `fa-logo-glow-${uid}`;
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 64 64"
+      viewBox="0 0 48 48"
       fill="none"
       className={`fa-ai-logo ${className}`}
       role="img"
       aria-label="Folio AI"
     >
       <defs>
-        <linearGradient id={badgeId} x1="34" y1="36" x2="56" y2="49" gradientUnits="userSpaceOnUse">
+        <radialGradient id={tileId} cx="42%" cy="26%" r="82%">
+          <stop stopColor="#2C1D40" />
+          <stop offset="0.55" stopColor="#170F26" />
+          <stop offset="1" stopColor="#0A0712" />
+        </radialGradient>
+        <linearGradient id={armId} x1="20.5" y1="20" x2="33" y2="26.5" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#9468E0" />
+          <stop offset="1" stopColor="#5B32A8" />
+        </linearGradient>
+        <linearGradient id={badgeId} x1="26.5" y1="25.5" x2="42.5" y2="35.5" gradientUnits="userSpaceOnUse">
           <stop stopColor="#A66CF8" />
           <stop offset="1" stopColor="#7C3AED" />
         </linearGradient>
@@ -288,26 +296,29 @@ export function FolioAILogo({ size = 40, className = "" }: { size?: number; clas
           </feMerge>
         </filter>
       </defs>
-      {/* the official Folio app mark: lavender tile + two-tone F */}
-      <rect className="fa-ai-logo-tile" x="2" y="2" width="60" height="60" rx="15" fill="#f0edf8" />
-      <rect x="2" y="2" width="60" height="60" rx="15" fill="none" stroke="#7B4FD8" strokeOpacity="0.25" strokeWidth="0.9" />
-      <path d="M19 19a8 8 0 0 1 8-8h23v13H32v10H19V19Zm0 15h13v16a8 8 0 0 1-8 8h-5V34Z" fill="#39313f" />
-      <path d="M36 28h14v7a8 8 0 0 1-8 8h-6V28Z" fill="#aa92c2" />
+      {/* tile */}
+      <rect className="fa-ai-logo-tile" x="3" y="3" width="42" height="42" rx="12" fill={`url(#${tileId})`} />
+      <rect x="3" y="3" width="42" height="42" rx="12" fill="none" stroke="#7B4FD8" strokeOpacity="0.28" strokeWidth="0.8" />
+      {/* F body: stem + top arm (dark purple, two overlapping rounded rects) */}
+      <rect x="13.5" y="11" width="7" height="27" rx="3" fill="#473C5C" />
+      <rect x="13.5" y="11" width="20" height="7" rx="3" fill="#473C5C" />
+      {/* bright-violet middle arm (the accent) */}
+      <rect x="20.5" y="20" width="12.5" height="6.5" rx="2" fill={`url(#${armId})`} />
       {/* AI capsule badge with neon glow */}
       <g filter={`url(#${glowId})`}>
         <rect
           className="fa-ai-logo-badge"
-          x="34" y="36" width="22" height="13" rx="6.5"
+          x="26.5" y="25.5" width="16" height="10" rx="5"
           fill={`url(#${badgeId})`}
-          stroke="#C9A8FF" strokeWidth="0.7" strokeOpacity="0.7"
+          stroke="#C9A8FF" strokeWidth="0.6" strokeOpacity="0.7"
         />
       </g>
       {/* AI text */}
       <text
-        x="45" y="42.8"
+        x="34.5" y="30.5"
         textAnchor="middle" dominantBaseline="central"
         fontFamily="Inter, system-ui, -apple-system, sans-serif"
-        fontWeight="800" fontSize="7.6" fill="#FFFFFF" letterSpacing="0.3"
+        fontWeight="800" fontSize="5.6" fill="#FFFFFF" letterSpacing="0.25"
       >AI</text>
     </svg>
   );
@@ -470,17 +481,11 @@ function mapPersistedMessage(message: AiPersistedMessage, taskById: Map<string, 
 
 export function FolioAIPanel({ userName, isFullscreen = false, onBackToFolio }: { userName?: string; isFullscreen?: boolean; onBackToFolio?: () => void }) {
   const initialProviderState = getAIProviderState();
-  // Hydration contract: the server render and the hydration pass BOTH start
-  // from "dark" (the default). The persisted preference is only adopted in a
-  // post-mount effect — reading localStorage during render would desync
-  // hydration whenever the stored theme differs from the server default.
-  const [aiTheme, setAiTheme] = useState<"dark" | "light">("dark");
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("folio_ai_theme");
-      if (stored === "light" || stored === "dark") setAiTheme(stored);
-    } catch { /* private storage */ }
-  }, []);
+  const [aiTheme, setAiTheme] = useState<"dark" | "light">(() => {
+    if (typeof window === "undefined") return "dark";
+    const stored = window.localStorage.getItem("folio_ai_theme");
+    return stored === "light" ? "light" : "dark";
+  });
   useEffect(() => {
     try { window.localStorage.setItem("folio_ai_theme", aiTheme); } catch { /* private storage */ }
   }, [aiTheme]);

@@ -59,10 +59,7 @@ function writeStoredConversationId(id: string | null) {
  */
 export function useAiConversations() {
   const [conversations, setConversations] = useState<AiConversation[]>([]);
-  // Hydration-safe: the server render and the hydration pass both start from
-  // `null`; the persisted conversation id is restored in a post-mount effect
-  // (reading sessionStorage during render would desync hydration).
-  const [activeId, setActiveIdState] = useState<string | null>(null);
+  const [activeId, setActiveIdState] = useState<string | null>(() => readStoredConversationId());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const mounted = useRef(true);
@@ -78,12 +75,6 @@ export function useAiConversations() {
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
-  }, []);
-
-  // Adopt the persisted active conversation after mount (never during render).
-  useEffect(() => {
-    const stored = readStoredConversationId();
-    if (stored) setActiveIdState(stored);
   }, []);
 
   const refresh = useCallback(async () => {

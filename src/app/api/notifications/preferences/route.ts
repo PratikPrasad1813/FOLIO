@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { notificationPreferences } from "@/db/schema";
-import { getUser, sameOrigin } from "@/lib/auth";
+import { requireUser, sameOrigin } from "@/lib/auth";
 import {
   ALLOWED_CALENDAR_INTERVALS,
   DEFAULT_REMINDER_TIMINGS,
@@ -41,7 +41,7 @@ const BOOLEAN_KEYS = [
 export async function GET() {
   try {
     await ensureSchema();
-    const user = await getUser();
+    const user = await requireUser();
     if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
 
     const preferences = await getOrCreatePreferences(user.id);
@@ -65,7 +65,7 @@ export async function PATCH(request: Request) {
   }
   try {
     await ensureSchema();
-    const user = await getUser();
+    const user = await requireUser();
     if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
 
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;

@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { folioAiConversations, folioAiMessages } from "@/db/schema";
-import { getUser, sameOrigin } from "@/lib/auth";
+import { requireUser, sameOrigin } from "@/lib/auth";
 import { SearchInputError } from "@/lib/search-types";
 import { aiJson, aiError, parseSmallJson } from "@/lib/folio-ai/http";
 import { listConversationTasks } from "@/lib/folio-ai/tasks-service";
@@ -14,7 +14,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 /** Loads one conversation with its messages and tasks. Ownership is enforced server-side. */
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getUser();
+    const user = await requireUser();
     await ensureSchema();
     const { id } = await context.params;
     if (!UUID.test(id)) throw new SearchInputError("Invalid conversation ID.");
@@ -43,7 +43,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     if (!sameOrigin(request)) return aiJson({ error: "Request not allowed." }, 403);
-    const user = await getUser();
+    const user = await requireUser();
     await ensureSchema();
     const { id } = await context.params;
     if (!UUID.test(id)) throw new SearchInputError("Invalid conversation ID.");
@@ -63,7 +63,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     if (!sameOrigin(request)) return aiJson({ error: "Request not allowed." }, 403);
-    const user = await getUser();
+    const user = await requireUser();
     await ensureSchema();
     const { id } = await context.params;
     if (!UUID.test(id)) throw new SearchInputError("Invalid conversation ID.");

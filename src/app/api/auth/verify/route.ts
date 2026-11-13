@@ -2,15 +2,7 @@ import { randomBytes } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { emailVerifications, users } from "@/db/schema";
-import {
-  AuthenticationError,
-  allowAuthAttempt,
-  getUser,
-  hashToken,
-  requestOrigin,
-  sameOrigin,
-  type FolioUser,
-} from "@/lib/auth";
+import { AuthenticationError, allowAuthAttempt, requireUser, hashToken, requestOrigin, sameOrigin, type FolioUser } from "@/lib/auth";
 import { buildEmailVerificationEmail } from "@/lib/email/templates";
 import { isEmailDeliveryConfigured, isRoutableEmail, sendRenderedEmail } from "@/lib/email/mailer";
 import { onEmailVerified } from "@/lib/account-events";
@@ -33,7 +25,7 @@ export async function POST(request: Request) {
     if (body.action === "request") {
       let user: FolioUser;
       try {
-        user = await getUser();
+        user = await requireUser();
       } catch (err) {
         return Response.json(
           { error: err instanceof AuthenticationError ? err.message : "Please sign in to verify your email." },

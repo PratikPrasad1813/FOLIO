@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { notifications } from "@/db/schema";
-import { getUser, sameOrigin } from "@/lib/auth";
+import { requireUser, sameOrigin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   }
   try {
     await ensureSchema();
-    const user = await getUser();
+    const user = await requireUser();
     if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
 
     const updated = await db

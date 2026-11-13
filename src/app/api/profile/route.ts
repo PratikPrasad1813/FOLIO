@@ -1,4 +1,4 @@
-import { AuthenticationError, getUser, sameOrigin } from "@/lib/auth";
+import { AuthenticationError, requireUser, sameOrigin } from "@/lib/auth";
 import { readProfile, updateProfile } from "@/lib/profile-service";
 import { syncUser, corsJson, desktopCorsPreflight } from "@/lib/sync-auth";
 export const dynamic = "force-dynamic";
@@ -38,7 +38,7 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   if (!sameOrigin(request)) return json({ error: "Request not allowed." }, 403);
   try {
-    const user = await getUser();
+    const user = await requireUser();
     const { deleteUserAccount, DeletionAuthError, DeletionInputError } = await import("@/lib/account-deletion");
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     try {

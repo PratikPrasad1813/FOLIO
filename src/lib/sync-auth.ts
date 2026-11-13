@@ -20,7 +20,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { sessions } from "@/db/schema";
-import { currentUser, hashToken, sameOrigin, userFromToken, type FolioUser } from "@/lib/auth";
+import { bearerToken, currentUser, hashToken, sameOrigin, userFromToken, type FolioUser } from "@/lib/auth";
 
 /** Desktop sessions are long-lived (90 days) — the shell stays signed in offline. */
 export const DESKTOP_SESSION_MS = 90 * 24 * 60 * 60 * 1000;
@@ -51,9 +51,9 @@ export async function mintDesktopSessionToken(userId: string): Promise<{ token: 
 export async function syncUser(request: Request): Promise<FolioUser | null> {
   const header = request.headers.get("authorization");
   if (header) {
-    const match = /^Bearer\s+([A-Za-z0-9_-]+)$/i.exec(header.trim());
-    if (!match) return null;
-    return userFromToken(match[1]);
+    const token = bearerToken(header);
+    if (!token) return null;
+    return userFromToken(token);
   }
   if (!sameOrigin(request)) return null;
   return currentUser();

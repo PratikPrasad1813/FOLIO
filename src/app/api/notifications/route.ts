@@ -2,7 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { notifications } from "@/db/schema";
-import { getUser, sameOrigin } from "@/lib/auth";
+import { requireUser, sameOrigin } from "@/lib/auth";
 import {
   NOTIFICATION_CATEGORIES,
   type NotificationCategory,
@@ -37,7 +37,7 @@ function serializeNotification(row: typeof notifications.$inferSelect): Notifica
 export async function GET(request: Request) {
   try {
     await ensureSchema();
-    const user = await getUser();
+    const user = await requireUser();
     if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
 
     await maybeProcessUserReminders(user.id);
@@ -116,7 +116,7 @@ export async function DELETE(request: Request) {
   }
   try {
     await ensureSchema();
-    const user = await getUser();
+    const user = await requireUser();
     if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
 
     const deleted = await db

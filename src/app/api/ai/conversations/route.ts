@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { folioAiConversations } from "@/db/schema";
-import { getUser, sameOrigin } from "@/lib/auth";
+import { requireUser, sameOrigin } from "@/lib/auth";
 import { SearchInputError } from "@/lib/search-types";
 import { aiJson, aiError, parseSmallJson, requireAIUser } from "@/lib/folio-ai/http";
 
@@ -12,7 +12,7 @@ export const TITLE_MAX = 120;
 /** Lists the signed-in user's conversations, newest activity first. */
 export async function GET() {
   try {
-    const user = await getUser();
+    const user = await requireUser();
     await ensureSchema();
     const conversations = await db.select().from(folioAiConversations)
       .where(eq(folioAiConversations.userId, user.id))

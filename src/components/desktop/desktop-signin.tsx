@@ -19,7 +19,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, Mail, WifiOff } from "lucide-react";
-import { LogoMark } from "@/components/ui";
+import { Logo } from "@/components/ui";
 import "@/app/auth.css";
 import {
   desktopSignInWithPassword,
@@ -125,7 +125,7 @@ export function DesktopSignIn({ reason, cachedEmail }: DesktopSignInProps) {
     <div className="public-site desktop-signin-screen">
       <style>{desktopSigninCss}</style>
       <section className="desktop-signin-card">
-        <span className="desktop-signin-mark"><LogoMark size={34} /></span>
+        <span className="desktop-signin-mark"><Logo compact /></span>
         <span className="lp-eyebrow">{copy.eyebrow}</span>
         <h1>{copy.title}</h1>
         <p className="desktop-signin-lead">{copy.lead}</p>
@@ -188,7 +188,7 @@ export function DesktopSignIn({ reason, cachedEmail }: DesktopSignInProps) {
 
         {offline && (
           <p className="desktop-signin-offline" role="status">
-            <WifiOff size={14} /> You&apos;re offline — Folio is fully usable once signed in; this screen only needs internet the first time.
+            <WifiOff size={14} /> You're offline — Folio is fully usable once signed in; this screen only needs internet the first time.
           </p>
         )}
 

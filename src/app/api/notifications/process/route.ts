@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { getUser, sameOrigin } from "@/lib/auth";
+import { requireUser, sameOrigin } from "@/lib/auth";
 import {
   getOrCreatePreferences,
   getSchedulerTelemetry,
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const user = await getUser();
+    const user = await requireUser();
     if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
 
     const result = await processUserReminders(user.id, { source: "manual" });

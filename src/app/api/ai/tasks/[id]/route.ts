@@ -1,4 +1,4 @@
-import { getUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { aiError, aiJson, parseSmallJson, requireAIUser } from "@/lib/folio-ai/http";
 import { getAITaskById, updateAITaskProgress } from "@/lib/folio-ai/tasks-service";
 import { AI_TASK_STATUSES, type AIActionResult, type AITaskStatus } from "@/lib/folio-ai/types";
@@ -13,7 +13,7 @@ const CONTENT_MAX = 64_000;
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getUser();
+    const user = await requireUser();
     const { id } = await context.params;
     if (!UUID.test(id)) throw new SearchInputError("Invalid task ID.");
     const task = await getAITaskById(user.id, id);

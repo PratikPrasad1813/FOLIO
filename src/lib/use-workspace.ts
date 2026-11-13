@@ -13,6 +13,7 @@ import {
   desktopConvertIdea,
   desktopMutate,
   loadDesktopWorkspace,
+  type WorkspaceMutationResult,
 } from "@/lib/desktop/desktop-workspace";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -36,6 +37,14 @@ export interface MutateOptions {
   quiet?: boolean;
 }
 export interface BulkResult { count: number; missing: number }
+
+/** Defensive JSON reader: a proxy's HTML error page must never surface as a raw SyntaxError. */
+async function readJson(response: Response): Promise<Record<string, unknown>> {
+  try {
+    const parsed: unknown = await response.json();
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  } catch { return {}; }
+}
 
 function normalise(result: Partial<WorkspaceData>): WorkspaceData {
   if (result.user && typeof window !== "undefined") {
@@ -83,9 +92,9 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
         throw new Error("Your workspace is still syncing. One moment…");
       }
       const response = await fetch("/api/workspace", { cache: "no-store" });
-      const result = await response.json();
+      const result = await readJson(response);
       if (response.status === 401) { window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname)}`); throw new Error("Please sign in again."); }
-      if (!response.ok) throw new Error(result.error || "Could not load your workspace.");
+      if (!response.ok) throw new Error(typeof result.error === "string" && result.error ? result.error : "Could not load your workspace.");
       const next = normalise(result);
       setData(next); dataRef.current = next; setError("");
     } catch (err) { const message = err instanceof Error ? err.message : "Couldn’t connect to your workspace."; setError(message); throw new Error(message); }
@@ -117,9 +126,9 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
           return;
         }
         const response = await fetch("/api/workspace", { cache: "no-store" });
-        const result = await response.json();
+        const result = await readJson(response);
         if (response.status === 401) { window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname)}`); throw new Error("Please sign in again."); }
-      if (!response.ok) throw new Error(result.error || "Could not load your workspace.");
+      if (!response.ok) throw new Error(typeof result.error === "string" && result.error ? result.error : "Could not load your workspace.");
         if (!cancelled) {
           const next = normalise(result);
           dataRef.current = next;
@@ -216,9 +225,9 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
           return await desktopMutate(kind, method, values, id);
         }
         const response = await fetch("/api/workspace", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, id, data: values }) });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error || "Could not save your change.");
-        return body;
+        const body = await readJson(response);
+        if (!response.ok) throw new Error(typeof body.error === "string" && body.error ? body.error : "Could not save your change.");
+        return body as unknown as WorkspaceMutationResult;
       });
       if (method === "PATCH" && id) { track(id, keys, -1); released = true; }
       const keep = id ? [...(inflightRef.current.get(id)?.keys() ?? [])] : [];
@@ -322,9 +331,9 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
         result = await desktopBulkTasks(unique, change);
       } else {
         const response = await fetch("/api/workspace", { method: isDelete ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "tasks", ids: unique, data: isDelete ? {} : change }) });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error || "We couldn’t apply that change. Nothing was modified.");
-        result = body;
+        const body = await readJson(response);
+        if (!response.ok) throw new Error(typeof body.error === "string" && body.error ? body.error : "We couldn’t apply that change. Nothing was modified.");
+        result = body as typeof result;
       }
       const returned = new Map(((result.items ?? []) as Task[]).map(task => [task.id, task]));
       setData(state => {
@@ -370,9 +379,9 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
         result = await desktopConvertIdea(idea);
       } else {
         const response = await fetch("/api/workspace", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "ideas", action: "convert", id: idea.id }) });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error || "Couldn’t turn this idea into a project.");
-        result = body;
+        const body = await readJson(response);
+        if (!response.ok) throw new Error(typeof body.error === "string" && body.error ? body.error : "Couldn’t turn this idea into a project.");
+        result = body as typeof result;
       }
       setData(state => state ? { ...state, projects: [result.item, ...state.projects], ideas: state.ideas.filter(item => item.id !== idea.id), activities: [result.activity, ...state.activities].slice(0, 40) } : state);
       notify("From a little spark to a real project. Let’s go!");
@@ -398,9 +407,9 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
       return;
     }
     const response = await fetch("/api/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Could not save your settings.");
-    setData(state => state ? { ...state, user: result.user } : state);
+    const result = await readJson(response);
+    if (!response.ok) throw new Error(typeof result.error === "string" && result.error ? result.error : "Could not save your settings.");
+    setData(state => state ? { ...state, user: result.user as WorkspaceData["user"] } : state);
     notify("Your workspace feels a little more like you.");
   }
 

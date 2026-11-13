@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { taskReminders } from "@/db/schema";
-import { getUser, sameOrigin } from "@/lib/auth";
+import { requireUser, sameOrigin } from "@/lib/auth";
 import { REMINDER_TIMINGS, type ReminderTiming } from "@/lib/notifications";
 import {
   removeTaskReminder,
@@ -17,7 +17,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 export async function GET(request: Request) {
   try {
     await ensureSchema();
-    const user = await getUser();
+    const user = await requireUser();
     if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
 
     const taskId = new URL(request.url).searchParams.get("taskId");
@@ -50,7 +50,7 @@ async function saveReminder(request: Request) {
     return Response.json({ error: "Request not allowed." }, { status: 403 });
   }
   try {
-    const user = await getUser();
+    const user = await requireUser();
     if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
 
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
@@ -98,7 +98,7 @@ export async function DELETE(request: Request) {
     return Response.json({ error: "Request not allowed." }, { status: 403 });
   }
   try {
-    const user = await getUser();
+    const user = await requireUser();
     if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
 
     let taskId = new URL(request.url).searchParams.get("taskId");

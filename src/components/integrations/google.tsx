@@ -227,7 +227,7 @@ export function GoogleCalendarCard({ integration, compact = false }: { integrati
                         <i className="gcal-swatch" style={{ background: calendar.backgroundColor ?? "var(--accent)" }} aria-hidden="true" />
                         <span>{calendar.summary}{calendar.primary && <em> · default</em>}</span>
                         <label className="gcal-switch">
-                          <input type="checkbox" checked={calendar.visible} disabled={busy} onChange={(event) => { void updateCalendar(calendar.calendarId, event.target.checked).then((ok) => { if (ok) void sync(false); }).catch(() => setMessage({ tone: "error", text: "Couldn’t reach Google Calendar. Check your connection and try again." })); }} />
+                          <input type="checkbox" checked={calendar.visible} disabled={busy} onChange={(event) => { void updateCalendar(calendar.calendarId, event.target.checked).then((ok) => { if (ok) void sync(false); }); }} />
                           <span className="pe-switch" aria-hidden="true" />
                           <span className="sr-only">Show {calendar.summary} in Folio</span>
                         </label>
@@ -235,13 +235,13 @@ export function GoogleCalendarCard({ integration, compact = false }: { integrati
                     ))}
                   </ul>
                 ) : <p className="gcal-hint">No calendars yet — run a sync to load them.</p>}
-                <button type="button" className="pj-link" onClick={() => { void fetch("/api/integrations/google/calendars", { method: "POST" }).then(() => refresh()).catch(() => setMessage({ tone: "error", text: "Couldn’t refresh your calendar list right now." })); }}><RefreshCw size={13} aria-hidden="true" />Refresh calendar list</button>
+                <button type="button" className="pj-link" onClick={() => { void fetch("/api/integrations/google/calendars", { method: "POST" }).then(() => refresh()); }}><RefreshCw size={13} aria-hidden="true" />Refresh calendar list</button>
               </section>
 
               <section>
                 <h4><CalendarCheck2 size={14} aria-hidden="true" />Event access</h4>
                 <label className="gcal-toggle">
-                  <input type="checkbox" checked={Boolean(status.canWrite)} onChange={(event) => { void (async () => { try { const result = await setWriteEnabled(event.target.checked); if (result.upgradeRequired) window.location.href = connectUrl(true, true); } catch { setMessage({ tone: "error", text: "Couldn’t reach Google Calendar. Check your connection and try again." }); void refresh(); } })(); }} />
+                  <input type="checkbox" checked={Boolean(status.canWrite)} onChange={(event) => { void (async () => { const result = await setWriteEnabled(event.target.checked); if (result.upgradeRequired) window.location.href = connectUrl(true, true); })(); }} />
                   <span className="pe-switch" aria-hidden="true" />
                   <span><strong>Let Folio create and edit events</strong><small>Requests Google’s event-write permission. Folio never creates events automatically — you pick which tasks become events.</small></span>
                 </label>
@@ -257,7 +257,7 @@ export function GoogleCalendarCard({ integration, compact = false }: { integrati
                   <div className="gcal-confirm">
                     <span>Also revoke Folio’s access at Google, so it can’t reconnect without you?</span>
                     <button type="button" className="pj-btn is-secondary is-sm" onClick={() => setConfirmDisconnect(false)}>Cancel</button>
-                    <button type="button" className="pj-btn is-danger is-sm" disabled={busy} onClick={() => { setBusy(true); void disconnect().then(() => { setBusy(false); setConfirmDisconnect(false); void refresh(); }).catch(() => { setBusy(false); setMessage({ tone: "error", text: "Couldn’t disconnect right now. Check your connection and try again." }); }); }}>Disconnect</button>
+                    <button type="button" className="pj-btn is-danger is-sm" disabled={busy} onClick={() => { setBusy(true); void disconnect().then(() => { setBusy(false); setConfirmDisconnect(false); void refresh(); }); }}>Disconnect</button>
                   </div>
                 )}
               </section>

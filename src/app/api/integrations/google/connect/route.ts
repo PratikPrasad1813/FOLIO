@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { READ_SCOPES, WRITE_SCOPES, authorizationUrl, googleConfig, newVerifier, redirectUri } from "@/lib/google";
 import { signState } from "@/lib/crypto";
 
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
       redirectUri: redirectUri(request),
     }, { status: 503 });
   }
-  await getUser(); // make sure a Folio session exists before handing out a consent URL
+  await requireUser(); // make sure a Folio session exists before handing out a consent URL
   const url = new URL(request.url);
   const write = url.searchParams.get("write") === "1";
   const upgrade = url.searchParams.get("upgrade") === "1";

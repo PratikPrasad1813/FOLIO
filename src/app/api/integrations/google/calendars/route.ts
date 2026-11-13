@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { googleAccounts, googleCalendars } from "@/db/schema";
-import { getUser, sameOrigin } from "@/lib/auth";
+import { requireUser, sameOrigin } from "@/lib/auth";
 import { GoogleError, googleConfig, isWriteGranted, listCalendars } from "@/lib/google";
 import { loadAccount, accessTokenFor } from "@/lib/calendar-sync";
 
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /** Lists the user's Google calendars, with Folio's visibility/selection state. */
 export async function GET() {
-  const user = await getUser();
+  const user = await requireUser();
   const account = await loadAccount(user.id);
   if (!account) return Response.json({ error: "Google Calendar isn’t connected." }, { status: 400 });
   try {
@@ -39,7 +39,7 @@ export async function GET() {
 /** Updates calendar visibility and the write-access preference. */
 export async function PATCH(request: Request) {
   if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
-  const user = await getUser();
+  const user = await requireUser();
   const account = await loadAccount(user.id);
   if (!account) return Response.json({ error: "Google Calendar isn’t connected." }, { status: 400 });
   const body = (await request.json().catch(() => null)) as { calendarId?: unknown; visible?: unknown; writeEnabled?: unknown } | null;
@@ -69,7 +69,7 @@ export async function PATCH(request: Request) {
 /** Re-reads the calendar list from Google on demand (used after granting more access). */
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
-  const user = await getUser();
+  const user = await requireUser();
   const account = await loadAccount(user.id);
   if (!account) return Response.json({ error: "Google Calendar isn’t connected." }, { status: 400 });
   const config = googleConfig();

@@ -56,7 +56,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         with:
           tagName: ${{ github.ref_name || 'v1.0.1' }}
           releaseName: "Folio ${{ github.ref_name || 'v1.0.1' }}"

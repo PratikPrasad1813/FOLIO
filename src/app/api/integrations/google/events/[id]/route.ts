@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { googleAccounts, googleCalendars, googleEvents } from "@/db/schema";
-import { getUser, sameOrigin } from "@/lib/auth";
+import { requireUser, sameOrigin } from "@/lib/auth";
 import { GoogleError, deleteEvent, updateEvent } from "@/lib/google";
 import { accessTokenFor, loadAccount } from "@/lib/calendar-sync";
 import { reconcileGoogleCalendarReminders } from "@/lib/reminder-processor";
@@ -20,7 +20,7 @@ async function resolve(userId: string, id: string) {
 
 /** Reads a single mirrored Google Calendar event for deep-linking from notifications. */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await getUser();
+  const user = await requireUser();
   const { id } = await context.params;
   if (!UUID_RE.test(id)) return Response.json({ error: "Invalid event ID." }, { status: 400 });
   const [row] = await db
@@ -65,7 +65,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 /** Updates a linked Google event from Folio. Requires event write access. */
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
-  const user = await getUser();
+  const user = await requireUser();
   const account = await loadAccount(user.id);
   if (!account) return Response.json({ error: "Google Calendar isn’t connected." }, { status: 400 });
   if (!account.writeEnabled) return Response.json({ error: "Folio doesn’t have permission to edit events.", upgradeRequired: true }, { status: 403 });
@@ -126,7 +126,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 /** Deletes a Google event (with confirmation handled in the UI) and clears the link. */
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
-  const user = await getUser();
+  const user = await requireUser();
   const account = await loadAccount(user.id);
   if (!account) return Response.json({ error: "Google Calendar isn’t connected." }, { status: 400 });
   if (!account.writeEnabled) return Response.json({ error: "Folio doesn’t have permission to delete events.", upgradeRequired: true }, { status: 403 });
