@@ -8,7 +8,6 @@
     "core:event:default",
     "deep-link:default",
     "opener:default",
-    "single-instance:default",
     "sql:default",
     "sql:allow-load",
     "sql:allow-select",
