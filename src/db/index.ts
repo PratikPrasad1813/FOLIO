@@ -1,14 +1,37 @@
-import { drizzle } from "drizzle-orm/node-postgres";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
-const databaseUrl = process.env.DATABASE_URL;
+/**
+ * LAZY-INIT CONTRACT (desktop-build post-mortem): this module must NEVER throw
+ * at import time. `next build` evaluates every route module during "Collecting
+ * page data" — including the statically exported desktop routes, whose module
+ * graph pulls in `@/lib/auth` → `@/db` even though the desktop runtime never
+ * queries PostgreSQL (it reads SQLite through @tauri-apps/plugin-sql). A
+ * module-scope throw when DATABASE_URL is unset therefore killed
+ * `build:desktop` on CI machines that have no .env.local:
+ *
+ *   Error: Failed to collect page data for /[view]
+ *   [cause]: Error: DATABASE_URL is not set. … at src/db/index.ts
+ *
+ * The pool and the Drizzle handle below are created on FIRST USE instead:
+ * importing `@/db` is always safe, and a genuinely missing DATABASE_URL
+ * surfaces as a descriptive DatabaseUnavailableError at query time — where
+ * currentUserSafe() and the API routes already know how to report it calmly.
+ */
+export type FolioDatabase = NodePgDatabase<Record<string, never>>;
 
-if (!databaseUrl) {
-  throw new Error(
-    "DATABASE_URL is not set. Copy .env.example to .env.local in the project root and set DATABASE_URL " +
-    "to your PostgreSQL connection string (Neon: Dashboard → Connect → copy the full string). " +
-    "Then restart the dev server. You can verify a connection string with `npm run db:check` — see DATABASE_SETUP.md.",
-  );
+/** Resolves DATABASE_URL on demand — the only place a missing value throws. */
+function requireDatabaseUrl(): string {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new DatabaseUnavailableError(
+      "DATABASE_URL is not set. Copy .env.example to .env.local in the project root and set DATABASE_URL " +
+      "to your PostgreSQL connection string (Neon: Dashboard → Connect → copy the full string). " +
+      "Then restart the dev server. You can verify a connection string with `npm run db:check` — see DATABASE_SETUP.md.",
+      "Set DATABASE_URL in .env.local (Neon: Dashboard → Connect → copy the full string), restart the dev server, and verify it with `npm run db:check` — see DATABASE_SETUP.md → Troubleshooting.",
+    );
+  }
+  return databaseUrl;
 }
 
 /**
@@ -107,17 +130,53 @@ export function describeDatabaseError(error: unknown): DatabaseUnavailableError 
 }
 
 const globalForDb = globalThis as typeof globalThis & {
-  __arenaNextJsPostgresqlPool?: Pool;
+  __folioPostgresqlPool?: Pool;
+  __folioDrizzleDb?: FolioDatabase;
 };
 
-export const pool =
-  globalForDb.__arenaNextJsPostgresqlPool ??
-  new Pool({
-    connectionString: withVerifiedTls(databaseUrl),
-  });
+let poolInstance: Pool | null = null;
+let dbInstance: FolioDatabase | null = null;
 
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.__arenaNextJsPostgresqlPool = pool;
+/** The shared pg Pool, created on first use — never at import time. */
+export function getPool(): Pool {
+  const cached = process.env.NODE_ENV !== "production" ? globalForDb.__folioPostgresqlPool : undefined;
+  if (cached) return cached;
+  if (!poolInstance) {
+    poolInstance = new Pool({ connectionString: withVerifiedTls(requireDatabaseUrl()) });
+    if (process.env.NODE_ENV !== "production") globalForDb.__folioPostgresqlPool = poolInstance;
+  }
+  return poolInstance;
 }
 
-export const db = drizzle(pool);
+/** The shared Drizzle handle, created on first use — never at import time. */
+export function getDb(): FolioDatabase {
+  const cached = process.env.NODE_ENV !== "production" ? globalForDb.__folioDrizzleDb : undefined;
+  if (cached) return cached;
+  if (!dbInstance) {
+    dbInstance = drizzle(getPool());
+    if (process.env.NODE_ENV !== "production") globalForDb.__folioDrizzleDb = dbInstance;
+  }
+  return dbInstance;
+}
+
+/**
+ * Import-safe stand-ins for the old eager exports. Every existing
+ * `import { db, pool } from "@/db"` keeps working unchanged: the real pool /
+ * Drizzle instance is created transparently on the first property access,
+ * and methods arrive pre-bound to it (drizzle's fluent builders included).
+ * The `then` guard keeps the proxies from ever looking like promises, so
+ * `await db` / `Promise.resolve(pool)` cannot trigger an initialization.
+ */
+function lazyInstance<T extends object>(init: () => T): T {
+  return new Proxy({} as T, {
+    get(_target: T, property: string | symbol): unknown {
+      if (property === "then") return undefined;
+      const instance = init() as unknown as Record<string | symbol, unknown>;
+      const value = instance[property];
+      return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(instance) : value;
+    },
+  });
+}
+
+export const pool: Pool = lazyInstance(getPool);
+export const db: FolioDatabase = lazyInstance(getDb);

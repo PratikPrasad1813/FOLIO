@@ -3,6 +3,7 @@
   "productName": "Folio",
   "version": "1.0.0",
   "identifier": "com.folio.workspace",
+  "capabilities": ["default"],
   "build": {
     "beforeBuildCommand": "npm run build:desktop",
     "beforeDevCommand": "npm run dev",

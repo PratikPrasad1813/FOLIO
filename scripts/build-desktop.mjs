@@ -68,6 +68,15 @@ const EXCLUDED_PATHS = [
 ];
 
 /**
+ * Root-level server files that must not exist at all during the static
+ * export. `src/proxy.ts` is Next.js 16 middleware (web-only): `output:
+ * "export"` disables middleware and Next prints a build warning whenever it
+ * detects one, so the desktop build stashes it for a clean, warning-free
+ * export. It is restored together with the routes above.
+ */
+const EXCLUDED_SRC_FILES = ["src/proxy.ts"];
+
+/**
  * Static-export-incompatible segment directives. Any route file that
  * declares one of these AFTER the sweep must be stashed (or its route
  * pruned) — the export step cannot honour it.
@@ -92,16 +101,18 @@ function stashExcluded() {
   rmSync(stashDir, { recursive: true, force: true });
   mkdirSync(stashDir, { recursive: true });
   const stashed = [];
-  for (const relative of EXCLUDED_PATHS) {
-    const from = join(appDir, relative);
+  const stashOne = (baseDir, relative) => {
+    const from = join(baseDir, relative);
     if (!existsSync(from)) {
       console.warn(`[build-desktop] skip (missing): ${relative}`);
-      continue;
+      return;
     }
     const to = join(stashDir, relative.replaceAll("/", "__"));
     renameSync(from, to);
     stashed.push({ from, to, relative });
-  }
+  };
+  for (const relative of EXCLUDED_PATHS) stashOne(appDir, relative);
+  for (const relative of EXCLUDED_SRC_FILES) stashOne(root, relative);
   return stashed;
 }
 
