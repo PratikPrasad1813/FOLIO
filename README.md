@@ -478,7 +478,7 @@ This command:
 
 ### Render Deployment
 1. Create a Render Web Service connected to the GitHub repository `https://github.com/PratikPrasad1813/Folio`.
-2. Set the build command to `npm install && npm run build` and the start command to `npm run start`.
+2. Set the build command to `npm install && npm run build` and the start command to `npm run start`. The web build uses `output: "standalone"`, so `npm run start` launches `node .next/standalone/server.js` (via `scripts/start-standalone.mjs`, which also copies `public/` and `.next/static/` and honours Render's `PORT`). Do **not** use `next start` — Next.js rejects it for standalone builds.
 3. Configure environment variables in the Render Dashboard:
    - `DATABASE_URL` — Neon PostgreSQL connection string.
    - `APP_URL` and `NEXT_PUBLIC_APP_URL` — `https://folio-management-studio.onrender.com`.

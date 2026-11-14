@@ -20,7 +20,10 @@ export const IS_DESKTOP_BUILD = process.env.NEXT_PUBLIC_DESKTOP_BUILD === "1";
 // No `export const dynamic` here — it must be a static string literal, and
 // the two builds need opposite behaviour:
 //   - WEB: the headers()/currentUser() calls below opt the whole route into
-//     dynamic rendering automatically (Next 15+ semantic).
+//     dynamic rendering automatically (Next 15+ semantic). This only holds
+//     while `[view]/page.tsx` does NOT export generateStaticParams on the web
+//     (even `[]` makes Next ISR-prerender it and these calls then throw
+//     DYNAMIC_SERVER_USAGE) — see the note in that file.
 //   - DESKTOP: the build-flag branch below touches no dynamic API, so the
 //     layout prerenders statically into out/.
 export const metadata: Metadata = { robots: { index: false, follow: false } };
