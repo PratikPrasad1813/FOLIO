@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { taskReminders } from "@/db/schema";
-import { requireUser, sameOrigin } from "@/lib/auth";
+import { syncUser, corsJson, desktopCorsPreflight, unauthorized } from "@/lib/sync-auth";
 import { REMINDER_TIMINGS, type ReminderTiming } from "@/lib/notifications";
 import {
   removeTaskReminder,
@@ -12,17 +12,21 @@ import {
 
 export const dynamic = "force-dynamic";
 
+export async function OPTIONS(request: Request): Promise<Response> {
+  return desktopCorsPreflight(request);
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function GET(request: Request) {
   try {
     await ensureSchema();
-    const user = await requireUser();
-    if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
+    const user = await syncUser(request);
+    if (!user) return unauthorized("Please sign in.", request);
 
     const taskId = new URL(request.url).searchParams.get("taskId");
     if (taskId !== null && !UUID_RE.test(taskId)) {
-      return Response.json({ error: "Invalid task ID." }, { status: 400 });
+      return corsJson(request, { error: "Invalid task ID." }, 400);
     }
 
     const rows = taskId
@@ -35,36 +39,31 @@ export async function GET(request: Request) {
           .from(taskReminders)
           .where(eq(taskReminders.userId, user.id));
 
-    return Response.json(
-      { reminders: rows.map(rowToTaskReminder) },
-      { headers: { "Cache-Control": "no-store" } },
-    );
+    return corsJson(request, { reminders: rows.map(rowToTaskReminder) });
   } catch (error) {
     console.error("Failed to load task reminders:", error);
-    return Response.json({ error: "Couldn’t load task reminders." }, { status: 500 });
+    return corsJson(request, { error: "Couldn’t load task reminders." }, 500);
   }
 }
 
 async function saveReminder(request: Request) {
-  if (!sameOrigin(request)) {
-    return Response.json({ error: "Request not allowed." }, { status: 403 });
-  }
   try {
-    const user = await requireUser();
-    if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
+    await ensureSchema();
+    const user = await syncUser(request);
+    if (!user) return unauthorized("Please sign in.", request);
 
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-    if (!body) return Response.json({ error: "Please send valid JSON." }, { status: 400 });
+    if (!body) return corsJson(request, { error: "Please send valid JSON." }, 400);
 
     const taskId = typeof body.taskId === "string" ? body.taskId : "";
     if (!UUID_RE.test(taskId)) {
-      return Response.json({ error: "Select a valid task." }, { status: 400 });
+      return corsJson(request, { error: "Select a valid task." }, 400);
     }
 
     const enabled = typeof body.enabled === "boolean" ? body.enabled : true;
     const timing = typeof body.timing === "string" ? body.timing : "1h_before";
     if (!REMINDER_TIMINGS.includes(timing as ReminderTiming)) {
-      return Response.json({ error: "Select a valid reminder timing." }, { status: 400 });
+      return corsJson(request, { error: "Select a valid reminder timing." }, 400);
     }
 
     const dueTime = typeof body.dueTime === "string" ? body.dueTime : null;
@@ -77,11 +76,11 @@ async function saveReminder(request: Request) {
       dueTime,
       customLocal,
     });
-    return Response.json({ reminder });
+    return corsJson(request, { reminder });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Couldn’t save task reminder.";
     const status = /not in your workspace/i.test(message) ? 404 : 400;
-    return Response.json({ error: message }, { status });
+    return corsJson(request, { error: message }, status);
   }
 }
 
@@ -94,12 +93,10 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  if (!sameOrigin(request)) {
-    return Response.json({ error: "Request not allowed." }, { status: 403 });
-  }
   try {
-    const user = await requireUser();
-    if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
+    await ensureSchema();
+    const user = await syncUser(request);
+    if (!user) return unauthorized("Please sign in.", request);
 
     let taskId = new URL(request.url).searchParams.get("taskId");
     if (!taskId) {
@@ -107,13 +104,13 @@ export async function DELETE(request: Request) {
       if (typeof body?.taskId === "string") taskId = body.taskId;
     }
     if (!taskId || !UUID_RE.test(taskId)) {
-      return Response.json({ error: "Provide a valid task ID." }, { status: 400 });
+      return corsJson(request, { error: "Provide a valid task ID." }, 400);
     }
 
     await removeTaskReminder(user.id, taskId);
-    return Response.json({ deleted: true });
+    return corsJson(request, { deleted: true });
   } catch (error) {
     console.error("Failed to remove task reminder:", error);
-    return Response.json({ error: "Couldn’t remove task reminder." }, { status: 500 });
+    return corsJson(request, { error: "Couldn’t remove task reminder." }, 500);
   }
 }

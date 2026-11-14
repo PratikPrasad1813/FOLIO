@@ -153,8 +153,7 @@ export function PublicHeader({ home = false }: { home?: boolean }) {
   );
 }
 
-/** Optimized, genuine captures; a missing capture never becomes a broken image. */
-export function ProductImage({
+function ProductImageInner({
   name,
   alt,
   eager = false,
@@ -170,7 +169,6 @@ export function ProductImage({
 }) {
   const [source, setSource] = useState(name);
   const [missing, setMissing] = useState(false);
-  useEffect(() => { setSource(name); setMissing(false); }, [name]);
   return (
     <div className={`lp-product-image ${className}`}>
       {missing ? (
@@ -205,6 +203,18 @@ export function ProductImage({
       )}
     </div>
   );
+}
+
+/** Optimized, genuine captures; a missing capture never becomes a broken image. */
+export function ProductImage(props: {
+  name: string;
+  alt: string;
+  eager?: boolean;
+  className?: string;
+  /** Shown if the themed capture is missing — e.g. the light shot for a dark screen. */
+  fallbackName?: string;
+}) {
+  return <ProductImageInner key={props.name} {...props} />;
 }
 
 export function PublicFooter() {
@@ -732,35 +742,43 @@ function HeroMock() {
    workspace, inside the same browser frame. Falls back to the hand-drawn
    mock when video is unavailable or motion is reduced. The loop matches the
    visitor's landing theme — warm paper by day, Linear dark by night. */
-function HeroVideo({ theme }: { theme: LandingTheme }) {
-  const [mode, setMode] = useState<"checking" | "video" | "mock">("checking");
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+function subscribeReducedMotion(onChange: () => void): () => void {
+  const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
 
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setMode("mock");
-      return;
-    }
-    setMode("video");
-  }, []);
+function getReducedMotionSnapshot(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function HeroVideo({ theme }: { theme: LandingTheme }) {
+  const prefersReducedMotion = useSyncExternalStore(
+    subscribeReducedMotion,
+    getReducedMotionSnapshot,
+    () => true,
+  );
+  const [videoFailed, setVideoFailed] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const showVideo = !prefersReducedMotion && !videoFailed;
 
   // Be polite: pause the loop when the hero scrolls out of view.
   useEffect(() => {
-    if (mode !== "video") return;
+    if (!showVideo) return;
     const video = videoRef.current;
     if (!video) return;
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) {
-        video.play().catch(() => setMode("mock"));
+        video.play().catch(() => setVideoFailed(true));
       } else {
         video.pause();
       }
     }, { threshold: 0.25 });
     observer.observe(video);
     return () => observer.disconnect();
-  }, [mode]);
+  }, [showVideo]);
 
-  if (mode !== "video") return <HeroMock />;
+  if (!showVideo) return <HeroMock />;
   return (
     <div className="fl-mock-wrap">
       <svg className="fl-mark is-squiggle" width="54" height="18" viewBox="0 0 54 18" fill="none" aria-hidden="true">
@@ -795,7 +813,7 @@ function HeroVideo({ theme }: { theme: LandingTheme }) {
           playsInline
           poster={`/screenshots/hero-tour-${theme}-poster.jpg`}
           aria-label="Product tour: Aarav reviews his week, plans the Pongal shoot and asks Folio AI what is due — recorded in the real app"
-          onError={() => setMode("mock")}
+          onError={() => setVideoFailed(true)}
         >
           <source src={`/screenshots/hero-tour-${theme}.mp4`} type="video/mp4" />
           <source src={`/screenshots/hero-tour-${theme}.webm`} type="video/webm" />

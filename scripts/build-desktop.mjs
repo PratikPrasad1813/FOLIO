@@ -166,11 +166,18 @@ function restoreExcluded(stashed) {
 function runBuild() {
   // `shell: true` keeps this Windows-safe (no spawnSync EINVAL on the npm
   // .cmd shim) and POSIX-safe alike; the env vars drive next.config.ts.
+  // Enforce NODE_ENV=production so shells exporting NODE_ENV=development never
+  // trip Next.js's static-export _global-error dev-runtime prerender bug.
   execSync("npm run build", {
     cwd: root,
     stdio: "inherit",
     shell: true,
-    env: { ...process.env, NEXT_PUBLIC_DESKTOP_BUILD: "1", NEXT_TELEMETRY_DISABLED: "1" },
+    env: {
+      ...process.env,
+      NODE_ENV: "production",
+      NEXT_PUBLIC_DESKTOP_BUILD: "1",
+      NEXT_TELEMETRY_DISABLED: "1",
+    },
   });
 }
 

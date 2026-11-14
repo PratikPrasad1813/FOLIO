@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { activities, ideas, milestones, notificationPreferences, projects, subtasks, tasks } from "@/db/schema";
+import { activities, googleEvents, ideas, milestones, notificationPreferences, projects, subtasks, taskReminders, tasks } from "@/db/schema";
 import { requireUser, publicUser, sameOrigin } from "@/lib/auth";
 import { formatDate, statusLabel, TASK_PRIORITIES, TASK_PRIORITY_LABELS, TASK_STATUSES, TASK_STATUS_LABELS, type TaskPriority, type TaskStatus } from "@/lib/types";
 import {
@@ -70,7 +70,7 @@ function assertDateOrder(start: string | null | undefined, due: string | null | 
 }
 async function ownedProject(userId: string, id: unknown) {
   if (typeof id !== "string" || !uuid.test(id)) throw new InputError("Select a valid project.");
-  const [p] = await db.select({ id: projects.id, name: projects.name }).from(projects).where(and(eq(projects.id, id), eq(projects.userId, userId))).limit(1);
+  const [p] = await db.select({ id: projects.id, name: projects.name }).from(projects).where(and(eq(projects.id, id), eq(projects.userId, userId), isNull(projects.deletedAt))).limit(1);
   if (!p) throw new InputError("That project is not in your workspace.");
   return p;
 }
@@ -124,7 +124,7 @@ async function taskValues(data: Input, partial: boolean, userId: string, existin
     if (!data.milestoneId) v.milestoneId = null;
     else {
       if (typeof data.milestoneId !== "string" || !uuid.test(data.milestoneId)) throw new InputError("Select a valid milestone.");
-      const [m] = await db.select({ id: milestones.id, projectId: milestones.projectId }).from(milestones).where(and(eq(milestones.id, data.milestoneId), eq(milestones.userId, userId))).limit(1);
+      const [m] = await db.select({ id: milestones.id, projectId: milestones.projectId }).from(milestones).where(and(eq(milestones.id, data.milestoneId), eq(milestones.userId, userId), isNull(milestones.deletedAt))).limit(1);
       if (!m) throw new InputError("That milestone is not in your workspace.");
       if (m.projectId !== projectId) throw new InputError("Choose a milestone from the same project.");
       v.milestoneId = m.id;
@@ -178,7 +178,7 @@ function describeProjectChange(before: typeof projects.$inferSelect, after: type
 }
 
 async function handleProjects(method: Method, userId: string, id: string, data: Input): Promise<Outcome> {
-  const condition = and(eq(projects.id, id), eq(projects.userId, userId));
+  const condition = and(eq(projects.id, id), eq(projects.userId, userId), isNull(projects.deletedAt));
   if (method === "POST") {
     const values = projectValues(data, false);
     assertDateOrder(values.startDate, values.dueDate);
@@ -186,7 +186,14 @@ async function handleProjects(method: Method, userId: string, id: string, data: 
     return { item, log: item ? { text: `Created project ${quote(item.name)}`, type: "project", projectId: item.id } : null, touch: [] };
   }
   if (method === "DELETE") {
-    const [item] = await db.delete(projects).where(condition).returning();
+    const now = new Date();
+    const item = await db.transaction(async (tx) => {
+      const [deleted] = await tx.update(projects).set({ deletedAt: now, updatedAt: now }).where(condition).returning();
+      if (!deleted) return undefined;
+      await tx.update(milestones).set({ deletedAt: now, updatedAt: now }).where(and(eq(milestones.projectId, deleted.id), eq(milestones.userId, userId), isNull(milestones.deletedAt)));
+      await tx.update(tasks).set({ projectId: null, milestoneId: null, updatedAt: now }).where(and(eq(tasks.projectId, deleted.id), eq(tasks.userId, userId), isNull(tasks.deletedAt)));
+      return deleted;
+    });
     if (item) await emitProjectMutationNotifications(userId, item, null).catch(() => {});
     return { item, log: item ? { text: `Deleted project ${quote(item.name)}`, type: "project", projectId: null } : null, touch: [] };
   }
@@ -228,7 +235,7 @@ function describeTaskChange(before: TaskRow, after: TaskRow, changed: string[]):
 const same = (a: unknown, b: unknown) => (a instanceof Date && b instanceof Date ? a.getTime() === b.getTime() : Array.isArray(a) && Array.isArray(b) ? a.length === b.length && a.every((value, index) => value === b[index]) : (a ?? null) === (b ?? null));
 
 async function handleTasks(method: Method, userId: string, id: string, data: Input): Promise<Outcome> {
-  const condition = and(eq(tasks.id, id), eq(tasks.userId, userId));
+  const condition = and(eq(tasks.id, id), eq(tasks.userId, userId), isNull(tasks.deletedAt));
   if (method === "POST") {
     const values = await taskValues(data, false, userId);
     const titles = subtaskTitles(data.subtasks);
@@ -271,9 +278,17 @@ async function handleTasks(method: Method, userId: string, id: string, data: Inp
     return { item, log: { text: project ? `Added ${quote(item.title)} to ${quote(project.name)}${extra}` : `Added ${quote(item.title)}${extra}`, type: "task", projectId: item.projectId, taskId: item.id }, touch: item.projectId ? [item.projectId] : [], subtasks: created.steps };
   }
   if (method === "DELETE") {
-    const [item] = await db.delete(tasks).where(condition).returning();
+    const now = new Date();
+    const item = await db.transaction(async (tx) => {
+      const [deleted] = await tx.update(tasks).set({ deletedAt: now, updatedAt: now }).where(condition).returning();
+      if (!deleted) return undefined;
+      await tx.update(subtasks).set({ deletedAt: now, updatedAt: now }).where(and(eq(subtasks.taskId, deleted.id), eq(subtasks.userId, userId), isNull(subtasks.deletedAt)));
+      await tx.delete(taskReminders).where(and(eq(taskReminders.taskId, deleted.id), eq(taskReminders.userId, userId)));
+      await tx.update(googleEvents).set({ taskId: null, updatedAt: now }).where(and(eq(googleEvents.taskId, deleted.id), eq(googleEvents.userId, userId)));
+      return deleted;
+    });
     if (item) await reconcileTaskLifecycle(userId, item, null).catch(() => {});
-    // taskId stays null: the row is gone, the history entry survives in the feed.
+    // taskId stays null: the row is tombstoned, the history entry survives in the feed.
     return { item, log: item ? { text: `Deleted task ${quote(item.title)}`, type: "task", projectId: item.projectId, taskId: null } : null, touch: item?.projectId ? [item.projectId] : [] };
   }
   const [before] = await db.select().from(tasks).where(condition).limit(1);
@@ -295,17 +310,17 @@ async function handleTasks(method: Method, userId: string, id: string, data: Inp
 
 async function ownedTask(userId: string, id: unknown) {
   if (typeof id !== "string" || !uuid.test(id)) throw new InputError("Select a valid task.");
-  const [t] = await db.select({ id: tasks.id, title: tasks.title, projectId: tasks.projectId }).from(tasks).where(and(eq(tasks.id, id), eq(tasks.userId, userId))).limit(1);
+  const [t] = await db.select({ id: tasks.id, title: tasks.title, projectId: tasks.projectId }).from(tasks).where(and(eq(tasks.id, id), eq(tasks.userId, userId), isNull(tasks.deletedAt))).limit(1);
   if (!t) throw new InputError("That task is not in your workspace.");
   return t;
 }
 
 async function handleSubtasks(method: Method, userId: string, id: string, data: Input): Promise<Outcome> {
-  const condition = and(eq(subtasks.id, id), eq(subtasks.userId, userId));
+  const condition = and(eq(subtasks.id, id), eq(subtasks.userId, userId), isNull(subtasks.deletedAt));
   if (method === "POST") {
     const parent = await ownedTask(userId, data.taskId);
     const title = text(data.title, "subtask", 200, true);
-    const [{ next }] = await db.select({ next: sql<number>`coalesce(max(${subtasks.position}), -1) + 1` }).from(subtasks).where(eq(subtasks.taskId, parent.id));
+    const [{ next }] = await db.select({ next: sql<number>`coalesce(max(${subtasks.position}), -1) + 1` }).from(subtasks).where(and(eq(subtasks.taskId, parent.id), isNull(subtasks.deletedAt)));
     const [item] = await db.insert(subtasks).values({ userId, taskId: parent.id, title, position: Number(next) || 0 }).returning();
     return { item, log: item ? { text: `Added the subtask ${quote(item.title)} to ${quote(parent.title)}`, type: "subtask", projectId: parent.projectId, taskId: parent.id } : null, touch: parent.projectId ? [parent.projectId] : [], touchTasks: [parent.id] };
   }
@@ -314,7 +329,8 @@ async function handleSubtasks(method: Method, userId: string, id: string, data: 
   const parent = await ownedTask(userId, before.taskId);
   const scope = { touch: parent.projectId ? [parent.projectId] : [], touchTasks: [parent.id] };
   if (method === "DELETE") {
-    const [item] = await db.delete(subtasks).where(condition).returning();
+    const now = new Date();
+    const [item] = await db.update(subtasks).set({ deletedAt: now, updatedAt: now }).where(condition).returning();
     return { item, log: item ? { text: `Removed the subtask ${quote(item.title)} from ${quote(parent.title)}`, type: "subtask", projectId: parent.projectId, taskId: parent.id } : null, ...scope };
   }
   const values: Partial<typeof subtasks.$inferInsert> = {};
@@ -325,6 +341,7 @@ async function handleSubtasks(method: Method, userId: string, id: string, data: 
     values.position = data.position;
   }
   if (!Object.keys(values).length) throw new InputError("No changes to save.");
+  values.updatedAt = new Date();
   const [item] = await db.update(subtasks).set(values).where(condition).returning();
   const toggled = item && values.completed !== undefined && before.completed !== item.completed;
   return { item, log: toggled ? { text: item.completed ? `Checked off ${quote(item.title)} in ${quote(parent.title)}` : `Unchecked ${quote(item.title)} in ${quote(parent.title)}`, type: "subtask", projectId: parent.projectId, taskId: parent.id } : null, ...scope };
@@ -341,10 +358,10 @@ async function bulkTasks(method: Method, userId: string, rawIds: unknown[], data
   const unknownKeys = Object.keys(data).filter((key) => !BULK_FIELDS.includes(key));
   if (method === "PATCH" && unknownKeys.length) throw new InputError(`These fields can’t be changed in bulk: ${unknownKeys.join(", ")}.`);
   return db.transaction(async (tx) => {
-    const owned = await tx.select({ id: tasks.id, projectId: tasks.projectId }).from(tasks).where(and(eq(tasks.userId, userId), inArray(tasks.id, ids)));
+    const owned = await tx.select({ id: tasks.id, projectId: tasks.projectId }).from(tasks).where(and(eq(tasks.userId, userId), inArray(tasks.id, ids), isNull(tasks.deletedAt)));
     if (!owned.length) throw new NotFoundError();
     const ownedIds = owned.map((row) => row.id);
-    const where = and(eq(tasks.userId, userId), inArray(tasks.id, ownedIds));
+    const where = and(eq(tasks.userId, userId), inArray(tasks.id, ownedIds), isNull(tasks.deletedAt));
     const n = owned.length;
     const plural = `${n} task${n === 1 ? "" : "s"}`;
     let log: Log;
@@ -352,7 +369,13 @@ async function bulkTasks(method: Method, userId: string, rawIds: unknown[], data
     let deleted: string[] = [];
     const touch = new Set(owned.map((row) => row.projectId).filter((value): value is string => Boolean(value)));
     if (method === "DELETE") {
-      deleted = (await tx.delete(tasks).where(where).returning({ id: tasks.id })).map((row) => row.id);
+      const now = new Date();
+      deleted = (await tx.update(tasks).set({ deletedAt: now, updatedAt: now }).where(where).returning({ id: tasks.id })).map((row) => row.id);
+      if (deleted.length) {
+        await tx.update(subtasks).set({ deletedAt: now, updatedAt: now }).where(and(eq(subtasks.userId, userId), inArray(subtasks.taskId, deleted), isNull(subtasks.deletedAt)));
+        await tx.delete(taskReminders).where(and(eq(taskReminders.userId, userId), inArray(taskReminders.taskId, deleted)));
+        await tx.update(googleEvents).set({ taskId: null, updatedAt: now }).where(and(eq(googleEvents.userId, userId), inArray(googleEvents.taskId, deleted)));
+      }
       log = { text: `Deleted ${plural}`, type: "task", projectId: null, taskId: null };
     } else {
       const set: PgUpdateSetSource<typeof tasks> = {};
@@ -377,7 +400,7 @@ async function bulkTasks(method: Method, userId: string, rawIds: unknown[], data
       if ("projectId" in data) {
         if (data.projectId) {
           if (typeof data.projectId !== "string" || !uuid.test(data.projectId)) throw new InputError("Select a valid project.");
-          [target] = await tx.select({ id: projects.id, name: projects.name }).from(projects).where(and(eq(projects.id, data.projectId), eq(projects.userId, userId))).limit(1);
+          [target] = await tx.select({ id: projects.id, name: projects.name }).from(projects).where(and(eq(projects.id, data.projectId), eq(projects.userId, userId), isNull(projects.deletedAt))).limit(1);
           if (!target) throw new InputError("That project is not in your workspace.");
         }
         const targetId = target?.id ?? null;
@@ -393,26 +416,33 @@ async function bulkTasks(method: Method, userId: string, rawIds: unknown[], data
       log = { text: `${parts.join(" · ")} — ${plural}`, type, projectId: target?.id ?? (touch.size === 1 ? [...touch][0] : null), taskId: n === 1 ? ownedIds[0] : null };
     }
     const [activity] = await tx.insert(activities).values({ userId, ...log }).returning();
-    const touched = touch.size ? await tx.update(projects).set({ updatedAt: new Date() }).where(and(eq(projects.userId, userId), inArray(projects.id, [...touch]))).returning() : [];
+    const touched = touch.size ? await tx.update(projects).set({ updatedAt: new Date() }).where(and(eq(projects.userId, userId), inArray(projects.id, [...touch]), isNull(projects.deletedAt))).returning() : [];
     return { items, deleted, missing: ids.length - n, activity, projects: touched };
   });
 }
 
 async function handleMilestones(method: Method, userId: string, id: string, data: Input): Promise<Outcome> {
-  const condition = and(eq(milestones.id, id), eq(milestones.userId, userId));
+  const condition = and(eq(milestones.id, id), eq(milestones.userId, userId), isNull(milestones.deletedAt));
   if (method === "POST") {
     const values = await milestoneValues(data, false, userId);
     const [item] = await db.insert(milestones).values({ ...values, title: values.title!, projectId: values.projectId!, userId }).returning();
     return { item, log: item ? { text: `Added milestone ${quote(item.title)}`, type: "milestone", projectId: item.projectId } : null, touch: item ? [item.projectId] : [] };
   }
   if (method === "DELETE") {
-    const [item] = await db.delete(milestones).where(condition).returning();
+    const now = new Date();
+    const item = await db.transaction(async (tx) => {
+      const [deleted] = await tx.update(milestones).set({ deletedAt: now, updatedAt: now }).where(condition).returning();
+      if (!deleted) return undefined;
+      await tx.update(tasks).set({ milestoneId: null, updatedAt: now }).where(and(eq(tasks.milestoneId, deleted.id), eq(tasks.userId, userId), isNull(tasks.deletedAt)));
+      return deleted;
+    });
     return { item, log: item ? { text: `Removed milestone ${quote(item.title)}`, type: "milestone", projectId: item.projectId } : null, touch: item ? [item.projectId] : [] };
   }
   const [before] = await db.select().from(milestones).where(condition).limit(1);
   if (!before) throw new NotFoundError();
   const values = await milestoneValues(data, true, userId);
   if (!Object.keys(values).length) throw new InputError("No changes to save.");
+  values.updatedAt = new Date();
   const [item] = await db.update(milestones).set(values).where(condition).returning();
   if (!item) return { item, log: null, touch: [] };
   const toggled = typeof data.completed === "boolean" && before.completed !== item.completed;
@@ -428,18 +458,20 @@ async function handleMilestones(method: Method, userId: string, id: string, data
 }
 
 async function handleIdeas(method: Method, userId: string, id: string, data: Input): Promise<Outcome> {
-  const condition = and(eq(ideas.id, id), eq(ideas.userId, userId));
+  const condition = and(eq(ideas.id, id), eq(ideas.userId, userId), isNull(ideas.deletedAt));
   if (method === "POST") {
     const values = ideaValues(data, false);
     const [item] = await db.insert(ideas).values({ ...values, title: values.title!, userId }).returning();
     return { item, log: item ? { text: `Captured the idea ${quote(item.title)}`, type: "idea", projectId: null } : null, touch: [] };
   }
   if (method === "DELETE") {
-    const [item] = await db.delete(ideas).where(condition).returning();
+    const now = new Date();
+    const [item] = await db.update(ideas).set({ deletedAt: now, updatedAt: now }).where(condition).returning();
     return { item, log: item ? { text: `Deleted the idea ${quote(item.title)}`, type: "idea", projectId: null } : null, touch: [] };
   }
   const values = ideaValues(data, true);
   if (!Object.keys(values).length) throw new InputError("No changes to save.");
+  values.updatedAt = new Date();
   const [item] = await db.update(ideas).set(values).where(condition).returning();
   return { item, log: item ? { text: `Updated the idea ${quote(item.title)}`, type: "idea", projectId: null } : null, touch: [] };
 }
@@ -462,11 +494,11 @@ export async function GET(request: Request) {
       return Response.json({ activities: list }, { headers: { "Cache-Control": "no-store" } });
     }
     const [projectList, taskList, subtaskList, ideaList, milestoneList, activityList, [regional]] = await Promise.all([
-      db.select().from(projects).where(eq(projects.userId, user.id)).orderBy(projects.createdAt),
-      db.select().from(tasks).where(eq(tasks.userId, user.id)).orderBy(tasks.createdAt),
-      db.select().from(subtasks).where(eq(subtasks.userId, user.id)).orderBy(asc(subtasks.position), asc(subtasks.createdAt)),
-      db.select().from(ideas).where(eq(ideas.userId, user.id)).orderBy(desc(ideas.createdAt)),
-      db.select().from(milestones).where(eq(milestones.userId, user.id)).orderBy(milestones.dueDate, milestones.createdAt),
+      db.select().from(projects).where(and(eq(projects.userId, user.id), isNull(projects.deletedAt))).orderBy(projects.createdAt),
+      db.select().from(tasks).where(and(eq(tasks.userId, user.id), isNull(tasks.deletedAt))).orderBy(tasks.createdAt),
+      db.select().from(subtasks).where(and(eq(subtasks.userId, user.id), isNull(subtasks.deletedAt))).orderBy(asc(subtasks.position), asc(subtasks.createdAt)),
+      db.select().from(ideas).where(and(eq(ideas.userId, user.id), isNull(ideas.deletedAt))).orderBy(desc(ideas.createdAt)),
+      db.select().from(milestones).where(and(eq(milestones.userId, user.id), isNull(milestones.deletedAt))).orderBy(milestones.dueDate, milestones.createdAt),
       db.select().from(activities).where(eq(activities.userId, user.id)).orderBy(desc(activities.createdAt)).limit(40),
       db.select({ timezone: notificationPreferences.timezone }).from(notificationPreferences).where(eq(notificationPreferences.userId, user.id)).limit(1),
     ]);
@@ -509,10 +541,11 @@ async function mutate(request: Request, method: Method) {
           : "";
       if (!ideaId) throw new InputError("Invalid idea ID.");
       const result = await db.transaction(async tx => {
-        const [idea] = await tx.select().from(ideas).where(and(eq(ideas.id, ideaId), eq(ideas.userId, user.id))).for("update");
+        const now = new Date();
+        const [idea] = await tx.select().from(ideas).where(and(eq(ideas.id, ideaId), eq(ideas.userId, user.id), isNull(ideas.deletedAt))).for("update");
         if (!idea) throw new InputError("That idea no longer exists.");
         const [item] = await tx.insert(projects).values({ userId: user.id, name: idea.title, description: idea.description, category: idea.category, color: idea.color, status: "Planning" }).returning();
-        await tx.delete(ideas).where(eq(ideas.id, ideaId));
+        await tx.update(ideas).set({ deletedAt: now, updatedAt: now }).where(and(eq(ideas.id, ideaId), eq(ideas.userId, user.id)));
         const [activity] = await tx.insert(activities).values({ userId: user.id, projectId: item.id, text: `Turned ${quote(idea.title)} into a project`, type: "project" }).returning();
         return { item, activity };
       });
@@ -528,10 +561,10 @@ async function mutate(request: Request, method: Method) {
     // Work inside a project counts as an update to that project ("last updated").
     const touchIds = [...new Set(outcome.touch)];
     const touched = touchIds.length
-      ? await db.update(projects).set({ updatedAt: new Date() }).where(and(eq(projects.userId, user.id), inArray(projects.id, touchIds))).returning()
+      ? await db.update(projects).set({ updatedAt: new Date() }).where(and(eq(projects.userId, user.id), inArray(projects.id, touchIds), isNull(projects.deletedAt))).returning()
       : [];
     const touchedTasks = outcome.touchTasks?.length
-      ? await db.update(tasks).set({ updatedAt: new Date() }).where(and(eq(tasks.userId, user.id), inArray(tasks.id, [...new Set(outcome.touchTasks)]))).returning({ id: tasks.id, updatedAt: tasks.updatedAt })
+      ? await db.update(tasks).set({ updatedAt: new Date() }).where(and(eq(tasks.userId, user.id), inArray(tasks.id, [...new Set(outcome.touchTasks)]), isNull(tasks.deletedAt))).returning({ id: tasks.id, updatedAt: tasks.updatedAt })
       : [];
     return Response.json({ item: outcome.item, activity, projects: touched, tasks: touchedTasks, subtasks: outcome.subtasks ?? [] }, { status: method === "POST" ? 201 : 200 });
   } catch (error) {

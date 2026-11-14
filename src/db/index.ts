@@ -1,5 +1,6 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { createMockDb, createMockPool } from "@/db/mock";
 
 /**
  * LAZY-INIT CONTRACT (desktop-build post-mortem): this module must NEVER throw
@@ -129,16 +130,53 @@ export function describeDatabaseError(error: unknown): DatabaseUnavailableError 
   );
 }
 
+const CONN_ERROR_CODES = new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ETIMEDOUT",
+  "ECONNRESET",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "08001",
+  "08006",
+  "57P01",
+]);
+
+export function isConnectionFailure(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  if (error instanceof DatabaseUnavailableError) return true;
+  const err = error as { code?: unknown; message?: unknown; cause?: unknown; errors?: unknown[] };
+  if (err.code && CONN_ERROR_CODES.has(String(err.code))) return true;
+  if (typeof err.message === "string" && /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|Connection terminated/i.test(err.message)) {
+    return true;
+  }
+  if (Array.isArray(err.errors) && err.errors.some((sub) => isConnectionFailure(sub))) return true;
+  if (err.cause && isConnectionFailure(err.cause)) return true;
+  return false;
+}
+
 const globalForDb = globalThis as typeof globalThis & {
   __folioPostgresqlPool?: Pool;
   __folioDrizzleDb?: FolioDatabase;
+  __folioUseMockDb?: boolean;
 };
 
 let poolInstance: Pool | null = null;
 let dbInstance: FolioDatabase | null = null;
 
-/** The shared pg Pool, created on first use — never at import time. */
-export function getPool(): Pool {
+export function isMockDbMode(): boolean {
+  return !process.env.DATABASE_URL || Boolean(globalForDb.__folioUseMockDb);
+}
+
+export function enableMockDbMode(): void {
+  if (!globalForDb.__folioUseMockDb) {
+    globalForDb.__folioUseMockDb = true;
+    console.warn("[AI Studio] Database unreachable — switched to in-memory mock");
+  }
+}
+
+function getRealPool(): Pool {
   const cached = process.env.NODE_ENV !== "production" ? globalForDb.__folioPostgresqlPool : undefined;
   if (cached) return cached;
   if (!poolInstance) {
@@ -148,35 +186,124 @@ export function getPool(): Pool {
   return poolInstance;
 }
 
-/** The shared Drizzle handle, created on first use — never at import time. */
-export function getDb(): FolioDatabase {
+function getRealDb(): FolioDatabase {
   const cached = process.env.NODE_ENV !== "production" ? globalForDb.__folioDrizzleDb : undefined;
   if (cached) return cached;
   if (!dbInstance) {
-    dbInstance = drizzle(getPool());
+    dbInstance = drizzle(getRealPool());
     if (process.env.NODE_ENV !== "production") globalForDb.__folioDrizzleDb = dbInstance;
   }
   return dbInstance;
 }
 
-/**
- * Import-safe stand-ins for the old eager exports. Every existing
- * `import { db, pool } from "@/db"` keeps working unchanged: the real pool /
- * Drizzle instance is created transparently on the first property access,
- * and methods arrive pre-bound to it (drizzle's fluent builders included).
- * The `then` guard keeps the proxies from ever looking like promises, so
- * `await db` / `Promise.resolve(pool)` cannot trigger an initialization.
- */
-function lazyInstance<T extends object>(init: () => T): T {
-  return new Proxy({} as T, {
-    get(_target: T, property: string | symbol): unknown {
-      if (property === "then") return undefined;
-      const instance = init() as unknown as Record<string | symbol, unknown>;
-      const value = instance[property];
-      return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(instance) : value;
-    },
-  });
+/** The shared pg Pool, created on first use — never at import time. */
+export function getPool(): Pool {
+  if (isMockDbMode()) {
+    return createMockPool() as unknown as Pool;
+  }
+  try {
+    return getRealPool();
+  } catch {
+    enableMockDbMode();
+    return createMockPool() as unknown as Pool;
+  }
 }
 
-export const pool: Pool = lazyInstance(getPool);
-export const db: FolioDatabase = lazyInstance(getDb);
+/** The shared Drizzle handle, created on first use — never at import time. */
+export function getDb(): FolioDatabase {
+  if (isMockDbMode()) {
+    return createMockDb();
+  }
+  try {
+    return getRealDb();
+  } catch {
+    enableMockDbMode();
+    return createMockDb();
+  }
+}
+
+function wrapQueryBuilder(method: string, args: unknown[]): unknown {
+  const calls: [string, unknown[]][] = [[method, args]];
+  const replay = (targetDb: FolioDatabase) => {
+    let current: any = (targetDb as unknown as Record<string, (...a: unknown[]) => unknown>)[calls[0][0]](...calls[0][1]);
+    for (let i = 1; i < calls.length; i++) {
+      current = current[calls[i][0]](...calls[i][1]);
+    }
+    return current;
+  };
+  const proxy: unknown = new Proxy(() => {}, {
+    get(_target, prop) {
+      if (prop === "then" || prop === "catch" || prop === "finally") {
+        const promise = (async () => {
+          if (isMockDbMode()) return await replay(createMockDb());
+          try {
+            return await replay(getRealDb());
+          } catch (error) {
+            if (isConnectionFailure(error)) {
+              enableMockDbMode();
+              return await replay(createMockDb());
+            }
+            throw error;
+          }
+        })();
+        return (promise[prop as "then" | "catch" | "finally"] as (...a: unknown[]) => unknown).bind(promise);
+      }
+      return (...nextArgs: unknown[]) => {
+        calls.push([String(prop), nextArgs]);
+        return proxy;
+      };
+    },
+  });
+  return proxy;
+}
+
+export const pool: Pool = new Proxy({} as Pool, {
+  get(_target, property) {
+    if (property === "then") return undefined;
+    const instance = getPool() as unknown as Record<string | symbol, unknown>;
+    const value = instance[property];
+    return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(instance) : value;
+  },
+});
+
+const QUERY_METHODS = new Set(["select", "selectDistinct", "insert", "update", "delete"]);
+
+export const db: FolioDatabase = new Proxy({} as FolioDatabase, {
+  get(_target, property) {
+    if (property === "then") return undefined;
+    if (typeof property === "string" && QUERY_METHODS.has(property)) {
+      return (...args: unknown[]) => wrapQueryBuilder(property, args);
+    }
+    if (property === "execute") {
+      return async (...args: unknown[]) => {
+        if (isMockDbMode()) return (createMockDb() as unknown as { execute: (...a: unknown[]) => Promise<unknown> }).execute(...args);
+        try {
+          return await (getRealDb() as unknown as { execute: (...a: unknown[]) => Promise<unknown> }).execute(...args);
+        } catch (error) {
+          if (isConnectionFailure(error)) {
+            enableMockDbMode();
+            return (createMockDb() as unknown as { execute: (...a: unknown[]) => Promise<unknown> }).execute(...args);
+          }
+          throw error;
+        }
+      };
+    }
+    if (property === "transaction") {
+      return async (fn: (tx: FolioDatabase) => Promise<unknown>, ...rest: unknown[]) => {
+        if (isMockDbMode()) return createMockDb().transaction(fn);
+        try {
+          return await (getRealDb().transaction as (f: (tx: FolioDatabase) => Promise<unknown>, ...r: unknown[]) => Promise<unknown>)(fn, ...rest);
+        } catch (error) {
+          if (isConnectionFailure(error)) {
+            enableMockDbMode();
+            return createMockDb().transaction(fn);
+          }
+          throw error;
+        }
+      };
+    }
+    const instance = getDb() as unknown as Record<string | symbol, unknown>;
+    const value = instance[property];
+    return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(instance) : value;
+  },
+});

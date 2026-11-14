@@ -12,6 +12,8 @@ import {
 } from "@/lib/notifications";
 import { isValidTimezone } from "@/lib/timezone";
 import { isDesktopRuntime } from "@/lib/desktop/runtime";
+import { desktopApiUrl } from "@/lib/desktop/api-base";
+import { getDesktopSession, isNetworkError } from "@/lib/desktop/auth-store";
 
 const PAGE_SIZE = 30;
 const POLL_INTERVAL_MS = 30_000;
@@ -24,6 +26,24 @@ const POLL_INTERVAL_MS = 30_000;
  */
 function desktopNotificationsOffline(): boolean {
   return isDesktopRuntime() && typeof navigator !== "undefined" && !navigator.onLine;
+}
+
+async function notificationFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  if (!isDesktopRuntime()) {
+    return fetch(path, init);
+  }
+  const session = await getDesktopSession().catch(() => null);
+  if (!session?.token) {
+    throw new TypeError("Offline: desktop session unavailable.");
+  }
+  return fetch(desktopApiUrl(path), {
+    ...init,
+    credentials: "omit",
+    headers: {
+      ...(init.headers ?? {}),
+      Authorization: `Bearer ${session.token}`,
+    },
+  });
 }
 
 export function broadcastNotificationsSync() {
@@ -92,7 +112,7 @@ export function useNotifications(
         if (unreadOnly) params.set("unreadOnly", "1");
         if (categoryFilter !== "all") params.set("category", categoryFilter);
 
-        const res = await fetch(`/api/notifications?${params}`, { cache: "no-store" });
+        const res = await notificationFetch(`/api/notifications?${params}`, { cache: "no-store" });
         const body = (await res.json()) as {
           notifications?: NotificationItem[];
           unreadCount?: number;
@@ -132,7 +152,7 @@ export function useNotifications(
         setHasMore(Boolean(body.hasMore));
         setError("");
       } catch (err) {
-        if (!opts.silent) {
+        if (!opts.silent && !(isDesktopRuntime() && isNetworkError(err))) {
           setError(err instanceof Error ? err.message : "Couldn’t load notifications.");
         }
       } finally {
@@ -146,7 +166,7 @@ export function useNotifications(
   const fetchUnreadCount = useCallback(async () => {
     if (desktopNotificationsOffline()) return;
     try {
-      const res = await fetch("/api/notifications/unread-count", { cache: "no-store" });
+      const res = await notificationFetch("/api/notifications/unread-count", { cache: "no-store" });
       if (!res.ok) return;
       const body = (await res.json()) as { unreadCount?: number };
       lastPollAt.current = Date.now();
@@ -165,7 +185,7 @@ export function useNotifications(
   const fetchReminders = useCallback(async () => {
     if (desktopNotificationsOffline()) return;
     try {
-      const res = await fetch("/api/notifications/reminders", { cache: "no-store" });
+      const res = await notificationFetch("/api/notifications/reminders", { cache: "no-store" });
       if (!res.ok) return;
       const body = (await res.json()) as { reminders?: TaskReminderConfig[] };
       if (Array.isArray(body.reminders)) setReminders(body.reminders);
@@ -180,7 +200,7 @@ export function useNotifications(
       return;
     }
     try {
-      const res = await fetch("/api/notifications/preferences", { cache: "no-store" });
+      const res = await notificationFetch("/api/notifications/preferences", { cache: "no-store" });
       if (!res.ok) return;
       const body = (await res.json()) as {
         preferences?: NotificationPreferencesData;
@@ -195,7 +215,7 @@ export function useNotifications(
           autoTzAttempted.current = true;
           const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
           if (browserTz && isValidTimezone(browserTz)) {
-            const patchRes = await fetch("/api/notifications/preferences", {
+            const patchRes = await notificationFetch("/api/notifications/preferences", {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ timezone: browserTz, timezoneAutoDetected: true }),
@@ -211,6 +231,8 @@ export function useNotifications(
           }
         }
       }
+    } catch {
+      // Offline / transient network errors keep defaults cleanly.
     } finally {
       setPrefsLoading(false);
     }
@@ -282,7 +304,7 @@ export function useNotifications(
       else if (!wasUnread && !read) setUnreadCount((c) => c + 1);
 
       try {
-        const res = await fetch(`/api/notifications/${id}`, {
+        const res = await notificationFetch(`/api/notifications/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ read }),
@@ -310,7 +332,7 @@ export function useNotifications(
           ),
     );
     try {
-      const res = await fetch("/api/notifications/mark-all-read", { method: "POST" });
+      const res = await notificationFetch("/api/notifications/mark-all-read", { method: "POST" });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(body.error || "Couldn’t mark notifications as read.");
     } catch (err) {
@@ -328,7 +350,7 @@ export function useNotifications(
       if (target && !target.read) setUnreadCount((c) => Math.max(0, c - 1));
 
       try {
-        const res = await fetch(`/api/notifications/${id}`, { method: "DELETE" });
+        const res = await notificationFetch(`/api/notifications/${id}`, { method: "DELETE" });
         const body = (await res.json()) as { unreadCount?: number; error?: string };
         if (!res.ok) throw new Error(body.error || "Couldn’t delete notification.");
         if (typeof body.unreadCount === "number") setUnreadCount(body.unreadCount);
@@ -349,7 +371,7 @@ export function useNotifications(
     setTotal(0);
     setHasMore(false);
     try {
-      const res = await fetch("/api/notifications", { method: "DELETE" });
+      const res = await notificationFetch("/api/notifications", { method: "DELETE" });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(body.error || "Couldn’t clear notifications.");
       notify?.("All notifications cleared.");
@@ -375,7 +397,7 @@ export function useNotifications(
       dueTime?: string;
       customLocal?: string | null;
     }) => {
-      const res = await fetch("/api/notifications/reminders", {
+      const res = await notificationFetch("/api/notifications/reminders", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -396,7 +418,7 @@ export function useNotifications(
   );
 
   const deleteTaskReminder = useCallback(async (taskId: string) => {
-    const res = await fetch(
+    const res = await notificationFetch(
       `/api/notifications/reminders?taskId=${encodeURIComponent(taskId)}`,
       { method: "DELETE" },
     );
@@ -407,7 +429,7 @@ export function useNotifications(
 
   const updatePreferences = useCallback(
     async (patch: Partial<NotificationPreferencesData>) => {
-      const res = await fetch("/api/notifications/preferences", {
+      const res = await notificationFetch("/api/notifications/preferences", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
@@ -430,7 +452,7 @@ export function useNotifications(
   );
 
   const runReminderCheck = useCallback(async () => {
-    const res = await fetch("/api/notifications/process", { method: "POST" });
+    const res = await notificationFetch("/api/notifications/process", { method: "POST" });
     const body = (await res.json()) as {
       result?: { created: number; queued: number; released: number };
       scheduler?: SchedulerTelemetry;

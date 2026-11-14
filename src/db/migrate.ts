@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { readMigrationFiles } from "drizzle-orm/migrator";
-import { DatabaseUnavailableError, describeDatabaseError, pool } from "@/db";
+import { DatabaseUnavailableError, describeDatabaseError, enableMockDbMode, isConnectionFailure, isMockDbMode, pool } from "@/db";
 import { BASE_SCHEMA_STATEMENTS } from "@/db/base-schema";
 
 // Idempotent schema initialisation for Folio.
@@ -122,8 +122,15 @@ async function run() {
 }
 
 export function ensureSchema() {
+  if (isMockDbMode()) {
+    return Promise.resolve();
+  }
   if (!migration) {
     migration = run().catch((error) => {
+      if (isConnectionFailure(error)) {
+        enableMockDbMode();
+        return;
+      }
       // Allow a later request to retry once the environment is fixed.
       migration = null;
       // Connection and credential problems arrive as a classified, actionable

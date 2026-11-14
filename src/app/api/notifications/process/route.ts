@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { requireUser, sameOrigin } from "@/lib/auth";
+import { ensureSchema } from "@/db/migrate";
+import { syncUser, corsJson, desktopCorsPreflight, unauthorized } from "@/lib/sync-auth";
 import {
   getOrCreatePreferences,
   getSchedulerTelemetry,
@@ -9,13 +10,17 @@ import {
 
 export const dynamic = "force-dynamic";
 
-function extractCronToken(request: Request): string | null {
+export async function OPTIONS(request: Request): Promise<Response> {
+  return desktopCorsPreflight(request);
+}
+
+function extractCronToken(request: Request): { token: string; explicitCronHeader: boolean } | null {
+  const custom = request.headers.get("x-folio-cron-secret");
+  if (custom) return { token: custom.trim(), explicitCronHeader: true };
   const auth = request.headers.get("authorization");
   if (auth && /^bearer\s+/i.test(auth)) {
-    return auth.replace(/^bearer\s+/i, "").trim();
+    return { token: auth.replace(/^bearer\s+/i, "").trim(), explicitCronHeader: false };
   }
-  const custom = request.headers.get("x-folio-cron-secret");
-  if (custom) return custom.trim();
   return null;
 }
 
@@ -54,15 +59,15 @@ async function handleScheduledCron(token: string) {
  * send `GET` with `Authorization: Bearer <CRON_SECRET>`. Unauthenticated GETs are rejected.
  */
 export async function GET(request: Request) {
-  const token = extractCronToken(request);
-  if (!token) {
+  const cron = extractCronToken(request);
+  if (!cron) {
     return Response.json(
       { error: "Authorization: Bearer <FOLIO_CRON_SECRET> header is required." },
       { status: 401 },
     );
   }
   try {
-    return await handleScheduledCron(token);
+    return await handleScheduledCron(cron.token);
   } catch (error) {
     console.error("Cron reminder processing failed:", error);
     return Response.json({ error: "Reminder processing failed." }, { status: 500 });
@@ -73,31 +78,31 @@ export async function GET(request: Request) {
  * POST supports both:
  * 1) Protected external scheduled execution (Netlify Scheduled Functions, GitHub Actions, curl)
  *    with `Authorization: Bearer <FOLIO_CRON_SECRET>` or `x-folio-cron-secret`.
- * 2) Same-origin manual reminder evaluation scoped strictly to the signed-in user.
+ * 2) Same-origin cookie or desktop Bearer manual reminder evaluation scoped strictly to the signed-in user.
  */
 export async function POST(request: Request) {
-  const token = extractCronToken(request);
-  if (token) {
-    try {
-      return await handleScheduledCron(token);
-    } catch (error) {
-      console.error("Cron reminder processing failed:", error);
-      return Response.json({ error: "Reminder processing failed." }, { status: 500 });
+  const cron = extractCronToken(request);
+  if (cron) {
+    const expected = (process.env.FOLIO_CRON_SECRET || process.env.CRON_SECRET || "").trim();
+    if (cron.explicitCronHeader || (expected && verifySecret(cron.token, expected))) {
+      try {
+        return await handleScheduledCron(cron.token);
+      } catch (error) {
+        console.error("Cron reminder processing failed:", error);
+        return Response.json({ error: "Reminder processing failed." }, { status: 500 });
+      }
     }
   }
 
-  if (!sameOrigin(request)) {
-    return Response.json({ error: "Request not allowed." }, { status: 403 });
-  }
-
   try {
-    const user = await requireUser();
-    if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
+    await ensureSchema();
+    const user = await syncUser(request);
+    if (!user) return unauthorized("Please sign in.", request);
 
     const result = await processUserReminders(user.id, { source: "manual" });
     const prefs = await getOrCreatePreferences(user.id);
     const scheduler = await getSchedulerTelemetry(prefs);
-    return Response.json({
+    return corsJson(request, {
       ok: true,
       mode: "user",
       processedAt: new Date().toISOString(),
@@ -106,6 +111,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("User reminder processing failed:", error);
-    return Response.json({ error: "Couldn’t process due reminders." }, { status: 500 });
+    return corsJson(request, { error: "Couldn’t process due reminders." }, 500);
   }
 }

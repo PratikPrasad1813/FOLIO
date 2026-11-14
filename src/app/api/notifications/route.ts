@@ -2,7 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { notifications } from "@/db/schema";
-import { requireUser, sameOrigin } from "@/lib/auth";
+import { syncUser, corsJson, desktopCorsPreflight, unauthorized } from "@/lib/sync-auth";
 import {
   NOTIFICATION_CATEGORIES,
   type NotificationCategory,
@@ -14,6 +14,10 @@ import {
 import { getOrCreatePreferences, maybeProcessUserReminders } from "@/lib/reminder-processor";
 
 export const dynamic = "force-dynamic";
+
+export async function OPTIONS(request: Request): Promise<Response> {
+  return desktopCorsPreflight(request);
+}
 
 function serializeNotification(row: typeof notifications.$inferSelect): NotificationItem {
   return {
@@ -37,8 +41,8 @@ function serializeNotification(row: typeof notifications.$inferSelect): Notifica
 export async function GET(request: Request) {
   try {
     await ensureSchema();
-    const user = await requireUser();
-    if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
+    const user = await syncUser(request);
+    if (!user) return unauthorized("Please sign in.", request);
 
     await maybeProcessUserReminders(user.id);
     const prefs = await getOrCreatePreferences(user.id);
@@ -91,33 +95,28 @@ export async function GET(request: Request) {
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
 
-    return Response.json(
-      {
-        notifications: page.map(serializeNotification),
-        unreadCount: Number(unreadRow?.count ?? 0),
-        total: Number(totalRow?.count ?? 0),
-        hasMore,
-        timezone: prefs.timezone,
-      },
-      { headers: { "Cache-Control": "no-store" } },
-    );
+    return corsJson(request, {
+      notifications: page.map(serializeNotification),
+      unreadCount: Number(unreadRow?.count ?? 0),
+      total: Number(totalRow?.count ?? 0),
+      hasMore,
+      timezone: prefs.timezone,
+    });
   } catch (error) {
     console.error("Failed to fetch notifications:", error);
-    return Response.json(
+    return corsJson(
+      request,
       { error: "Couldn’t load your notifications. Please try again." },
-      { status: 500 },
+      500,
     );
   }
 }
 
 export async function DELETE(request: Request) {
-  if (!sameOrigin(request)) {
-    return Response.json({ error: "Request not allowed." }, { status: 403 });
-  }
   try {
     await ensureSchema();
-    const user = await requireUser();
-    if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
+    const user = await syncUser(request);
+    if (!user) return unauthorized("Please sign in.", request);
 
     const deleted = await db
       .delete(notifications)
@@ -129,12 +128,13 @@ export async function DELETE(request: Request) {
       )
       .returning({ id: notifications.id });
 
-    return Response.json({ cleared: deleted.length, unreadCount: 0 });
+    return corsJson(request, { cleared: deleted.length, unreadCount: 0 });
   } catch (error) {
     console.error("Failed to clear notifications:", error);
-    return Response.json(
+    return corsJson(
+      request,
       { error: "Couldn’t clear your notifications. Please try again." },
-      { status: 500 },
+      500,
     );
   }
 }

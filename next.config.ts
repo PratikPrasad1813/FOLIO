@@ -26,6 +26,7 @@ const nextConfig: NextConfig = {
         images: { unoptimized: true },
       }
     : {
+        output: "standalone" as const,
         outputFileTracingIncludes: { "/*": ["./drizzle/**/*"] },
         async headers() {
           return [

@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
-import type { ThemePreference } from "@/lib/personalization";
+import { DEFAULT_PERSONAL, type ThemePreference } from "@/lib/personalization";
+import { isDesktopRuntime } from "@/lib/desktop/runtime";
+import { getCachedProfile, markLocalProfilePending, setCachedProfile } from "@/lib/desktop/local-db";
 
 export type Theme = "light" | "dark";
 export const THEME_STORAGE_KEY = "folio-theme";
@@ -21,7 +23,22 @@ export function applyTheme(next: ThemePreference, persistAccount = true) {
   root.classList.add("theme-transition"); paint(next);
   setTimeout(() => root.classList.remove("theme-transition"), 300);
   try { localStorage.setItem(THEME_STORAGE_KEY, next); } catch { /* private storage */ }
-  if (persistAccount && root.dataset.folioAccount) void fetch("/api/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ personal: { theme: next } }) }).catch(() => {});
+  if (persistAccount && root.dataset.folioAccount) {
+    if (isDesktopRuntime()) {
+      void (async () => {
+        await markLocalProfilePending({ personal: { theme: next } }).catch(() => {});
+        const cached = await getCachedProfile().catch(() => null);
+        if (cached) {
+          await setCachedProfile({
+            ...cached,
+            personal: { ...DEFAULT_PERSONAL, ...(cached.personal ?? {}), theme: next },
+          }).catch(() => {});
+        }
+      })();
+      return;
+    }
+    void fetch("/api/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ personal: { theme: next } }) }).catch(() => {});
+  }
 }
 export function ThemeRuntime() {
   useEffect(() => {

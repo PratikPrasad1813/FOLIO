@@ -5,7 +5,15 @@ import { ArrowDown, ArrowRight, ArrowUp, Clock3, CornerDownLeft, FolderKanban, L
 import { Modal, ProjectIcon, Spinner } from "@/components/ui";
 import { jsonRequest, searchRequest } from "@/lib/search-client";
 import { SEARCH_LABELS, SEARCH_SCOPES, type RecentSearch, type SearchResponse, type SearchResult, type SearchScope } from "@/lib/search-types";
-import { TASK_STATUS_LABELS, statusLabel, type TaskStatus } from "@/lib/types";
+import { TASK_STATUS_LABELS, statusLabel, type TaskStatus, type WorkspaceData } from "@/lib/types";
+import { isDesktopRuntime } from "@/lib/desktop/runtime";
+import { loadDesktopWorkspace } from "@/lib/desktop/desktop-workspace";
+import {
+  deleteLocalRecentSearch,
+  loadLocalRecentSearches,
+  saveLocalRecentSearch,
+  searchLocalWorkspace,
+} from "@/lib/desktop/local-search";
 
 /** Plain React text nodes, never HTML from the server or the search input. */
 export function SearchHighlight({ text, query }: { text: string; query: string }) {
@@ -18,7 +26,15 @@ export function SearchHighlight({ text, query }: { text: string; query: string }
 
 const TYPE_ICON = { projects: FolderKanban, tasks: SquareCheckBig, ideas: Lightbulb };
 
-export function GlobalSearch({ onClose, onSelect }: { onClose: () => void; onSelect: (result: SearchResult) => Promise<void> }) {
+export function GlobalSearch({
+  onClose,
+  onSelect,
+  localData,
+}: {
+  onClose: () => void;
+  onSelect: (result: SearchResult) => Promise<void>;
+  localData?: WorkspaceData | null;
+}) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -45,7 +61,15 @@ export function GlobalSearch({ onClose, onSelect }: { onClose: () => void; onSel
   const selectedIndex = Math.min(active, Math.max(0, entries.length - 1));
   const scopeIcons = useMemo(() => ({ all: Search, ...TYPE_ICON }), []);
 
+  const desktopMode = isDesktopRuntime();
+
   useEffect(() => {
+    if (desktopMode) {
+      setRecent(loadLocalRecentSearches());
+      setHistoryError("");
+      setHistoryLoading(false);
+      return;
+    }
     const controller = new AbortController();
     setHistoryLoading(true);
     searchRequest<{ searches: RecentSearch[] }>("/api/search/recent", { signal: controller.signal })
@@ -53,13 +77,31 @@ export function GlobalSearch({ onClose, onSelect }: { onClose: () => void; onSel
       .catch(err => { if (!controller.signal.aborted) setHistoryError(err.message); })
       .finally(() => { if (!controller.signal.aborted) setHistoryLoading(false); });
     return () => controller.abort();
-  }, [attempt]);
+  }, [attempt, desktopMode]);
 
   useEffect(() => {
     const controller = new AbortController();
     setError("");
     setActive(0);
     if (!q) { lastCompleted.current = null; return () => controller.abort(); }
+    if (desktopMode) {
+      const runLocal = async () => {
+        const source = localData ?? (await loadDesktopWorkspace());
+        if (controller.signal.aborted) return;
+        if (!source) {
+          setResponse({ key, data: { query: q, groups: [] } });
+          return;
+        }
+        const limit = scope === "all" ? 5 : 20;
+        const data = searchLocalWorkspace(source, q, scope, limit);
+        lastCompleted.current = { query: q, scope };
+        setResponse({ key, data });
+      };
+      void runLocal().catch(() => {
+        if (!controller.signal.aborted) setError("Couldn’t search your local workspace.");
+      });
+      return () => controller.abort();
+    }
     const timer = window.setTimeout(() => {
       const params = new URLSearchParams({ q, scope });
       searchRequest<SearchResponse>(`/api/search?${params}`, { signal: controller.signal })
@@ -67,7 +109,7 @@ export function GlobalSearch({ onClose, onSelect }: { onClose: () => void; onSel
         .catch(err => { if (!controller.signal.aborted) setError(err instanceof Error ? err.message : "Couldn’t search your workspace."); });
     }, 220);
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [q, scope, key, attempt]);
+  }, [q, scope, key, attempt, desktopMode, localData]);
 
   useEffect(() => {
     list.current?.querySelector<HTMLElement>(`[data-search-index="${selectedIndex}"]`)?.scrollIntoView({ block: "nearest" });
@@ -81,6 +123,10 @@ export function GlobalSearch({ onClose, onSelect }: { onClose: () => void; onSel
     const signature = `${completed.scope}:${completed.query.toLowerCase()}`;
     if (lastRemembered.current === signature) return;
     lastRemembered.current = signature;
+    if (isDesktopRuntime()) {
+      saveLocalRecentSearch(completed.query, completed.scope);
+      return;
+    }
     void searchRequest("/api/search/recent", { ...jsonRequest("POST", completed), keepalive: true }).catch(() => {});
   }, []);
 
@@ -89,6 +135,10 @@ export function GlobalSearch({ onClose, onSelect }: { onClose: () => void; onSel
     const signature = `${scope}:${q.toLowerCase()}`;
     if (lastRemembered.current === signature) return;
     lastRemembered.current = signature;
+    if (desktopMode) {
+      setRecent(saveLocalRecentSearch(q, scope));
+      return;
+    }
     try { await searchRequest("/api/search/recent", jsonRequest("POST", { query: q, scope })); }
     catch { /* A failed history write must not block opening a workspace item. */ }
   }
@@ -109,6 +159,12 @@ export function GlobalSearch({ onClose, onSelect }: { onClose: () => void; onSel
   async function forget(searchId?: string) {
     setForgetting(true);
     try {
+      if (desktopMode) {
+        setRecent(deleteLocalRecentSearch(searchId));
+        setHistoryError("");
+        input.current?.focus();
+        return;
+      }
       await searchRequest(`/api/search/recent${searchId ? `?id=${searchId}` : ""}`, { method: "DELETE" });
       setRecent(rows => searchId ? rows.filter(row => row.id !== searchId) : []);
       setHistoryError("");

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import {
@@ -369,7 +369,7 @@ async function releaseQuietHoursQueue(
       const [t] = await db
         .select({ id: tasks.id, completed: tasks.completed })
         .from(tasks)
-        .where(and(eq(tasks.id, item.entityId), eq(tasks.userId, userId)))
+        .where(and(eq(tasks.id, item.entityId), eq(tasks.userId, userId), isNull(tasks.deletedAt)))
         .limit(1);
       if (!t || t.completed) stillValid = false;
     } else if (item.entityType === "calendar_event" && item.entityId) {
@@ -437,7 +437,7 @@ export async function upsertTaskReminder(
   const [task] = await db
     .select()
     .from(tasks)
-    .where(and(eq(tasks.id, input.taskId), eq(tasks.userId, userId)))
+    .where(and(eq(tasks.id, input.taskId), eq(tasks.userId, userId), isNull(tasks.deletedAt)))
     .limit(1);
   if (!task) throw new Error("That task is not in your workspace.");
 
@@ -694,7 +694,7 @@ export async function reconcileBulkTaskLifecycle(
   const rows = await db
     .select()
     .from(tasks)
-    .where(and(eq(tasks.userId, userId), inArray(tasks.id, taskIds)));
+    .where(and(eq(tasks.userId, userId), inArray(tasks.id, taskIds), isNull(tasks.deletedAt)));
   for (const row of rows) {
     if (row.completed) {
       await reconcileTaskLifecycle(userId, null, row);
@@ -738,7 +738,7 @@ export async function recomputeUserRelativeReminders(
       completed: tasks.completed,
     })
     .from(taskReminders)
-    .innerJoin(tasks, eq(tasks.id, taskReminders.taskId))
+    .innerJoin(tasks, and(eq(tasks.id, taskReminders.taskId), isNull(tasks.deletedAt)))
     .where(and(eq(taskReminders.userId, userId), eq(taskReminders.enabled, true)));
 
   for (const { reminder, dueDate, completed } of rows) {
@@ -911,7 +911,7 @@ export async function emitMilestoneMutationNotifications(
     const [proj] = await db
       .select({ id: projects.id, name: projects.name })
       .from(projects)
-      .where(and(eq(projects.id, after.projectId), eq(projects.userId, userId)))
+      .where(and(eq(projects.id, after.projectId), eq(projects.userId, userId), isNull(projects.deletedAt)))
       .limit(1);
     const now = new Date();
     const stamp = (after.completedAt ?? now).toISOString().slice(0, 16);
@@ -1068,8 +1068,8 @@ export async function processUserReminders(
       projectName: projects.name,
     })
     .from(taskReminders)
-    .innerJoin(tasks, eq(tasks.id, taskReminders.taskId))
-    .leftJoin(projects, eq(projects.id, tasks.projectId))
+    .innerJoin(tasks, and(eq(tasks.id, taskReminders.taskId), isNull(tasks.deletedAt)))
+    .leftJoin(projects, and(eq(projects.id, tasks.projectId), isNull(projects.deletedAt)))
     .where(
       and(
         eq(taskReminders.userId, userId),
@@ -1130,8 +1130,8 @@ export async function processUserReminders(
       projectName: projects.name,
     })
     .from(tasks)
-    .leftJoin(projects, eq(projects.id, tasks.projectId))
-    .where(and(eq(tasks.userId, userId), eq(tasks.completed, false)));
+    .leftJoin(projects, and(eq(projects.id, tasks.projectId), isNull(projects.deletedAt)))
+    .where(and(eq(tasks.userId, userId), eq(tasks.completed, false), isNull(tasks.deletedAt)));
 
   for (const { task, projectName } of openTasks) {
     if (!task.dueDate) continue;
@@ -1216,7 +1216,7 @@ export async function processUserReminders(
   const userProjects = await db
     .select()
     .from(projects)
-    .where(and(eq(projects.userId, userId), eq(projects.archived, false)));
+    .where(and(eq(projects.userId, userId), eq(projects.archived, false), isNull(projects.deletedAt)));
 
   const projectMap = new Map(userProjects.map((p) => [p.id, p]));
 
@@ -1251,7 +1251,7 @@ export async function processUserReminders(
   const openMilestones = await db
     .select()
     .from(milestones)
-    .where(and(eq(milestones.userId, userId), eq(milestones.completed, false)));
+    .where(and(eq(milestones.userId, userId), eq(milestones.completed, false), isNull(milestones.deletedAt)));
 
   for (const milestone of openMilestones) {
     if (!milestone.dueDate) continue;

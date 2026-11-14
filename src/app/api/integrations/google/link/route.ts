@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { googleEvents, tasks } from "@/db/schema";
 import { requireUser, sameOrigin } from "@/lib/auth";
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const eventId = typeof body?.eventId === "string" && UUID.test(body.eventId) ? body.eventId : null;
   const taskId = typeof body?.taskId === "string" && UUID.test(body.taskId) ? body.taskId : null;
   if (!eventId || !taskId) return Response.json({ error: "Provide a valid event and task ID." }, { status: 400 });
-  const [task] = await db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.userId, user.id), eq(tasks.id, taskId))).limit(1);
+  const [task] = await db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.userId, user.id), eq(tasks.id, taskId), isNull(tasks.deletedAt))).limit(1);
   if (!task) return Response.json({ error: "That task isn’t in your workspace." }, { status: 404 });
   const [event] = await db.select({ id: googleEvents.id }).from(googleEvents).where(and(eq(googleEvents.userId, user.id), eq(googleEvents.id, eventId))).limit(1);
   if (!event) return Response.json({ error: "That Google event isn’t in your workspace." }, { status: 404 });

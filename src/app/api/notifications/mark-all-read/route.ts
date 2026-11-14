@@ -2,18 +2,19 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { notifications } from "@/db/schema";
-import { requireUser, sameOrigin } from "@/lib/auth";
+import { corsJson, desktopCorsPreflight, syncUser, unauthorized } from "@/lib/sync-auth";
 
 export const dynamic = "force-dynamic";
 
+export async function OPTIONS(request: Request): Promise<Response> {
+  return desktopCorsPreflight(request);
+}
+
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) {
-    return Response.json({ error: "Request not allowed." }, { status: 403 });
-  }
   try {
     await ensureSchema();
-    const user = await requireUser();
-    if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
+    const user = await syncUser(request);
+    if (!user) return unauthorized("Please sign in.", request);
 
     const updated = await db
       .update(notifications)
@@ -27,12 +28,13 @@ export async function POST(request: Request) {
       )
       .returning({ id: notifications.id });
 
-    return Response.json({ updated: updated.length, unreadCount: 0 });
+    return corsJson(request, { updated: updated.length, unreadCount: 0 });
   } catch (error) {
     console.error("Mark all read failed:", error);
-    return Response.json(
+    return corsJson(
+      request,
       { error: "Couldn’t mark notifications as read." },
-      { status: 500 },
+      500,
     );
   }
 }

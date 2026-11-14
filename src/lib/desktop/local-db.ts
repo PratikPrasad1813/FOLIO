@@ -24,6 +24,7 @@
  */
 
 import Database from "@tauri-apps/plugin-sql";
+import type { PersonalPreferences } from "@/lib/personalization";
 import type {
   Idea,
   Milestone,
@@ -570,6 +571,7 @@ export interface PendingProfilePatch {
   name?: string;
   weeklyGoal?: number;
   complete?: boolean;
+  personal?: Partial<PersonalPreferences>;
 }
 
 /**
@@ -591,7 +593,13 @@ export async function markLocalProfilePending(patch: PendingProfilePatch): Promi
       existing = {};
     }
   }
-  const merged: PendingProfilePatch = { ...existing, ...patch };
+  const merged: PendingProfilePatch = {
+    ...existing,
+    ...patch,
+    ...(existing.personal || patch.personal
+      ? { personal: { ...(existing.personal ?? {}), ...(patch.personal ?? {}) } }
+      : {}),
+  };
   if (typeof merged.weeklyGoal === "number" && (!Number.isInteger(merged.weeklyGoal) || merged.weeklyGoal < 1 || merged.weeklyGoal > 100)) {
     delete merged.weeklyGoal;
   }

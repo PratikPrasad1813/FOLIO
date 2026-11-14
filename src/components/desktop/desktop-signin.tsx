@@ -188,7 +188,7 @@ export function DesktopSignIn({ reason, cachedEmail }: DesktopSignInProps) {
 
         {offline && (
           <p className="desktop-signin-offline" role="status">
-            <WifiOff size={14} /> You're offline — Folio is fully usable once signed in; this screen only needs internet the first time.
+            <WifiOff size={14} /> You&rsquo;re offline — Folio is fully usable once signed in; this screen only needs internet the first time.
           </p>
         )}
 

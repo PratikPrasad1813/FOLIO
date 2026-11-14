@@ -15,6 +15,7 @@ import {
   loadDesktopWorkspace,
   type WorkspaceMutationResult,
 } from "@/lib/desktop/desktop-workspace";
+import { getLocalSearchItem } from "@/lib/desktop/local-search";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatDate, statusLabel, TASK_STATUS_LABELS, type Activity, type Idea, type Item, type Milestone, type Project, type Resource, type Subtask, type Task, type TaskStatus, type WorkspaceData } from "@/lib/types";
@@ -416,6 +417,14 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
   // A result may have been created in another tab after the workspace loaded.
   // Fetch its current owner-checked record and hydrate the existing editors.
   async function loadSearchItem(kind: SearchKind, id: string): Promise<Item> {
+    if (isDesktopRuntime()) {
+      const local = dataRef.current ?? (await loadDesktopWorkspace());
+      if (local) {
+        const found = getLocalSearchItem(local, kind, id);
+        if (found) return found;
+      }
+      throw new Error("This item was removed or is no longer accessible.");
+    }
     const result = await searchRequest<{ item: Item; subtasks: Subtask[]; milestones: Milestone[]; projects: Project[]; tasks: Task[] }>(
       `/api/search/entity?${new URLSearchParams({ kind, id })}`,
     );

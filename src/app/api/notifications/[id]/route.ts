@@ -2,9 +2,13 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { notifications } from "@/db/schema";
-import { requireUser, sameOrigin } from "@/lib/auth";
+import { syncUser, corsJson, desktopCorsPreflight, unauthorized } from "@/lib/sync-auth";
 
 export const dynamic = "force-dynamic";
+
+export async function OPTIONS(request: Request): Promise<Response> {
+  return desktopCorsPreflight(request);
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -26,17 +30,14 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  if (!sameOrigin(request)) {
-    return Response.json({ error: "Request not allowed." }, { status: 403 });
-  }
   try {
     await ensureSchema();
-    const user = await requireUser();
-    if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
+    const user = await syncUser(request);
+    if (!user) return unauthorized("Please sign in.", request);
 
     const { id } = await context.params;
     if (!UUID_RE.test(id)) {
-      return Response.json({ error: "Invalid notification ID." }, { status: 400 });
+      return corsJson(request, { error: "Invalid notification ID." }, 400);
     }
 
     const body = (await request.json().catch(() => ({}))) as { read?: unknown };
@@ -52,11 +53,11 @@ export async function PATCH(
       .returning();
 
     if (!updated) {
-      return Response.json({ error: "Notification not found." }, { status: 404 });
+      return corsJson(request, { error: "Notification not found." }, 404);
     }
 
     const unreadCount = await countUnread(user.id);
-    return Response.json({
+    return corsJson(request, {
       notification: {
         id: updated.id,
         read: updated.read,
@@ -66,7 +67,7 @@ export async function PATCH(
     });
   } catch (error) {
     console.error("Failed to update notification:", error);
-    return Response.json({ error: "Couldn’t update notification." }, { status: 500 });
+    return corsJson(request, { error: "Couldn’t update notification." }, 500);
   }
 }
 
@@ -74,17 +75,14 @@ export async function DELETE(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  if (!sameOrigin(request)) {
-    return Response.json({ error: "Request not allowed." }, { status: 403 });
-  }
   try {
     await ensureSchema();
-    const user = await requireUser();
-    if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
+    const user = await syncUser(request);
+    if (!user) return unauthorized("Please sign in.", request);
 
     const { id } = await context.params;
     if (!UUID_RE.test(id)) {
-      return Response.json({ error: "Invalid notification ID." }, { status: 400 });
+      return corsJson(request, { error: "Invalid notification ID." }, 400);
     }
 
     const [deleted] = await db
@@ -93,13 +91,13 @@ export async function DELETE(
       .returning({ id: notifications.id });
 
     if (!deleted) {
-      return Response.json({ error: "Notification not found." }, { status: 404 });
+      return corsJson(request, { error: "Notification not found." }, 404);
     }
 
     const unreadCount = await countUnread(user.id);
-    return Response.json({ deleted: true, unreadCount });
+    return corsJson(request, { deleted: true, unreadCount });
   } catch (error) {
     console.error("Failed to delete notification:", error);
-    return Response.json({ error: "Couldn’t delete notification." }, { status: 500 });
+    return corsJson(request, { error: "Couldn’t delete notification." }, 500);
   }
 }

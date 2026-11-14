@@ -34,17 +34,17 @@ export async function globalSearch(userId: string, q: string, scope: SearchScope
   const groups = await Promise.all(kinds.map(async (kind): Promise<SearchGroup> => {
     let items: SearchResult[];
     if (kind === "projects") {
-      const rows = await db.select().from(projects).where(and(eq(projects.userId, userId), match(projectText, q)))
+      const rows = await db.select().from(projects).where(and(eq(projects.userId, userId), isNull(projects.deletedAt), match(projectText, q)))
         .orderBy(desc(rank(sql`${projects.name}`, projectText, q)), desc(projects.updatedAt), asc(projects.id)).limit(limit + 1);
       items = rows.map(p => ({ id: p.id, kind, title: p.name, description: snippet(p.description || p.category, q), status: p.status, priority: p.priority, projectId: null, projectName: null, color: p.color, icon: p.icon, archived: p.archived, labels: [] }));
     } else if (kind === "tasks") {
       const rows = await db.select({ task: tasks, projectName: projects.name, projectColor: projects.color }).from(tasks)
-        .leftJoin(projects, and(eq(tasks.projectId, projects.id), eq(projects.userId, userId)))
-        .where(and(eq(tasks.userId, userId), match(taskText, q, sql`coalesce(${projects.name}, '') || ' ' || array_to_string(${tasks.labels}, ' ')`)))
+        .leftJoin(projects, and(eq(tasks.projectId, projects.id), eq(projects.userId, userId), isNull(projects.deletedAt)))
+        .where(and(eq(tasks.userId, userId), isNull(tasks.deletedAt), match(taskText, q, sql`coalesce(${projects.name}, '') || ' ' || array_to_string(${tasks.labels}, ' ')`)))
         .orderBy(desc(rank(sql`${tasks.title}`, taskText, q)), desc(tasks.updatedAt), asc(tasks.id)).limit(limit + 1);
       items = rows.map(({ task: t, projectName, projectColor }) => ({ id: t.id, kind, title: t.title, description: snippet([t.description, t.notes, ...t.labels.map(l => `#${l}`)].filter(Boolean).join(" · "), q), status: t.status, priority: t.priority, projectId: t.projectId, projectName, color: projectColor ?? "violet", icon: "task", archived: false, labels: t.labels }));
     } else {
-      const rows = await db.select().from(ideas).where(and(eq(ideas.userId, userId), match(ideaText, q)))
+      const rows = await db.select().from(ideas).where(and(eq(ideas.userId, userId), isNull(ideas.deletedAt), match(ideaText, q)))
         .orderBy(desc(rank(sql`${ideas.title}`, ideaText, q)), desc(ideas.createdAt), asc(ideas.id)).limit(limit + 1);
       items = rows.map(i => ({ id: i.id, kind, title: i.title, description: snippet(i.description || i.category, q), status: i.status, priority: null, projectId: null, projectName: null, color: i.color, icon: "idea", archived: false, labels: [] }));
     }
@@ -83,7 +83,7 @@ export async function browseWorkspace(userId: string, kind: FilterKind, f: Filte
   // All dynamic field and direction choices use allow-listed SQL expressions.
   const order = (expression: SQL) => f.dir === "asc" ? sql`${expression} asc nulls last` : sql`${expression} desc nulls last`;
   if (kind === "tasks") {
-    const conditions: (SQL | undefined)[] = [eq(tasks.userId, userId)];
+    const conditions: (SQL | undefined)[] = [eq(tasks.userId, userId), isNull(tasks.deletedAt)];
     if (f.statuses.length) conditions.push(inArray(tasks.status, f.statuses));
     if (f.priorities.length) conditions.push(inArray(tasks.priority, f.priorities));
     if (f.projects.length) conditions.push(or(
@@ -108,7 +108,7 @@ export async function browseWorkspace(userId: string, kind: FilterKind, f: Filte
     const ordering = f.sort === "smart"
       ? [order(sql`${tasks.completed}`), order(sql`${tasks.dueDate}`), order(priorityRank(sql`${tasks.priority}`)), asc(tasks.id)]
       : [order(by[f.sort]), asc(tasks.id)];
-    const join = and(eq(tasks.projectId, projects.id), eq(projects.userId, userId));
+    const join = and(eq(tasks.projectId, projects.id), eq(projects.userId, userId), isNull(projects.deletedAt));
     const [rows, [count]] = await Promise.all([
       db.select({ item: tasks }).from(tasks).leftJoin(projects, join).where(and(...conditions)).orderBy(...ordering).limit(limit).offset(offset),
       db.select({ total: sql<number>`count(*)::int` }).from(tasks).leftJoin(projects, join).where(and(...conditions)),
@@ -122,9 +122,9 @@ export async function browseWorkspace(userId: string, kind: FilterKind, f: Filte
     progress: sql<number>`round(100.0 * count(*) filter (where ${tasks.completed}) / nullif(count(*), 0))::integer`.as("progress"),
     total: sql<number>`count(*)::integer`.as("total"),
     done: sql<number>`count(*) filter (where ${tasks.completed})::integer`.as("done"),
-  }).from(tasks).where(eq(tasks.userId, userId)).groupBy(tasks.projectId).as("task_stats");
+  }).from(tasks).where(and(eq(tasks.userId, userId), isNull(tasks.deletedAt))).groupBy(tasks.projectId).as("task_stats");
   const progress = sql<number>`coalesce(${taskStats.progress}, 0)::integer`;
-  const conditions: (SQL | undefined)[] = [eq(projects.userId, userId), eq(projects.archived, f.archived)];
+  const conditions: (SQL | undefined)[] = [eq(projects.userId, userId), isNull(projects.deletedAt), eq(projects.archived, f.archived)];
   if (f.statuses.length) conditions.push(inArray(projects.status, f.statuses));
   if (f.priorities.length) conditions.push(inArray(projects.priority, f.priorities));
   if (f.q) conditions.push(match(projectText, f.q));

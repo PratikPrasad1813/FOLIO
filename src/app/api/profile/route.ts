@@ -12,10 +12,10 @@ export async function OPTIONS(request: Request): Promise<Response> {
 export async function GET(request: Request) {
   try {
     const user = await syncUser(request);
-    if (!user) return json({ error: "Please sign in again." }, 401);
-    return json(await readProfile(user));
+    if (!user) return corsJson(request, { error: "Please sign in again." }, 401);
+    return corsJson(request, await readProfile(user));
   }
-  catch (error) { return json({ error: error instanceof AuthenticationError ? error.message : "Your profile is temporarily unavailable." }, error instanceof AuthenticationError ? 401 : 503); }
+  catch (error) { return corsJson(request, { error: error instanceof AuthenticationError ? error.message : "Your profile is temporarily unavailable." }, error instanceof AuthenticationError ? 401 : 503); }
 }
 export async function PATCH(request: Request) {
   try {

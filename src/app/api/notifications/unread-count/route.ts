@@ -2,16 +2,20 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { notifications } from "@/db/schema";
-import { requireUser } from "@/lib/auth";
 import { maybeProcessUserReminders } from "@/lib/reminder-processor";
+import { corsJson, desktopCorsPreflight, syncUser, unauthorized } from "@/lib/sync-auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function OPTIONS(request: Request): Promise<Response> {
+  return desktopCorsPreflight(request);
+}
+
+export async function GET(request: Request) {
   try {
     await ensureSchema();
-    const user = await requireUser();
-    if (!user) return Response.json({ error: "Please sign in." }, { status: 401 });
+    const user = await syncUser(request);
+    if (!user) return unauthorized("Please sign in.", request);
 
     await maybeProcessUserReminders(user.id);
 
@@ -26,12 +30,9 @@ export async function GET() {
         ),
       );
 
-    return Response.json(
-      { unreadCount: Number(row?.count ?? 0) },
-      { headers: { "Cache-Control": "no-store" } },
-    );
+    return corsJson(request, { unreadCount: Number(row?.count ?? 0) });
   } catch (error) {
     console.error("Unread count query failed:", error);
-    return Response.json({ error: "Couldn’t load unread count." }, { status: 500 });
+    return corsJson(request, { error: "Couldn’t load unread count." }, 500);
   }
 }
