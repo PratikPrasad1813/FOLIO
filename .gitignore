@@ -6,6 +6,10 @@ node_modules/
 out/
 build/
 
+# Tauri build output and generated schemas — reproduced by `npx tauri build`
+src-tauri/target/
+src-tauri/gen/
+
 # Environment variables and secrets
 .env*
 !.env.example

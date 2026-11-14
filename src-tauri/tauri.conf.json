@@ -34,6 +34,8 @@
     "targets": "all",
     "publisher": "Folio",
     "copyright": "Copyright © 2026 Folio. All rights reserved.",
+    "license": "MIT",
+    "licenseFile": "installer/TERMS_AND_PRIVACY.txt",
     "shortDescription": "Folio - Management Studio and Personal Workspace",
     "longDescription": "A thoughtful local-first desktop workspace for your projects, tasks, ideas, schedules, and Folio AI. Features a local SQLite engine for full offline capability with silent background cloud sync.",
     "category": "Productivity",
@@ -46,17 +48,15 @@
     ],
     "windows": {
       "nsis": {
-        "license": "installer/TERMS_AND_PRIVACY.txt",
         "installerIcon": "icons/icon.ico",
         "uninstallerIcon": "icons/icon.ico",
-        "headerImage": "icons/Square150x150Logo.png",
-        "sidebarImage": "icons/Square310x310Logo.png",
+        "headerImage": "installer/header.bmp",
+        "sidebarImage": "installer/sidebar.bmp",
         "installMode": "currentUser",
         "displayLanguageSelector": false,
         "installerHooks": "installer/nsis-hooks.nsh"
       },
       "wix": {
-        "license": "installer/TERMS_AND_PRIVACY.txt",
         "language": ["en-US"]
       }
     },
