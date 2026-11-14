@@ -32,6 +32,7 @@ import { useEffect, useState } from "react";
 import type { User } from "@/lib/types";
 import { isDesktopRuntime } from "@/lib/desktop/runtime";
 import { desktopApiUrl } from "@/lib/desktop/api-base";
+import { setDesktopFetchAuthToken } from "@/lib/desktop/fetch-bridge";
 import {
   clearLocalAuth,
   initLocalDb,
@@ -94,14 +95,27 @@ export async function getDesktopSession(): Promise<DesktopSession | null> {
   try {
     await initLocalDb();
     const row = await readLocalAuth();
-    if (!row) return null;
+    if (!row) {
+      setDesktopFetchAuthToken(null);
+      return null;
+    }
     const parsed: unknown = JSON.parse(row.user_json);
-    if (!parsed || typeof parsed !== "object" || typeof (parsed as User).id !== "string") return null;
+    if (!parsed || typeof parsed !== "object" || typeof (parsed as User).id !== "string") {
+      setDesktopFetchAuthToken(null);
+      return null;
+    }
     const user = parsed as User;
-    if (!user.id || typeof row.token !== "string" || !row.token) return null;
+    if (!user.id || typeof row.token !== "string" || !row.token) {
+      setDesktopFetchAuthToken(null);
+      return null;
+    }
+    // Keep the fetch bridge's Bearer header in lockstep with the stored
+    // session (boot, re-reads by the sync engine, token refreshes).
+    setDesktopFetchAuthToken(row.token);
     return { user, token: row.token, expiresAt: row.expires_at };
   } catch {
     // A corrupt auth row must never brick the shell: treat as signed out.
+    setDesktopFetchAuthToken(null);
     return null;
   }
 }
@@ -274,6 +288,7 @@ export async function desktopSignOut(): Promise<void> {
   } catch {
     // The row may already be gone; proceed with the mirror wipe regardless.
   }
+  setDesktopFetchAuthToken(null);
   try {
     await wipeLocalDatabase();
   } catch {

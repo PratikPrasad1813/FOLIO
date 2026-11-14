@@ -1,8 +1,15 @@
 import { globalSearch } from "@/lib/search-service";
 import { pageNumber, queryText, searchScope, SearchInputError } from "@/lib/search-types";
 import { privateJson, searchError, searchUser } from "@/lib/search-http";
+import { desktopCorsPreflight } from "@/lib/sync-auth";
 
 export const dynamic = "force-dynamic";
+
+/** CORS preflight for the desktop shell (cross-origin Bearer requests). */
+export async function OPTIONS(request: Request): Promise<Response> {
+  return desktopCorsPreflight(request);
+}
+
 export async function GET(request: Request) {
   try {
     const user = await searchUser(request);
@@ -12,6 +19,6 @@ export async function GET(request: Request) {
     const scope = searchScope(params.get("scope") ?? "all");
     const limit = pageNumber(params.get("limit"), scope === "all" ? 6 : 20, 20);
     if (!limit) throw new SearchInputError("Limit must be at least 1.");
-    return privateJson(await globalSearch(user.id, q, scope, limit));
-  } catch (error) { return searchError(error); }
+    return privateJson(await globalSearch(user.id, q, scope, limit), 200, request);
+  } catch (error) { return searchError(error, request); }
 }

@@ -33,7 +33,6 @@ import {
   User,
   WifiOff,
 } from "lucide-react";
-import { Logo } from "@/components/ui";
 import {
   desktopSignInWithPassword,
   desktopSignUpWithPassword,
@@ -266,7 +265,8 @@ export function DesktopSignIn({
         <div className="folio-desktop-card">
           <div className="card-brand-header">
             <div className="desktop-logo-wrapper">
-              <Logo compact />
+              {/* The REAL app icon (same asset Tauri bundles for the window/taskbar), not the inline marketing glyph. */}
+              <img src="/folio-icon.png" alt="Folio" width={56} height={56} className="desktop-app-icon" draggable={false} />
             </div>
             <div className="card-headings">
               <h2>
@@ -594,12 +594,19 @@ const desktopAuthStyles = `
 .desktop-logo-wrapper {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
-  min-width: 46px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #7c6cf0 0%, #4a77d4 100%);
-  box-shadow: 0 8px 20px -6px rgba(124, 108, 240, 0.5);
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 10px 24px -8px rgba(90, 78, 205, 0.45);
+}
+
+.desktop-app-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: block;
 }
 
 .card-headings h2 {

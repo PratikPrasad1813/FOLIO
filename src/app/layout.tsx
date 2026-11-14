@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { ThemeRuntime } from "@/components/theme-toggle";
 import { DesktopDeepLinkListener } from "@/components/desktop-deep-link-listener";
+import { DesktopFetchBridge } from "@/components/desktop/desktop-fetch-bridge";
 // Generated dark layer first: each rule still beats its own light rule (+1 attribute),
 // while specificity ties resolve in favour of the hand-written legacy rules.
 import "./theme-dark.generated.css";
@@ -67,7 +68,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           }}
         />
       </head>
-      <body><ThemeRuntime/><DesktopDeepLinkListener/>{children}</body>
+      <body><ThemeRuntime/><DesktopFetchBridge/><DesktopDeepLinkListener/>{children}</body>
     </html>
   );
 }

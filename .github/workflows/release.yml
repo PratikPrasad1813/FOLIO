@@ -110,6 +110,43 @@ jobs:
           NEXT_PUBLIC_FOLIO_API_URL: ${{ vars.NEXT_PUBLIC_FOLIO_API_URL }}
         run: npx tauri build ${{ matrix.args }}
 
+      # Individual, directly downloadable installers — no zip bundles. Each
+      # matrix job appends its platform's files to the same release.
+      - name: Collect individual installer files
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          case "${{ matrix.platform }}" in
+            windows-latest)
+              os=windows
+              cp src-tauri/target/release/bundle/nsis/*.exe release-assets/
+              cp src-tauri/target/release/bundle/msi/*.msi release-assets/ ;;
+            ubuntu-22.04)
+              os=linux
+              cp src-tauri/target/release/bundle/deb/*.deb release-assets/
+              cp src-tauri/target/release/bundle/appimage/*.AppImage release-assets/ ;;
+            macos-latest)
+              os=macos
+              cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg release-assets/ ;;
+          esac
+          # Per-platform checksum file — the three matrix jobs upload to the
+          # same release in parallel, so a shared name would overwrite.
+          sha256sum release-assets/* | sed 's|release-assets/||' > "SHA256SUMS-$os.txt"
+          mv "SHA256SUMS-$os.txt" "release-assets/SHA256SUMS-$os.txt"
+          ls -l release-assets
+
+      - name: Attach installers to a GitHub release (individual files)
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-build-${{ github.run_number }}
+          name: "Folio Desktop Build ${{ github.run_number }}"
+          draft: false
+          prerelease: true
+          files: release-assets/*
+          fail_on_unmatched_files: true
+
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:

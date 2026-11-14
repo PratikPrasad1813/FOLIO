@@ -73,7 +73,7 @@ export function GlobalSearch({
     const controller = new AbortController();
     setHistoryLoading(true);
     searchRequest<{ searches: RecentSearch[] }>("/api/search/recent", { signal: controller.signal })
-      .then(body => { if (!controller.signal.aborted) { setRecent(body.searches); setHistoryError(""); } })
+      .then(body => { if (!controller.signal.aborted) { setRecent(Array.isArray(body.searches) ? body.searches : []); setHistoryError(""); } })
       .catch(err => { if (!controller.signal.aborted) setHistoryError(err.message); })
       .finally(() => { if (!controller.signal.aborted) setHistoryLoading(false); });
     return () => controller.abort();

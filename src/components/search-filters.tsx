@@ -84,7 +84,7 @@ export function SavedFilters({ kind, config, onApply }: { kind: FilterKind; conf
     const controller = new AbortController();
     setLoading(true);
     searchRequest<{ filters: SavedFilter[] }>(`/api/filters?kind=${kind}`, { signal: controller.signal })
-      .then(body => { if (!controller.signal.aborted) { setFilters(body.filters); setError(""); } })
+      .then(body => { if (!controller.signal.aborted) { setFilters(Array.isArray(body.filters) ? body.filters : []); setError(""); } })
       .catch(err => { if (!controller.signal.aborted) setError(err.message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
