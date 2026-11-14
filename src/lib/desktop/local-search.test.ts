@@ -20,7 +20,6 @@ const sampleWorkspace: WorkspaceData = {
     },
     timezone: "UTC",
     onboardingCompleted: true,
-    onboardingStep: 3,
     guideDismissed: true,
     greetingName: "Aarav",
   },

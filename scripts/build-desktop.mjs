@@ -30,7 +30,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
@@ -97,6 +97,19 @@ function walkRouteFiles(dir) {
   return found;
 }
 
+function moveSafely(from, to) {
+  try {
+    renameSync(from, to);
+  } catch (err) {
+    if (err && (err.code === "EPERM" || err.code === "EBUSY" || err.code === "EXDEV")) {
+      cpSync(from, to, { recursive: true });
+      rmSync(from, { recursive: true, force: true });
+    } else {
+      throw err;
+    }
+  }
+}
+
 function stashExcluded() {
   rmSync(stashDir, { recursive: true, force: true });
   mkdirSync(stashDir, { recursive: true });
@@ -108,7 +121,7 @@ function stashExcluded() {
       return;
     }
     const to = join(stashDir, relative.replaceAll("/", "__"));
-    renameSync(from, to);
+    moveSafely(from, to);
     stashed.push({ from, to, relative });
   };
   for (const relative of EXCLUDED_PATHS) stashOne(appDir, relative);
@@ -144,7 +157,7 @@ function stashDynamicRoutes(alreadyStashed) {
     const relative = file.slice(appDir.length + 1);
     const to = join(stashDir, "__dynamic__", relative.replaceAll("/", "__"));
     mkdirSync(dirname(to), { recursive: true });
-    renameSync(file, to);
+    moveSafely(file, to);
     extra.push({ from: file, to, relative });
     console.warn(`[build-desktop] stashed dynamic route: ${relative}`);
   }
@@ -154,7 +167,7 @@ function stashDynamicRoutes(alreadyStashed) {
 function restoreExcluded(stashed) {
   for (const entry of stashed) {
     try {
-      renameSync(entry.to, entry.from);
+      moveSafely(entry.to, entry.from);
     } catch (error) {
       console.error(`[build-desktop] FAILED to restore ${entry.relative}:`, error);
       process.exitCode = 1;

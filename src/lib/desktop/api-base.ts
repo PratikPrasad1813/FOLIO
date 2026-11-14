@@ -56,6 +56,9 @@ export function desktopApiBase(): string {
   if (!resolved && typeof process.env.NEXT_PUBLIC_FOLIO_API_URL === "string") {
     resolved = normaliseApiBase(process.env.NEXT_PUBLIC_FOLIO_API_URL) ?? "";
   }
+  if (!resolved && typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
+    resolved = window.location.origin;
+  }
   cachedBase = resolved || DEFAULT_DESKTOP_API_BASE;
   return cachedBase;
 }

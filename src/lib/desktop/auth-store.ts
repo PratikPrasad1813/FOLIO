@@ -177,6 +177,21 @@ export async function desktopSignInWithPassword(email: string, password: string)
   return session;
 }
 
+/** Name + email + password registration against the deployed API (cross-origin, CORS-enabled). */
+export async function desktopSignUpWithPassword(name: string, email: string, password: string): Promise<DesktopSession> {
+  const response = await fetch(desktopApiUrl("/api/auth/desktop/register"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "omit",
+    body: JSON.stringify({ name, email, password }),
+  });
+  const body = (await response.json().catch(() => ({}))) as DesktopLoginResponse;
+  if (!response.ok) throw new Error(body.error || "Could not create your account. Try again.");
+  const session = parseSessionPayload(body);
+  await saveDesktopSession(session);
+  return session;
+}
+
 /**
  * Exchange a one-time handoff code minted by the web app (browser sign-in
  * flow: the user signs in at `<api>/login?next=/desktop-auth`, the page

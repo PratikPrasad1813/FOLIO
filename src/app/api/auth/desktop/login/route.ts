@@ -59,9 +59,12 @@ export async function POST(request: Request) {
     }
 
     const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if (user && !user.passwordHash) {
+      return corsJson(request, { error: "This account was created via social login without a password. Please sign in using an account with a password or register a new desktop account." }, 401);
+    }
     const valid = await verifyPassword(password, user?.passwordHash || DUMMY_HASH);
     if (!user || !user.passwordHash || !valid) {
-      return corsJson(request, { error: "That email and password don’t match. Try again or sign in with your browser." }, 401);
+      return corsJson(request, { error: "That email and password don’t match. Please try again." }, 401);
     }
 
     const { token, expiresAt } = await mintDesktopSessionToken(user.id);
