@@ -4,17 +4,20 @@
  * Dedicated Desktop Sign-In & Registration Screen.
  *
  * Designed exclusively for the Folio Desktop application:
- *   - Completely independent from web authentication.
- *   - 100% self-contained in the desktop shell: NO redirects to Chrome,
- *     NO opening browser tabs, and NO web session cookies.
- *   - Supports both Sign In (existing password accounts) and Create Account
- *     (desktop registration with name, email, password).
- *   - Communicates directly via CORS-authenticated Bearer tokens persisted
- *     in local SQLite (local_auth table).
+ *   - Completely independent from web authentication. No web session
+ *     cookies are ever created or read by this screen.
+ *   - Email + password sign-in / registration happens 100% inside the
+ *     desktop shell against the deployed API (CORS + Bearer tokens
+ *     persisted in the local SQLite `local_auth` table).
+ *   - Google and GitHub sign-in complete inside the SYSTEM BROWSER (the
+ *     provider's own page must not be embedded), then hand the session
+ *     back through the one-time handoff exchange — either via the
+ *     `folio://auth?code=` deep link or by polling `/api/auth/desktop/poll`
+ *     (both paths converge in `desktopExchangeHandoffCode`).
  *   - Transparent server connection & offline resilience.
  */
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowRight,
   CheckCircle2,
@@ -34,7 +37,10 @@ import { Logo } from "@/components/ui";
 import {
   desktopSignInWithPassword,
   desktopSignUpWithPassword,
+  desktopExchangeHandoffCode,
+  desktopPollOAuth,
   isNetworkError,
+  openDesktopOAuth,
 } from "@/lib/desktop/auth-store";
 import {
   desktopApiBase,
@@ -46,6 +52,39 @@ export interface DesktopSignInProps {
   cachedEmail?: string;
   initialMode?: "login" | "register";
 }
+
+/** Provider glyphs rendered locally so the desktop bundle never pulls in the web marketing components. */
+function GoogleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#EA4335" d="M24 9.5c3.5 0 6.7 1.2 9.2 3.6l6.9-6.9C35.9 2.4 30.5 0 24 0 14.6 0 6.5 5.4 2.6 13.2l8 6.2C12.4 13.7 17.7 9.5 24 9.5Z" />
+      <path fill="#4285F4" d="M47 24.5c0-1.5-.2-3.1-.4-4.5H24v9h12.9c-.5 3-2.2 5.5-4.7 7.2l7.7 6C44.4 38 47 32.2 47 24.5Z" />
+      <path fill="#FBBC05" d="M10.5 28.6A14.6 14.6 0 0 1 9.8 24c0-1.6.2-3.1.7-4.6l-8-6.2A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.9-6.2Z" />
+      <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.2 1.4-4.9 2.3-8.2 2.3-6.3 0-11.6-4.2-13.5-9.9l-7.9 6.2C6.5 42.6 14.6 48 24 48Z" />
+    </svg>
+  );
+}
+
+function GithubMark() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 .6C5.7.6.6 5.7.6 12c0 5 3.3 9.3 7.8 10.8.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.6 1.3 3.3 1 .1-.8.4-1.3.7-1.6-2.5-.3-5.2-1.3-5.2-5.7 0-1.2.4-2.3 1.2-3.1-.1-.3-.5-1.5.1-3 0 0 1-.3 3.1 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.1-1.2 3.1-1.2.6 1.5.2 2.7.1 3 .8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.2 5.7.4.4.8 1 .8 2.1v3.1c0 .3.2.6.8.5A11.4 11.4 0 0 0 23.4 12C23.4 5.7 18.3.6 12 .6Z" />
+    </svg>
+  );
+}
+
+/** 48-hex flow id — matches /api/auth/desktop/poll's `^[a-zA-Z0-9_-]{16,64}$`. */
+function newOAuthFlowId(): string {
+  if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
+    const bytes = new Uint8Array(24);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+  return `flow${Math.random().toString(16).slice(2).padEnd(16, "0")}${Date.now().toString(16)}`;
+}
+
+const OAUTH_POLL_INTERVAL_MS = 2_000;
+const OAUTH_POLL_TIMEOUT_MS = 10 * 60_000;
 
 export function DesktopSignIn({
   reason = "fresh",
@@ -66,12 +105,15 @@ export function DesktopSignIn({
   const [showServerConfig, setShowServerConfig] = useState(false);
   const [customServer, setCustomServer] = useState(desktopApiBase() || "");
   const [serverSavedNotice, setServerSavedNotice] = useState("");
+  // "google" | "github" while the corresponding browser flow is in flight.
+  const [oauthBusy, setOauthBusy] = useState<"google" | "github" | null>(null);
+  const oauthCancelled = useRef(false);
+  const [submittedOnce, setSubmittedOnce] = useState(false);
 
   const emailValid =
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && email.trim().length <= 254;
   const passwordValid = password.length >= 8 && password.length <= 128;
   const nameValid = mode !== "register" || name.trim().length > 0;
-  const [submittedOnce, setSubmittedOnce] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -83,6 +125,80 @@ export function DesktopSignIn({
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
+
+  // Stop any in-flight OAuth poll when the screen unmounts (the session
+  // gate swaps to the workspace the moment sign-in succeeds).
+  useEffect(() => {
+    oauthCancelled.current = false;
+    return () => {
+      oauthCancelled.current = true;
+    };
+  }, []);
+
+  // The deep-link bridge may complete a browser sign-in started here
+  // (folio://auth?code=…); surface its failures instead of leaving the
+  // buttons silently stuck in their busy state.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail;
+      if (detail?.message) {
+        setError(detail.message);
+        setOauthBusy(null);
+        setNotice("");
+      }
+    };
+    window.addEventListener("folio:desktop-handoff-error", handler);
+    return () => window.removeEventListener("folio:desktop-handoff-error", handler);
+  }, []);
+
+  async function handleOAuth(provider: "google" | "github") {
+    if (busy || oauthBusy) return;
+    setError("");
+    setNotice("");
+    setOauthBusy(provider);
+    const flowId = newOAuthFlowId();
+
+    try {
+      await openDesktopOAuth(provider, flowId);
+    } catch (openError) {
+      console.error("Could not open the browser for OAuth.", openError);
+      setError(`Could not open your browser for ${provider === "google" ? "Google" : "GitHub"} sign-in. Please continue with email instead.`);
+      setOauthBusy(null);
+      return;
+    }
+
+    setNotice(
+      `Finish signing in with ${provider === "google" ? "Google" : "GitHub"} in your browser — Folio picks it up automatically. Only this desktop app will be signed in.`,
+    );
+
+    const deadline = Date.now() + OAUTH_POLL_TIMEOUT_MS;
+    while (!oauthCancelled.current && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, OAUTH_POLL_INTERVAL_MS));
+      if (oauthCancelled.current) return;
+      const code = await desktopPollOAuth(flowId);
+      if (!code) continue;
+      try {
+        // Persists the session + emits folio:desktop-session; the gate
+        // immediately mounts the workspace (or first-run onboarding).
+        await desktopExchangeHandoffCode(code);
+      } catch (exchangeError) {
+        if (oauthCancelled.current) return;
+        if (isNetworkError(exchangeError)) {
+          setError("Network connection unavailable while completing sign-in. Please try again.");
+        } else {
+          setError(exchangeError instanceof Error ? exchangeError.message : "Could not complete the sign-in.");
+        }
+      }
+      if (!oauthCancelled.current) setOauthBusy(null);
+      return;
+    }
+
+    if (!oauthCancelled.current) {
+      setOauthBusy(null);
+      setNotice("");
+      setError("The browser sign-in didn’t finish in time. Please try again or use email sign-in.");
+    }
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -213,6 +329,31 @@ export function DesktopSignIn({
             </div>
           )}
 
+          {/* Provider sign-in (Google / GitHub) — completes in the system browser, then hands the session back here. */}
+          <div className="desktop-oauth-buttons">
+            <button
+              type="button"
+              className="oauth-button"
+              disabled={busy || oauthBusy !== null}
+              onClick={() => void handleOAuth("google")}
+            >
+              {oauthBusy === "google" ? <Loader2 size={17} className="spin" /> : <GoogleMark />}
+              <span>Continue with Google</span>
+              <ArrowRight size={15} className="oauth-arrow" />
+            </button>
+            <button
+              type="button"
+              className="oauth-button"
+              disabled={busy || oauthBusy !== null}
+              onClick={() => void handleOAuth("github")}
+            >
+              {oauthBusy === "github" ? <Loader2 size={17} className="spin" /> : <GithubMark />}
+              <span>Continue with GitHub</span>
+              <ArrowRight size={15} className="oauth-arrow" />
+            </button>
+          </div>
+          <div className="oauth-separator" role="separator"><span /><b>or continue with email</b><span /></div>
+
           {/* Form */}
           <form className="desktop-auth-form" onSubmit={handleSubmit} noValidate>
             {mode === "register" && (
@@ -289,7 +430,7 @@ export function DesktopSignIn({
             <button
               className="desktop-submit-button"
               type="submit"
-              disabled={busy}
+              disabled={busy || oauthBusy !== null}
             >
               {busy ? (
                 <>
@@ -483,6 +624,62 @@ const desktopAuthStyles = `
   border-radius: 10px;
   padding: 3px;
   gap: 4px;
+}
+
+.desktop-oauth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.oauth-button {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #0d0e14;
+  color: #e6e9f2;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.oauth-button:hover:not(:disabled) {
+  border-color: rgba(124, 108, 240, 0.55);
+  background: #12141c;
+}
+
+.oauth-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.oauth-arrow {
+  color: #6c7385;
+}
+
+.oauth-separator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #6c7385;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.oauth-separator span {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.oauth-separator b {
+  font-weight: 600;
 }
 
 .auth-tab {

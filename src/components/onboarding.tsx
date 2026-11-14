@@ -2,13 +2,33 @@
 import Link from "next/link";
 import TIMEZONE_OPTIONS from "@/lib/timezones.json";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, CheckCheck, Globe2, Laptop, Leaf, Moon, ShieldCheck, Sparkles, Sun } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCheck, Globe2, Laptop, Leaf, Moon, ShieldCheck, Sparkles, Sun, WifiOff } from "lucide-react";
 import { Logo, Spinner } from "@/components/ui";
 import { applyTheme, ThemeToggle } from "@/components/theme-toggle";
 import { countries, DEFAULT_PERSONAL, ONBOARDING_STEPS, WORK_USES, type PersonalPreferences } from "@/lib/personalization";
-import type { readProfile } from "@/lib/profile-service";
+import type { AIPreferences } from "@/lib/folio-ai/types";
+import type { User } from "@/lib/types";
+import { isDesktopRuntime } from "@/lib/desktop/runtime";
+import { desktopApiUrl } from "@/lib/desktop/api-base";
+import { isNetworkError } from "@/lib/desktop/auth-store";
+import { markLocalProfilePending, setCachedProfile, type PendingProfilePatch } from "@/lib/desktop/local-db";
 
-type SetupData = Awaited<ReturnType<typeof readProfile>>;
+/**
+ * The onboarding state contract — structural, not the server's readProfile
+ * return type: the desktop gate must be able to build it from the locally
+ * cached session (`User`, optional profile fields) without a server call.
+ */
+export interface OnboardingSetup {
+  user: User;
+  personal: PersonalPreferences;
+  timezone: string;
+  notificationsEnabled: boolean;
+  quietHoursEnabled: boolean;
+  assistant: AIPreferences;
+  onboardingStep: number;
+  onboardingCompleted: boolean;
+  linkedProviders: string[];
+}
 const TITLES = [
   ["Welcome to Folio.", "Let’s make a little room for you."],
   ["What should we call you?", "Your provider gave us a starting point. Make it your own."],
@@ -22,7 +42,19 @@ const TITLES = [
   ["How should your space feel?", "A little light, a little dark, or in step with your day."],
   ["Meet your thinking companion.", "Personalize your assistant—or leave it for another day."],
 ];
-export function Onboarding({ initial, next, editing = false }: { initial: SetupData; next: string; editing?: boolean }) {
+export function Onboarding({
+  initial,
+  next,
+  editing = false,
+  desktopToken,
+  onComplete,
+}: {
+  initial: OnboardingSetup;
+  next: string;
+  editing?: boolean;
+  desktopToken?: string;
+  onComplete?: (user: User) => void | Promise<void>;
+}) {
   const [step, setStep] = useState(editing ? 1 : initial.onboardingStep);
   const [name, setName] = useState(initial.user.name);
   const [personal, setPersonal] = useState<PersonalPreferences>({ ...DEFAULT_PERSONAL, ...initial.personal });
@@ -34,6 +66,12 @@ export function Onboarding({ initial, next, editing = false }: { initial: SetupD
   const [countrySearch, setCountrySearch] = useState("");
   const [suggestedCountry, setSuggestedCountry] = useState("");
   const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [finishing, setFinishing] = useState(false);
+  // Set when a desktop step was saved locally (API unreachable); shown in the save note.
+  const [deviceNotice, setDeviceNotice] = useState("");
+  // Accumulates answers saved while the cloud was unreachable, so one merged
+  // profile PATCH (never a mid-flow `step` — the server rejects forward jumps)
+  // lands once the background sync engine is online again.
+  const offlinePatchRef = useRef<Record<string, unknown>>({});
   const titleRef = useRef<HTMLHeadingElement>(null);
   const countryList = useMemo(countries, []);
   const filteredCountries = countryList.filter(c => `${c.name} ${c.code}`.toLowerCase().includes(countrySearch.toLowerCase()));
@@ -71,31 +109,120 @@ export function Onboarding({ initial, next, editing = false }: { initial: SetupD
     if (step === 10) return { assistant: { assistantName: assistant.assistantName, presentation: assistant.presentation, style: assistant.style } };
     return {};
   }
+
+  /* ------------------------------------------------------------------ */
+  /* desktop offline fallback                                            */
+  /*                                                                    */
+  /* The onboarding steps normally PATCH the cloud profile directly. On */
+  /* the desktop shell the deployed API may be asleep (free-tier hosts) */
+  /* or unreachable — setup must still work, local-first: answers land  */
+  /* in the local mirror and one merged PATCH is queued for the sync    */
+  /* engine (markLocalProfilePending), which pushes it next cycle.      */
+  /* ------------------------------------------------------------------ */
+
+  function mergedOfflinePatch(values: Record<string, unknown>): Record<string, unknown> {
+    const personal = values.personal as Record<string, unknown> | undefined;
+    const previous = offlinePatchRef.current;
+    const next: Record<string, unknown> = { ...previous, ...values };
+    if (personal) next.personal = { ...(previous.personal as Record<string, unknown> | undefined ?? {}), ...personal };
+    offlinePatchRef.current = next;
+    return next;
+  }
+
+  async function saveOnDevice(target: number, skip: boolean, complete: boolean) {
+    try {
+      const patch = mergedOfflinePatch(skip ? {} : valuesForStep());
+      // Never queue a mid-flow `step` — the server rejects forward jumps.
+      // Completion rides `skipSetup`, which the profile service accepts in
+      // one request regardless of the account's current onboarding step.
+      const cloudPatch: PendingProfilePatch = {};
+      if (typeof patch.name === "string") cloudPatch.name = patch.name;
+      if (typeof patch.weeklyGoal === "number") cloudPatch.weeklyGoal = patch.weeklyGoal;
+      if (patch.personal && typeof patch.personal === "object") cloudPatch.personal = patch.personal as Partial<PersonalPreferences>;
+      if (typeof patch.timezone === "string") cloudPatch.timezone = patch.timezone;
+      if (typeof patch.notificationsEnabled === "boolean") cloudPatch.notificationsEnabled = patch.notificationsEnabled;
+      if (typeof patch.quietHoursEnabled === "boolean") cloudPatch.quietHoursEnabled = patch.quietHoursEnabled;
+      if (patch.assistant && typeof patch.assistant === "object") cloudPatch.assistant = patch.assistant as PendingProfilePatch["assistant"];
+      if (complete) { cloudPatch.complete = true; cloudPatch.skipSetup = true; }
+      if (Object.keys(cloudPatch).length) await markLocalProfilePending(cloudPatch);
+
+      const personal = { ...DEFAULT_PERSONAL, ...initial.personal, ...(patch.personal as Partial<PersonalPreferences> | undefined) };
+      const updatedUser: User = {
+        ...initial.user,
+        name: typeof patch.name === "string" && patch.name.trim() ? patch.name.trim().slice(0, 80) : initial.user.name,
+        weeklyGoal: typeof patch.weeklyGoal === "number" ? patch.weeklyGoal : initial.user.weeklyGoal,
+        personal,
+        timezone: typeof patch.timezone === "string" ? patch.timezone : initial.timezone,
+        onboardingCompleted: complete ? true : initial.user.onboardingCompleted,
+      };
+      await setCachedProfile(updatedUser);
+
+      if (complete) {
+        setFinishing(true);
+        applyTheme(personal.theme, false);
+        if (onComplete) await onComplete(updatedUser);
+        return;
+      }
+      setStep(target);
+      setDeviceNotice("Saved on this device — it syncs to your account when you’re back online.");
+    } catch {
+      setError("Couldn’t save your preferences.");
+    }
+  }
+
   async function persist(target: number, skip = false) {
     if (busy) return; setBusy(true); setError("");
     try {
       const complete = step === 10 && target > 10;
       const body = { ...(skip ? {} : valuesForStep()), ...(!editing ? { step: Math.min(target, 10) } : {}), ...(complete ? { complete: true } : {}) };
-      const response = await fetch("/api/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      const result = await response.json(); if (!response.ok) throw new Error(result.error || "Couldn’t save. Please try again.");
+      const targetUrl = isDesktopRuntime() ? desktopApiUrl("/api/profile") : "/api/profile";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (desktopToken) headers["Authorization"] = `Bearer ${desktopToken}`;
+      const response = await fetch(targetUrl, { method: "PATCH", headers, body: JSON.stringify(body) });
+      if (!response.ok) {
+        // Desktop resilience: an asleep or erroring cloud (5xx) behaves like
+        // being offline — save on-device and continue the flow either way.
+        if (isDesktopRuntime() && response.status >= 500) { await saveOnDevice(target, skip, complete); return; }
+        const failed = await response.json().catch(() => ({}));
+        throw new Error(failed.error || "Couldn’t save. Please try again.");
+      }
+      const result = await response.json();
       if (complete) {
         setFinishing(true);
         applyTheme(personal.theme, false);
-        // This transition follows an actual committed profile update. No sample
-        // tasks or projects are created in a real user's workspace.
-        window.setTimeout(() => window.location.assign(editing ? "/settings" : next), 1000);
+        if (onComplete) {
+          const updatedUser = (result.user as User) || initial.user;
+          await onComplete({ ...updatedUser, onboardingCompleted: true });
+        } else {
+          window.setTimeout(() => window.location.assign(editing ? "/settings" : next), 1000);
+        }
       } else setStep(target);
-    } catch (err) { setError(err instanceof Error ? err.message : "Couldn’t save your preferences."); }
+    } catch (err) {
+      if (isDesktopRuntime() && isNetworkError(err)) { await saveOnDevice(target, skip, step === 10 && target > 10); return; }
+      setError(err instanceof Error ? err.message : "Couldn’t save your preferences.");
+    }
     finally { setBusy(false); }
   }
   async function quickEnterWorkspace() {
     if (busy || editing) return;
     setBusy(true);
     setError("");
+    const prepareLocally = async () => {
+      const localPersonal = { ...DEFAULT_PERSONAL, ...initial.personal, theme: personal.theme };
+      const updatedUser: User = { ...initial.user, personal: localPersonal, timezone, onboardingCompleted: true };
+      await markLocalProfilePending({ timezone, personal: { theme: personal.theme }, complete: true, skipSetup: true });
+      await setCachedProfile(updatedUser);
+      setFinishing(true);
+      applyTheme(localPersonal.theme, false);
+      if (onComplete) await onComplete(updatedUser);
+    };
     try {
-      const response = await fetch("/api/profile", {
+      const targetUrl = isDesktopRuntime() ? desktopApiUrl("/api/profile") : "/api/profile";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (desktopToken) headers["Authorization"] = `Bearer ${desktopToken}`;
+      const response = await fetch(targetUrl, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           timezone,
           personal: { theme: personal.theme },
@@ -104,18 +231,30 @@ export function Onboarding({ initial, next, editing = false }: { initial: SetupD
         }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Couldn’t prepare your workspace.");
+      if (!response.ok) {
+        if (isDesktopRuntime() && response.status >= 500) { await prepareLocally(); return; }
+        throw new Error(result.error || "Couldn’t prepare your workspace.");
+      }
       setFinishing(true);
       applyTheme(personal.theme, false);
-      window.setTimeout(() => window.location.assign(next), 750);
+      if (onComplete) {
+        const updatedUser = (result.user as User) || initial.user;
+        await onComplete({ ...updatedUser, onboardingCompleted: true });
+      } else {
+        window.setTimeout(() => window.location.assign(next), 750);
+      }
     } catch (err) {
+      if (isDesktopRuntime() && isNetworkError(err)) {
+        try { await prepareLocally(); } catch { setError("Couldn’t prepare your workspace."); }
+        return;
+      }
       setError(err instanceof Error ? err.message : "Couldn’t prepare your workspace.");
-    } finally {
-      setBusy(false);
     }
+    finally { setBusy(false); }
   }
   const welcomeFirstName = name.trim().split(" ").filter(Boolean)[0] || "";
   const headingText = step === 0 && welcomeFirstName ? `Welcome to Folio, ${welcomeFirstName}.` : TITLES[step][0];
+  const desktop = isDesktopRuntime();
   const onSubmit = (event: FormEvent) => { event.preventDefault(); void persist(step + 1); };
   const option = (label: string, selected: boolean, action: () => void, detail?: string, icon?: ReactNode) => <button type="button" className={`ob-option ${selected ? "is-selected" : ""}`} aria-pressed={selected} onClick={action}><span className="ob-option-icon">{icon ?? <span/>}</span><span><strong>{label}</strong>{detail && <small>{detail}</small>}</span><i>{selected && <Check size={13}/>}</i></button>;
 
@@ -131,6 +270,6 @@ export function Onboarding({ initial, next, editing = false }: { initial: SetupD
       {step === 8 && <><div className="ob-two-fields"><label className="ob-field"><span>Tasks per week</span><input aria-label="Tasks per week" type="number" min={1} max={200} value={goal} onChange={e => setGoal(Number(e.target.value))}/><small>A gentle goal, not a deadline.</small></label><label className="ob-field"><span>Task list spacing</span><select aria-label="Task list spacing" value={personal.taskDensity} onChange={e => patch({ taskDensity: e.target.value as PersonalPreferences["taskDensity"] })}><option value="comfortable">Comfortable · room to breathe</option><option value="compact">Compact · more in view</option></select></label></div><div className="ob-toggles"><label><span><strong>Show task insights</strong><small>See completion and weekly progress on My tasks.</small></span><input type="checkbox" checked={personal.taskInsights} onChange={e => patch({ taskInsights: e.target.checked })}/></label><label><span><strong>Keep me in the loop</strong><small>Enable Folio notifications. Fine-tune categories in Settings.</small></span><input type="checkbox" checked={notificationsEnabled} onChange={e => setNotificationsEnabled(e.target.checked)}/></label><label><span><strong>Give me quiet hours</strong><small>Hold reminders during your configured rest hours.</small></span><input type="checkbox" checked={quiet} onChange={e => setQuiet(e.target.checked)}/></label></div></>}
       {step === 9 && <div className="ob-theme-choices">{([{ value: "light", label: "Light", Icon: Sun },{ value: "dark", label: "Dark", Icon: Moon },{ value: "system", label: "Follow my system", Icon: Laptop }] as const).map(({ value,label,Icon }) => <button key={value} type="button" className={personal.theme === value ? "is-selected" : ""} aria-pressed={personal.theme === value} onClick={() => { patch({ theme: value }); applyTheme(value, false); }}><div className={`ob-theme-preview is-${value}`}><i/><span><b/><b/><b/></span></div><span><Icon size={15}/>{label}{personal.theme === value && <Check size={14}/>}</span></button>)}</div>}
       {step === 10 && <><div className="ob-ai-note"><Sparkles size={19}/><span><strong>Runs on your own API key.</strong> Folio AI sends your prompt to the AI provider you choose in AI Settings. It is optional and is not required to use the rest of Folio.</span></div><label className="ob-field"><span>Assistant name</span><input aria-label="Assistant name" maxLength={40} value={assistant.assistantName} onChange={e => setAssistant({ ...assistant, assistantName: e.target.value })}/></label><div className="ob-two-fields"><label className="ob-field"><span>Assistant presentation</span><select aria-label="Assistant presentation" value={assistant.presentation} onChange={e => setAssistant({ ...assistant, presentation: e.target.value as typeof assistant.presentation })}><option value="neutral">Neutral</option><option value="feminine">Feminine</option><option value="masculine">Masculine</option><option value="custom">Custom</option></select></label><label className="ob-field"><span>Communication style</span><select aria-label="Communication style" value={assistant.style} onChange={e => setAssistant({ ...assistant, style: e.target.value as typeof assistant.style })}>{["professional","friendly","concise","motivational","calm"].map(style => <option value={style} key={style}>{style[0].toUpperCase() + style.slice(1)}</option>)}</select></label></div><p className="ob-note">Folio AI uses your chosen provider with a 10,000-token daily Folio allowance. Your assistant’s presentation is independent of your own identity.</p></>}
-    </div>{error && <p className="auth-inline-error" role="alert">{error}</p>}<div className="ob-controls">{step > (editing ? 1 : 0) ? <button type="button" className="ob-back" disabled={busy} onClick={() => void persist(step - 1, true)}><ArrowLeft size={15}/>Back</button> : <span/>}{step > 1 && <button type="button" className="ob-skip" disabled={busy} onClick={() => void persist(step + 1, true)}>{step === 10 ? "Skip AI setup" : "Skip for now"}</button>}<button type="submit" className="lp-button is-primary" disabled={busy || (step === 1 && !name.trim())}>{busy ? <Spinner size={15}/> : null}{step === 0 ? "Make yourself at home" : step === 10 ? editing ? "Save my preferences" : "Open my workspace" : "Continue"}<ArrowRight size={16}/></button></div><div className="ob-save-note"><CheckCheck size={13}/>Saved as you continue. Change anything later in Settings.</div></form></main>}<footer className="ob-footer"><span>A little more organized. A little more you.</span><div><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link>{editing && <Link href="/settings">Back to Settings</Link>}</div></footer></div>;
+    </div>{error && <p className="auth-inline-error" role="alert">{error}</p>}<div className="ob-controls">{step > (editing ? 1 : 0) ? <button type="button" className="ob-back" disabled={busy} onClick={() => void persist(step - 1, true)}><ArrowLeft size={15}/>Back</button> : <span/>}{step > 1 && <button type="button" className="ob-skip" disabled={busy} onClick={() => void persist(step + 1, true)}>{step === 10 ? "Skip AI setup" : "Skip for now"}</button>}<button type="submit" className="lp-button is-primary" disabled={busy || (step === 1 && !name.trim())}>{busy ? <Spinner size={15}/> : null}{step === 0 ? "Make yourself at home" : step === 10 ? editing ? "Save my preferences" : "Open my workspace" : "Continue"}<ArrowRight size={16}/></button></div><div className="ob-save-note">{deviceNotice ? <><WifiOff size={13}/>{deviceNotice}</> : <><CheckCheck size={13}/>Saved as you continue. Change anything later in Settings.</>}</div></form></main>}<footer className="ob-footer"><span>A little more organized. A little more you.</span><div>{desktop ? <span>Terms &amp; privacy are bundled with the Folio installer.</span> : <><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></>}{editing && <Link href="/settings">Back to Settings</Link>}</div></footer></div>;
 }
 function CalendarIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4m8-4v4M3 10h18"/></svg>; }

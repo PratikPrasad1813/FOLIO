@@ -63,6 +63,7 @@ import {
   setLocalMetadata,
   takePendingMutations,
   wipeLocalDatabase,
+  type PendingProfilePatch,
 } from "@/lib/desktop/local-db";
 import {
   SYNC_ENTITY_TYPES,
@@ -309,9 +310,9 @@ class DesktopSyncEngine {
       await clearLocalMetadata([META_KEYS.profileDirty]);
       return;
     }
-    let pending: { name?: string; weeklyGoal?: number; complete?: boolean };
+    let pending: PendingProfilePatch;
     try {
-      pending = JSON.parse(pendingRaw) as { name?: string; weeklyGoal?: number; complete?: boolean };
+      pending = JSON.parse(pendingRaw) as PendingProfilePatch;
     } catch {
       await clearLocalMetadata([META_KEYS.profileDirty, META_KEYS.profilePending]);
       return;

@@ -59,8 +59,8 @@ export async function POST(request: Request) {
         email,
         passwordHash,
         provider: "email",
-        onboardingCompletedAt: new Date(),
-        onboardingStep: 10,
+        onboardingCompletedAt: null,
+        onboardingStep: 0,
       })
       .onConflictDoNothing({ target: users.email })
       .returning();

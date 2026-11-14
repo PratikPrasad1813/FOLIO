@@ -1,0 +1,131 @@
+================================================================================
+FOLIO DESKTOP WORKSPACE — SOFTWARE LICENSE, TERMS OF SERVICE & PRIVACY POLICY
+================================================================================
+Last Updated: November 2026
+Copyright (c) 2026 PRATIK PRASAD. All rights reserved.
+
+PLEASE READ THIS AGREEMENT CAREFULLY BEFORE INSTALLING OR USING FOLIO DESKTOP.
+BY INSTALLING, COPYING, OR OTHERWISE USING FOLIO, YOU AGREE TO BE BOUND BY THE
+TERMS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+1. SOFTWARE LICENSE (END USER LICENSE AGREEMENT)
+--------------------------------------------------------------------------------
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------------
+2. TERMS OF SERVICE
+--------------------------------------------------------------------------------
+A THOUGHTFUL WORKSPACE. THOUGHTFULLY USED.
+
+By creating an account or using Folio Desktop, you agree to the following terms
+for this version of the service:
+
+A. YOUR ACCOUNT AND YOUR WORK
+Use an account you own and keep its sign-in credentials secure. You remain
+responsible for the content you create, upload, or ask the assistant to save.
+Only connect Calendar or sign-in identities you control. Do not attempt to access
+another person's workspace.
+
+B. ACCEPTABLE USE
+Do not use Folio for illegal activity, abuse, malicious code, credential theft,
+or attempts to bypass permissions and usage limits. Avoid storing unnecessary
+sensitive information. Automated misuse may be rate-limited.
+
+C. LOCAL AI AND ASSISTANT PREVIEW
+AI outputs can be incomplete or wrong. Review proposed actions, dates, and record
+selections before approving them. Browser-based and local AI requires compatible
+hardware; availability, model selection, and usage limits can change.
+
+D. THIRD-PARTY CONNECTIONS
+Google, GitHub, Calendar, hosting, database, and model services have their own
+terms. Folio cannot guarantee their availability. Calendar modifications can
+affect your real Google events; confirm changes carefully.
+
+E. AVAILABILITY, BACKUPS AND LOCAL STORAGE
+Folio Desktop stores your workspace in a local SQLite database on your device,
+enabling full offline functionality. Background sync occurs when an internet
+connection is available. Features may evolve. Keep independent backups of
+important work using the export option in Settings.
+
+--------------------------------------------------------------------------------
+3. PRIVACY POLICY
+--------------------------------------------------------------------------------
+YOUR WORK IS PERSONAL. HERE IS HOW WE HANDLE IT.
+
+Folio is designed around a personal, device-isolated, and private workspace:
+
+A. YOUR ACCOUNT AND PROFILE
+Folio Desktop stores your display name, email address, sign-in provider
+identifiers, and the personal rhythm preferences you configure. Optional
+gender, country, and forms of address are used solely for your profile and
+greeting personalization, never for eligibility, tracking, or advertising.
+
+B. YOUR WORKSPACE AND LOCAL DATA
+Projects, tasks, subtasks, milestones, ideas, notes, activity history, and
+saved filters are stored securely in local SQLite (folio.db) on your machine.
+When connected, data synchronizes privately over encrypted HTTPS/TLS with the
+Folio cloud backend. Backend requests are strictly scoped to the authenticated
+user ID.
+
+C. DEVICE-ISOLATED SESSIONS
+Signing in on Folio Desktop authenticates only this desktop application using
+secure token-based Bearer authentication stored in your local application database.
+Your web browser sessions remain completely separate and independent.
+
+D. FOLIO AI AND PRIVACY
+Folio AI only routes prompts when explicitly requested by you, using your
+configured API key. Your API keys are kept on your device and are never shared
+across accounts. Do not include passwords or sensitive personal identification
+in AI prompts.
+
+E. DATA RETENTION AND DELETION
+You maintain full ownership of your data. You may export your workspace data at
+any time through Settings -> Account. You can delete individual items or your
+entire account directly from the Danger Zone in Settings, which permanently
+erases all records from both your local database and the server.
+
+F. UNINSTALLING FOLIO DESKTOP
+Uninstalling Folio Desktop is always in your control:
+
+  Windows — the uninstaller first closes a running Folio instance, removes the
+  application, its shortcuts and its registry entries, and then asks whether
+  you also want to delete your LOCAL workspace data. Choosing "No" keeps your
+  data for a future reinstall; choosing "Yes" permanently removes
+  %APPDATA%\com.folio.workspace (the folio.db local workspace database and
+  cached session) and the WebView2 profile under
+  %LOCALAPPDATA%\com.folio.workspace.
+
+  Linux — "apt remove folio" (or your package manager's equivalent) removes
+  the application while keeping your local data. "apt purge folio" removes
+  the application together with ~/.config/com.folio.workspace and
+  ~/.local/share/com.folio.workspace.
+
+  macOS — drag Folio from Applications to the Trash to uninstall. Your local
+  data remains in ~/Library/Application Support/com.folio.workspace and may be
+  deleted from there at any time.
+
+Nothing is deleted silently: the local workspace data is only removed when you
+confirm it during uninstall (Windows), purge the package (Linux), or delete
+the data folder yourself (macOS).
+
+================================================================================
+By continuing with the installation, you acknowledge that you have read,
+understood, and agree to the Folio License, Terms of Service, and Privacy Policy.
+================================================================================

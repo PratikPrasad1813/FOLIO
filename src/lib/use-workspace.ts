@@ -103,6 +103,8 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: number | null = null;
+    let attempts = 0;
     // Desktop shell: boot the background sync engine (launch trigger) and
     // render from the local SQLite mirror — the web keeps the classic
     // request/response flow.
@@ -117,14 +119,24 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
             dataRef.current = next;
             setData(next);
             setError("");
-            return;
+            return true;
           }
-          if (local) return;
+          if (local) return true;
           // The session gate guarantees a local_auth row before this hook
           // mounts; an empty mirror simply means the first pull is still
           // running. No network call, no login redirect — a splash state.
-          if (!cancelled) setError("Your workspace is still syncing. One moment…");
-          return;
+          if (!cancelled) {
+            setError("Your workspace is still syncing. One moment…");
+            // Bounded self-retry: the mirror becomes readable the moment the
+            // first pull (or the local_auth profile fallback) lands, so the
+            // projects/tasks views recover by themselves instead of leaving
+            // a dead "try again" screen until the user clicks Reload.
+            attempts += 1;
+            if (attempts <= 30 && retryTimer === null) {
+              retryTimer = window.setTimeout(() => { retryTimer = null; if (!cancelled) void loadWorkspace(); }, 2000);
+            }
+          }
+          return false;
         }
         const response = await fetch("/api/workspace", { cache: "no-store" });
         const result = await readJson(response);
@@ -136,12 +148,14 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
           setData(next);
           setError("");
         }
+        return true;
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Couldn’t connect to your workspace.");
+        return false;
       }
     }
     void loadWorkspace();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; if (retryTimer !== null) window.clearTimeout(retryTimer); };
   }, []);
 
   // Web only: refresh the server session cookie every 30 minutes. The

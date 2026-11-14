@@ -37,16 +37,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
     } else {
       if (flow.desktop) {
         const code = randomBytes(32).toString("hex");
+        const flowId = flow.returnTo.startsWith("desktop:") ? flow.returnTo.slice(8) : null;
         await db.insert(desktopAuthHandoffs).values({
           tokenHash: hashToken(code),
           userId: user.id,
-          destination: signedInDestination(user, flow.returnTo),
-          expiresAt: new Date(Date.now() + 2 * 60_000),
+          destination: flowId ? `flow:${flowId}:${code}` : signedInDestination(user, flow.returnTo),
+          expiresAt: new Date(Date.now() + 5 * 60_000),
         });
         if (!user.welcomeEmailSentAt && Date.now() - new Date(user.createdAt).getTime() < 60_000) {
           await onAccountCreated({ user, appOrigin: origin });
         }
-        return Response.redirect(`folio://auth?code=${code}`, 302);
+        const redirectUrl = new URL(`${origin}/desktop-auth`);
+        redirectUrl.searchParams.set("code", code);
+        if (flowId) redirectUrl.searchParams.set("flow", flowId);
+        return Response.redirect(redirectUrl.toString(), 302);
       }
       await createSession(user.id);
       if (!user.welcomeEmailSentAt && Date.now() - new Date(user.createdAt).getTime() < 60_000) {

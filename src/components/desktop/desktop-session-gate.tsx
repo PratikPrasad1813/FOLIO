@@ -19,9 +19,12 @@
  */
 
 import { useEffect, type ReactNode } from "react";
-import { useDesktopSession } from "@/lib/desktop/auth-store";
+import { saveDesktopSession, useDesktopSession } from "@/lib/desktop/auth-store";
 import { getSyncEngine, useSyncStatus } from "@/lib/desktop/sync-engine";
 import { DesktopSignIn } from "@/components/desktop/desktop-signin";
+import { Onboarding } from "@/components/onboarding";
+import { DEFAULT_PERSONAL } from "@/lib/personalization";
+import type { AIPreferences } from "@/lib/folio-ai/types";
 
 export function DesktopSessionGate({ children }: { children?: ReactNode }) {
   const session = useDesktopSession();
@@ -45,6 +48,43 @@ export function DesktopSessionGate({ children }: { children?: ReactNode }) {
   // re-auth. Local data stays intact and offline editing keeps working.
   if (syncStatus.state === "auth-expired") {
     return <DesktopSignIn reason="expired" cachedEmail={session.session.user.email} />;
+  }
+
+  if (session.state === "authenticated" && !session.session.user.onboardingCompleted) {
+    const tz = (typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : null) || "UTC";
+    const personal = { ...DEFAULT_PERSONAL, ...session.session.user.personal };
+    // Literal (not DEFAULT_AI_PREFERENCES): importing that constant here
+    // would pull the server db module into the desktop client bundle.
+    const assistant: AIPreferences = {
+      assistantName: "Folio AI",
+      presentation: "neutral",
+      style: "calm",
+      modelPreference: "automatic",
+      selectedModelId: null,
+    };
+    return (
+      <Onboarding
+        initial={{
+          user: { ...session.session.user, personal },
+          personal,
+          timezone: session.session.user.timezone || tz,
+          notificationsEnabled: true,
+          quietHoursEnabled: false,
+          assistant,
+          onboardingStep: 0,
+          onboardingCompleted: false,
+          linkedProviders: [],
+        }}
+        next="/overview"
+        desktopToken={session.session.token}
+        onComplete={async (updatedUser) => {
+          await saveDesktopSession({
+            ...session.session,
+            user: { ...session.session.user, ...updatedUser, personal: { ...DEFAULT_PERSONAL, ...updatedUser.personal }, onboardingCompleted: true },
+          });
+        }}
+      />
+    );
   }
 
   return <>{children}</>;

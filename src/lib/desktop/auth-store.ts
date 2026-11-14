@@ -218,6 +218,31 @@ export async function openDesktopBrowserSignIn(): Promise<void> {
   await openUrl(target);
 }
 
+/** Open provider OAuth directly for the desktop shell (no web session created). */
+export async function openDesktopOAuth(provider: "google" | "github", flowId: string): Promise<void> {
+  const target = `${desktopApiUrl(`/api/auth/oauth/${provider}`)}?desktop=1&flow=${encodeURIComponent(flowId)}`;
+  const { openUrl } = await import("@tauri-apps/plugin-opener");
+  await openUrl(target);
+}
+
+/** Poll for an OAuth flow to be authorized in the browser. */
+export async function desktopPollOAuth(flowId: string): Promise<string | null> {
+  try {
+    const response = await fetch(desktopApiUrl(`/api/auth/desktop/poll?flow=${encodeURIComponent(flowId)}`), {
+      method: "GET",
+      credentials: "omit",
+    });
+    if (!response.ok) return null;
+    const body = (await response.json().catch(() => ({}))) as { ready?: boolean; code?: string };
+    if (body.ready && typeof body.code === "string" && /^[a-f0-9]{64}$/.test(body.code)) {
+      return body.code;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* sign-out                                                            */
 /* ------------------------------------------------------------------ */

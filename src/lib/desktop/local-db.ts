@@ -534,12 +534,32 @@ export async function listLocalWorkspace(userId: string): Promise<LocalWorkspace
 export async function getCachedProfile(): Promise<User | null> {
   try {
     const raw = await getLocalMetadata(META_KEYS.profile);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    return parsed && typeof parsed === "object" && typeof (parsed as User).id === "string" ? (parsed as User) : null;
+    if (raw) {
+      const parsed: unknown = JSON.parse(raw);
+      if (parsed && typeof parsed === "object" && typeof (parsed as User).id === "string") return parsed as User;
+    }
   } catch {
-    return null;
+    // Corrupt snapshot: fall through to the session row below.
   }
+  // Fallback (the "still syncing forever" fix): the session row ALWAYS
+  // carries the profile it was minted with, so a lost/corrupt profile
+  // snapshot can never wedge the workspace into its empty boot state —
+  // the mirror hydrates from local_auth immediately, online or off.
+  try {
+    const auth = await readLocalAuth();
+    if (auth?.user_json) {
+      const parsed: unknown = JSON.parse(auth.user_json);
+      const profile = parsed && typeof parsed === "object" && typeof (parsed as User).id === "string" ? (parsed as User) : null;
+      if (profile) {
+        // Re-seed the snapshot (best effort) so later reads are direct.
+        try { await setCachedProfile(profile); } catch { /* next boot retries */ }
+        return profile;
+      }
+    }
+  } catch {
+    // No session either — genuinely nothing to hydrate from.
+  }
+  return null;
 }
 
 export async function setCachedProfile(profile: User): Promise<void> {
@@ -571,7 +591,14 @@ export interface PendingProfilePatch {
   name?: string;
   weeklyGoal?: number;
   complete?: boolean;
+  /** Completes onboarding in one accepted request even mid-flow (offline). */
+  skipSetup?: boolean;
   personal?: Partial<PersonalPreferences>;
+  /** Onboarding queue fields (same contract as PATCH /api/profile). */
+  timezone?: string;
+  notificationsEnabled?: boolean;
+  quietHoursEnabled?: boolean;
+  assistant?: { assistantName?: string; presentation?: string; style?: string };
 }
 
 /**

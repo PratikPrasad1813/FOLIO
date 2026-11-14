@@ -498,6 +498,43 @@ npm run start
 
 ---
 
+## Desktop App (Windows / Linux / macOS)
+
+Folio ships as an offline-first desktop app (Tauri 2 + local SQLite mirror with silent background cloud sync).
+
+### Build the installers
+
+```sh
+npm run tauri build          # builds the current OS's installer bundle(s)
+npm run build:desktop        # static frontend bundle into out/ (runs automatically inside tauri build)
+```
+
+The installer is branded end-to-end with the Folio logo (`src-tauri/icons/`, used for the app, installer and uninstaller) and shows the bundled **License, Terms of Service & Privacy Policy** (`src-tauri/installer/TERMS_AND_PRIVACY.txt`) during installation.
+
+| Platform | Artifact | Installer experience |
+| --- | --- | --- |
+| Windows | `.exe` (NSIS) | Per-user install, license page, branded header/sidebar, app + Start-menu shortcut, `folio://` deep-link registration. |
+| Linux | `.deb` | `utils` section, `optional` priority, standard Tauri webkit dependencies. |
+| macOS | `.app` + `.dmg` | Drag-to-install DMG (macOS 10.15+). |
+
+### Signing in
+
+- **Email + password** — fully in-app; creates a device-scoped session (web browser sessions stay independent).
+- **Continue with Google / GitHub** — completes in your system browser and hands the session back automatically (deep link or secure poll — both are supported).
+- **Browser pairing** — sign in at the deployed web app's `/desktop-auth` page; Folio opens via the `folio://auth?code=` deep link.
+
+A brand-new account goes through the same 10-step onboarding as the web (name, country, timezone, region, pace, appearance, assistant). Steps save even when the deployed API is unreachable — they're queued locally and pushed to the cloud by the background sync engine once you're back online.
+
+### Uninstalling
+
+Uninstalling never deletes your cloud account; synced data stays in your Folio account and returns when you sign back in.
+
+- **Windows** — Settings → Apps → Folio → Uninstall (or the Start-menu entry). The uninstaller closes a running instance, removes the app, shortcuts and registry entries, then asks whether to also delete the **local** workspace data. "No" keeps it for a future reinstall; "Yes" removes `%APPDATA%\com.folio.workspace` (folio.db, cached session) and the WebView2 profile in `%LOCALAPPDATA%\com.folio.workspace`.
+- **Linux** — `sudo apt remove folio` keeps your local data (`~/.config/com.folio.workspace`); `sudo apt purge folio` removes the app **and** the local workspace data.
+- **macOS** — drag Folio from Applications to the Trash. Local data remains in `~/Library/Application Support/com.folio.workspace` until you delete it.
+
+---
+
 ## Troubleshooting Guide
 
 | Issue | Cause | Solution |
