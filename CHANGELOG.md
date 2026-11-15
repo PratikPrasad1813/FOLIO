@@ -3,6 +3,12 @@
 Folio versions follow `V<major>.<minor>`: every release bumps the minor number (V1.1 → V1.2 → V1.3 …) and a major release moves to the next whole number (V2).
 The version lives in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `package.json` and `src/lib/desktop-downloads.ts` (installer file names).
 
+## V1.3 — 2026-11-15
+
+### Fixed
+- **Release pipeline test failure** (`workspace-sync.test.ts`, "soft-deleted entities are hidden…"): the in-memory demo/test database now understands sub-queries (`groupBy`, `as`, and sub-query joins), which the Projects list uses. Real PostgreSQL was never affected.
+- **Expired or missing sign-in returned a generic server error.** `/api/workspace` and the notification routes now answer HTTP 401 with "Your session has expired. Please sign in again." so the app can send you to the sign-in page, instead of 500 "couldn't be loaded".
+
 ## V1.2 — 2026-11-15
 
 ### Fixed

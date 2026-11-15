@@ -3,7 +3,7 @@
 # "app" in older builds, which made the installer, Task Manager and antivirus
 # tools show an unhelpful "app.exe". The installer hooks remove the old file.
 name = "folio"
-version = "1.2.0"
+version = "1.3.0"
 description = "Folio - a free, open-source workspace for projects, tasks, ideas and Folio AI (desktop app)"
 authors = ["Folio"]
 license = "MIT"

@@ -1,8 +1,10 @@
 /**
  * Shared "something went wrong on our side" responses for API routes.
  *
- * Two rules every route follows when its catch block is reached:
+ * Three rules every route follows when its catch block is reached:
  *
+ *  0. A missing or expired sign-in is never a server problem: answer HTTP 401
+ *     with the sign-in message so the app sends the person to the sign-in page.
  *  1. If the failure means "the database cannot be reached right now" (a Neon
  *     cold start, a dropped connection, a timeout — including raw driver
  *     errors that were never wrapped), answer HTTP 503 with a plain sentence
@@ -16,6 +18,7 @@
  */
 
 import { DatabaseUnavailableError, isConnectionFailure } from "@/db";
+import { AuthenticationError } from "@/lib/auth";
 
 /** The classified outage error when `error` means the database is unreachable, otherwise null. */
 export function databaseOutage(error: unknown): DatabaseUnavailableError | null {
@@ -42,8 +45,11 @@ export interface ApiFailureOptions {
  * @param fallbackMessage plain-English message used for non-outage failures (HTTP 500)
  */
 export function apiFailure(error: unknown, fallbackMessage: string, options: ApiFailureOptions = {}): Response {
-  const outage = databaseOutage(error);
   const headers = { "Cache-Control": "no-store", ...options.headers };
+  if (error instanceof AuthenticationError) {
+    return Response.json({ error: error.message, code: "UNAUTHENTICATED" }, { status: 401, headers });
+  }
+  const outage = databaseOutage(error);
   if (outage) {
     console.error("Database unavailable:", error instanceof Error ? error.message : error);
     return Response.json({ error: outage.userMessage, code: "DATABASE_UNAVAILABLE" }, { status: 503, headers: { ...headers, "Retry-After": "20" } });

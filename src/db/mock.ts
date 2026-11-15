@@ -354,12 +354,28 @@ export function createMockDb(): FolioDatabase {
           primaryTable = table;
           return builder;
         },
+        // Joining a sub-query (`db.select().from().groupBy().as("alias")`) is not
+        // something the in-memory demo/test database can evaluate. Such joins only
+        // ever attach optional aggregates (for example per-project task counts that
+        // the query reads through coalesce(..., 0)), so they are skipped instead of
+        // crashing. Real PostgreSQL always evaluates them.
         innerJoin(table: PgTable, on: SQL) {
-          joins.push({ type: "inner", table, on });
+          if (is(table, PgTable)) joins.push({ type: "inner", table, on });
           return builder;
         },
         leftJoin(table: PgTable, on: SQL) {
-          joins.push({ type: "left", table, on });
+          if (is(table, PgTable)) joins.push({ type: "left", table, on });
+          return builder;
+        },
+        groupBy() {
+          return builder;
+        },
+        having() {
+          return builder;
+        },
+        // Sub-query alias: returns the builder itself (it is never awaited when
+        // it is only used as a join target; see leftJoin above).
+        as() {
           return builder;
         },
         where(expr?: SQL) {
