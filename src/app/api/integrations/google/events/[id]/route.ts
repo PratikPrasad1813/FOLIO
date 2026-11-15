@@ -64,7 +64,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
 /** Updates a linked Google event from Folio. Requires event write access. */
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
+  if (!sameOrigin(request)) return Response.json({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, { status: 403 });
   const user = await requireUser();
   const account = await loadAccount(user.id);
   if (!account) return Response.json({ error: "Google Calendar isn’t connected." }, { status: 400 });
@@ -125,7 +125,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
 /** Deletes a Google event (with confirmation handled in the UI) and clears the link. */
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
-  if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
+  if (!sameOrigin(request)) return Response.json({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, { status: 403 });
   const user = await requireUser();
   const account = await loadAccount(user.id);
   if (!account) return Response.json({ error: "Google Calendar isn’t connected." }, { status: 400 });

@@ -27,6 +27,7 @@ export function DesktopRootRedirect() {
 .desktop-boot-splash p{margin:0}
 @keyframes folio-boot-pulse{0%,100%{transform:scale(1);opacity:.92}50%{transform:scale(1.07);opacity:1}}
 `}</style>
+      {/* eslint-disable-next-line @next/next/no-img-element -- static export uses plain images */}
       <img src="/folio-icon.png" alt="" width={52} height={52} className="boot-mark" draggable={false} />
       <p>Opening Folio…</p>
     </div>

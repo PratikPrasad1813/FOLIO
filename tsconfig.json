@@ -37,6 +37,10 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "tests",
+    "out",
+    "src-tauri/target",
+    ".desktop-build-stash"
   ]
 }

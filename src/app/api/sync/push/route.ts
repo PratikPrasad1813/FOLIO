@@ -27,7 +27,8 @@ import { and, eq, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { ideas, milestones, projects, subtasks, tasks } from "@/db/schema";
-import { syncUser, unauthorized, corsJson, desktopCorsPreflight } from "@/lib/sync-auth";
+import { syncUser, unauthorized, corsJson, desktopCorsHeaders, desktopCorsPreflight } from "@/lib/sync-auth";
+import { apiFailure } from "@/lib/api-errors";
 import {
   boundedInt,
   boundedText,
@@ -414,7 +415,7 @@ export async function OPTIONS(request: Request): Promise<Response> {
   return desktopCorsPreflight(request);
 }
 
-export async function POST(request: Request) {
+async function handlePush(request: Request): Promise<Response> {
   const user = await syncUser(request);
   if (!user) return unauthorized("Please sign in to sync your workspace.", request);
 
@@ -456,7 +457,10 @@ export async function POST(request: Request) {
       await db.transaction(async (tx) => {
         for (const mutation of prepared) {
           try {
-            const written = await applyMutation(tx, user.id, mutation);
+            // One SAVEPOINT per mutation: a failing statement must not abort the whole
+            // PostgreSQL transaction (which would silently roll back every mutation that
+            // was already reported as "applied" and make the rest fail too).
+            const written = await tx.transaction((savepoint) => applyMutation(savepoint as Tx, user.id, mutation));
             if (written) {
               applied += 1;
               results.push({ id: mutation.id, status: "applied" });
@@ -475,11 +479,7 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       console.error("Sync push transaction failed:", error);
-      return corsJson(
-        request,
-        { error: "The sync batch could not be committed. It will be retried." },
-        500,
-      );
+      return apiFailure(error, "Folio could not upload your latest changes yet. They are saved on this computer and will be sent again automatically.", { headers: desktopCorsHeaders(request) });
     }
   }
 
@@ -487,4 +487,12 @@ export async function POST(request: Request) {
     request,
     { server_time: new Date().toISOString(), results, applied, skipped, rejected },
   );
+}
+
+export async function POST(request: Request): Promise<Response> {
+  try {
+    return await handlePush(request);
+  } catch (error) {
+    return apiFailure(error, "Folio could not upload your latest changes yet. They are saved on this computer and will be sent again automatically.", { headers: desktopCorsHeaders(request) });
+  }
 }

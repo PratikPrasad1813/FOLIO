@@ -1,6 +1,7 @@
 import { AuthenticationError, requireUser, sameOrigin } from "@/lib/auth";
 import { readProfile, updateProfile } from "@/lib/profile-service";
-import { syncUser, corsJson, desktopCorsPreflight } from "@/lib/sync-auth";
+import { syncUser, corsJson, desktopCorsPreflight, desktopCorsHeaders } from "@/lib/sync-auth";
+import { apiFailure } from "@/lib/api-errors";
 export const dynamic = "force-dynamic";
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { "Cache-Control": "private, no-store", Vary: "Cookie" } });
 
@@ -30,13 +31,13 @@ export async function PATCH(request: Request) {
     try { return corsJson(request, await updateProfile(user.id, body)); }
     catch (error) {
       if (error instanceof Error && !error.message.includes("query") && error.message.length < 180) return corsJson(request, { error: error.message }, 400);
-      return corsJson(request, { error: "Couldn’t save your preferences. Please try again." }, 500);
+      return apiFailure(error, "We couldn’t save your preferences. Please try again.", { headers: desktopCorsHeaders(request) });
     }
   } catch (error) { return corsJson(request, { error: error instanceof AuthenticationError ? error.message : "Couldn’t save your preferences." }, error instanceof AuthenticationError ? 401 : 500); }
 }
 
 export async function DELETE(request: Request) {
-  if (!sameOrigin(request)) return json({ error: "Request not allowed." }, 403);
+  if (!sameOrigin(request)) return json({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, 403);
   try {
     const user = await requireUser();
     const { deleteUserAccount, DeletionAuthError, DeletionInputError } = await import("@/lib/account-deletion");
@@ -51,7 +52,7 @@ export async function DELETE(request: Request) {
     } catch (err) {
       if (err instanceof DeletionAuthError) return json({ error: err.message }, 401);
       if (err instanceof DeletionInputError) return json({ error: err.message }, 400);
-      return json({ error: "Could not delete account. Please try again." }, 500);
+      return apiFailure(err, "We couldn’t delete your account right now. Please try again.");
     }
   } catch (error) {
     return json({ error: error instanceof AuthenticationError ? error.message : "Please sign in to delete your account." }, error instanceof AuthenticationError ? 401 : 500);

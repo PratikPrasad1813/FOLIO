@@ -1,10 +1,13 @@
 [package]
-name = "app"
-version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+# The package name becomes the program file name (folio.exe on Windows). It was
+# "app" in older builds, which made the installer, Task Manager and antivirus
+# tools show an unhelpful "app.exe". The installer hooks remove the old file.
+name = "folio"
+version = "1.2.0"
+description = "Folio - a free, open-source workspace for projects, tasks, ideas and Folio AI (desktop app)"
+authors = ["Folio"]
+license = "MIT"
+repository = "https://github.com/PratikPrasad1813/folio"
 edition = "2024"
 rust-version = "1.90"
 

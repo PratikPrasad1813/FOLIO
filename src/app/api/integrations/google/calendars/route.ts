@@ -38,7 +38,7 @@ export async function GET() {
 
 /** Updates calendar visibility and the write-access preference. */
 export async function PATCH(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
+  if (!sameOrigin(request)) return Response.json({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, { status: 403 });
   const user = await requireUser();
   const account = await loadAccount(user.id);
   if (!account) return Response.json({ error: "Google Calendar isn’t connected." }, { status: 400 });
@@ -68,7 +68,7 @@ export async function PATCH(request: Request) {
 
 /** Re-reads the calendar list from Google on demand (used after granting more access). */
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
+  if (!sameOrigin(request)) return Response.json({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, { status: 403 });
   const user = await requireUser();
   const account = await loadAccount(user.id);
   if (!account) return Response.json({ error: "Google Calendar isn’t connected." }, { status: 400 });

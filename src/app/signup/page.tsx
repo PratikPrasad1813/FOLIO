@@ -9,6 +9,6 @@ export default async function Signup({ searchParams }: { searchParams: Promise<R
   const { user, dbError } = await currentUserSafe(); if (user) redirect(signedInDestination(user, next));
   // A misconfigured DATABASE_URL renders the sign-up screen with a fix-it
   // notice instead of crashing the page (DATABASE_SETUP.md → Troubleshooting).
-  if (dbError) return <AuthScreen mode="signup" next={next} error={`${dbError.message} ${dbError.hint}`}/>;
+  if (dbError) return <AuthScreen mode="signup" next={next} error={dbError.userMessage}/>;
   return <AuthScreen mode="signup" next={next}/>;
 }

@@ -5,6 +5,7 @@ import { searchRequest } from "@/lib/search-client";
 import { DEFAULT_PERSONAL, setBrowserPersonal } from "@/lib/personalization";
 import { applyTheme } from "@/components/theme-toggle";
 import { isDesktopRuntime } from "@/lib/desktop/runtime";
+import { describeError } from "@/lib/friendly-errors";
 import { desktopApiUrl } from "@/lib/desktop/api-base";
 import { getSyncEngine } from "@/lib/desktop/sync-engine";
 import { markLocalProfilePending, setCachedProfile } from "@/lib/desktop/local-db";
@@ -40,6 +41,17 @@ export interface MutateOptions {
 export interface BulkResult { count: number; missing: number }
 
 /** Defensive JSON reader: a proxy's HTML error page must never surface as a raw SyntaxError. */
+/** Shown (as a calm loading state, not an error) while the first copy of the workspace is being prepared on this computer. */
+export const WORKSPACE_SYNCING_MESSAGE = "Folio is setting up your workspace on this computer. This only takes a moment.";
+const WORKSPACE_SETUP_STUCK_MESSAGE = "Folio could not finish setting up your workspace on this computer. Check your internet connection, then close Folio completely and open it again. Your online data is not affected.";
+
+/** Turn anything thrown while loading the workspace into a sentence a person can act on. */
+function workspaceErrorMessage(err: unknown): string {
+  const friendly = describeError(err);
+  if (friendly.kind === "unknown") return err instanceof Error && err.message ? err.message : "Folio couldn’t load your workspace. Please try again in a moment.";
+  return friendly.message;
+}
+
 async function readJson(response: Response): Promise<Record<string, unknown>> {
   try {
     const parsed: unknown = await response.json();
@@ -90,15 +102,15 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
         // No cached profile yet (first seconds after sign-in, or a broken
         // local database): show a transient state — never a redirect, never
         // a network call that could unmount the workspace while offline.
-        throw new Error("Your workspace is still syncing. One moment…");
+        throw new Error(WORKSPACE_SYNCING_MESSAGE);
       }
       const response = await fetch("/api/workspace", { cache: "no-store" });
       const result = await readJson(response);
       if (response.status === 401) { window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname)}`); throw new Error("Please sign in again."); }
-      if (!response.ok) throw new Error(typeof result.error === "string" && result.error ? result.error : "Could not load your workspace.");
+      if (!response.ok) throw new Error(typeof result.error === "string" && result.error ? result.error : "Folio could not load your workspace. Please try again in a moment.");
       const next = normalise(result);
       setData(next); dataRef.current = next; setError("");
-    } catch (err) { const message = err instanceof Error ? err.message : "Couldn’t connect to your workspace."; setError(message); throw new Error(message); }
+    } catch (err) { const message = workspaceErrorMessage(err); setError(message); throw new Error(message); }
   }, []);
 
   useEffect(() => {
@@ -126,7 +138,7 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
           // mounts; an empty mirror simply means the first pull is still
           // running. No network call, no login redirect — a splash state.
           if (!cancelled) {
-            setError("Your workspace is still syncing. One moment…");
+            setError(attempts >= 30 ? WORKSPACE_SETUP_STUCK_MESSAGE : WORKSPACE_SYNCING_MESSAGE);
             // Bounded self-retry: the mirror becomes readable the moment the
             // first pull (or the local_auth profile fallback) lands, so the
             // projects/tasks views recover by themselves instead of leaving
@@ -141,7 +153,7 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
         const response = await fetch("/api/workspace", { cache: "no-store" });
         const result = await readJson(response);
         if (response.status === 401) { window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname)}`); throw new Error("Please sign in again."); }
-      if (!response.ok) throw new Error(typeof result.error === "string" && result.error ? result.error : "Could not load your workspace.");
+      if (!response.ok) throw new Error(typeof result.error === "string" && result.error ? result.error : "Folio could not load your workspace. Please try again in a moment.");
         if (!cancelled) {
           const next = normalise(result);
           dataRef.current = next;
@@ -150,7 +162,7 @@ export function useWorkspace(notify: (message: string, tone?: "success" | "error
         }
         return true;
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Couldn’t connect to your workspace.");
+        if (!cancelled) setError(workspaceErrorMessage(err));
         return false;
       }
     }

@@ -85,6 +85,10 @@ export const SYNC_INTERVAL_MS = 60_000;
 const PUSH_BATCH = 200;
 const PUSH_TIMEOUT_MS = 20_000;
 const PULL_TIMEOUT_MS = 30_000;
+/** A cycle that has not finished after this long is considered stuck; a new one may take over. */
+const CYCLE_WATCHDOG_MS = 120_000;
+/** Retry delays after a failed cycle (seconds): 15, 30, 60, 120, 300, then stay at 300. */
+const RETRY_BACKOFF_SECONDS = [15, 30, 60, 120, 300];
 
 const IDLE_STATUS: SyncStatus = { state: "idle", pendingCount: 0, lastSyncedAt: null, lastError: null };
 
@@ -97,6 +101,10 @@ class DesktopSyncEngine {
   private offlineHandler: (() => void) | null = null;
   private sessionHandler: (() => void) | null = null;
   private running = false;
+  private runStartedAt = 0;
+  private cycleCounter = 0;
+  private consecutiveFailures = 0;
+  private retryHandle: ReturnType<typeof setTimeout> | null = null;
   private started = false;
 
   /**
@@ -164,6 +172,9 @@ class DesktopSyncEngine {
 
   stop(): void {
     if (this.intervalHandle !== null) clearInterval(this.intervalHandle);
+    if (this.retryHandle !== null) clearTimeout(this.retryHandle);
+    this.retryHandle = null;
+    this.consecutiveFailures = 0;
     if (this.onlineHandler) window.removeEventListener("online", this.onlineHandler);
     if (this.offlineHandler) window.removeEventListener("offline", this.offlineHandler);
     if (this.visibilityHandler) document.removeEventListener("visibilitychange", this.visibilityHandler);
@@ -183,9 +194,24 @@ class DesktopSyncEngine {
     void this.runCycle();
   }
 
+  /** Schedule the next attempt after a failure (exponential backoff, capped at 5 minutes). */
+  private scheduleRetry(): void {
+    if (!this.started) return;
+    if (this.retryHandle !== null) clearTimeout(this.retryHandle);
+    const seconds = RETRY_BACKOFF_SECONDS[Math.min(this.consecutiveFailures, RETRY_BACKOFF_SECONDS.length) - 1] ?? 300;
+    this.retryHandle = setTimeout(() => {
+      this.retryHandle = null;
+      void this.runCycle();
+    }, seconds * 1000);
+  }
+
   private async runCycle(): Promise<void> {
-    if (this.running || !this.started) return;
+    if (!this.started) return;
+    // Single-flight, with a watchdog: a cycle stuck on a stalled connection can never block syncing forever.
+    if (this.running && Date.now() - this.runStartedAt < CYCLE_WATCHDOG_MS) return;
     this.running = true;
+    this.runStartedAt = Date.now();
+    const cycleId = ++this.cycleCounter;
     try {
       await initLocalDb();
 
@@ -209,6 +235,11 @@ class DesktopSyncEngine {
       await this.pushProfile(session);
       const pullSummary = await this.pullDeltas(session);
 
+      this.consecutiveFailures = 0;
+      if (this.retryHandle !== null) {
+        clearTimeout(this.retryHandle);
+        this.retryHandle = null;
+      }
       this.setStatus({
         state: "synced",
         pendingCount: await countPendingMutations(),
@@ -235,25 +266,33 @@ class DesktopSyncEngine {
       }
       if (isNetworkError(error)) {
         // Silent by design: expected in any offline-capable app.
+        this.consecutiveFailures += 1;
+        this.scheduleRetry();
         this.setStatus({ state: "offline", lastError: null });
         return;
       }
+      this.consecutiveFailures += 1;
+      this.scheduleRetry();
       this.setStatus({
         state: "error",
         pendingCount: await countPendingMutations().catch(() => this.status.pendingCount),
-        lastError: error instanceof Error ? error.message : "Sync could not complete.",
+        lastError: error instanceof Error && error.message ? error.message : SYNC_GENERIC_ERROR,
       });
     } finally {
-      this.running = false;
+      if (this.cycleCounter === cycleId) this.running = false;
     }
   }
 
-  /** fetch with Bearer auth and a hard timeout. */
-  private async syncFetch(url: string, init: RequestInit, token: string): Promise<Response> {
+  /**
+   * One authenticated request with a hard timeout that covers the WHOLE exchange
+   * (headers AND body). A server that stalls halfway through a response can no
+   * longer leave the engine waiting forever.
+   */
+  private async syncRequest<T>(url: string, init: RequestInit, token: string): Promise<{ status: number; ok: boolean; body: T | null }> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), init.method === "POST" ? PUSH_TIMEOUT_MS : PULL_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), init.method === "POST" || init.method === "PATCH" ? PUSH_TIMEOUT_MS : PULL_TIMEOUT_MS);
     try {
-      return await fetch(url, {
+      const response = await fetch(url, {
         ...init,
         credentials: "omit",
         headers: {
@@ -262,6 +301,12 @@ class DesktopSyncEngine {
         },
         signal: controller.signal,
       });
+      const body = (await response.json().catch(() => null)) as T | null;
+      if (controller.signal.aborted) throw new SyncTimeoutError();
+      return { status: response.status, ok: response.ok, body };
+    } catch (error) {
+      if (controller.signal.aborted && !(error instanceof SyncTimeoutError)) throw new SyncTimeoutError();
+      throw error;
     } finally {
       clearTimeout(timer);
     }
@@ -273,19 +318,18 @@ class DesktopSyncEngine {
       const mutations = await takePendingMutations(PUSH_BATCH);
       if (!mutations.length) break;
 
-      const response = await this.syncFetch(desktopApiUrl("/api/sync/push"), {
+      const response = await this.syncRequest<SyncPushResponse & { error?: string }>(desktopApiUrl("/api/sync/push"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mutations }),
       }, session.token);
 
       if (response.status === 401) throw new AuthExpiredError();
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error || "Your changes could not be uploaded.");
+      if (!response.ok || !response.body || !Array.isArray(response.body.results)) {
+        throw new Error(describeSyncFailure(response.status, response.body?.error, "upload"));
       }
 
-      const body = (await response.json()) as SyncPushResponse;
+      const body = response.body;
       // applied | skipped | rejected are all terminal: the queue row goes.
       const acknowledged = new Set(body.results.map((result) => result.id));
       await deleteMutations(mutations.filter((mutation) => acknowledged.has(mutation.id)).map((mutation) => mutation.id));
@@ -318,7 +362,7 @@ class DesktopSyncEngine {
       return;
     }
 
-    const response = await this.syncFetch(desktopApiUrl("/api/profile"), {
+    const response = await this.syncRequest<unknown>(desktopApiUrl("/api/profile"), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(pending),
@@ -333,17 +377,16 @@ class DesktopSyncEngine {
   private async pullDeltas(session: { token: string; user: User }): Promise<{ changed: number }> {
     const since = await getLocalMetadata(META_KEYS.lastPulledAt);
     const query = since ? `?since=${encodeURIComponent(since)}` : "";
-    const response = await this.syncFetch(desktopApiUrl(`/api/sync/pull${query}`), { method: "GET" }, session.token);
+    const response = await this.syncRequest<SyncPullResponse & { error?: string }>(desktopApiUrl(`/api/sync/pull${query}`), { method: "GET" }, session.token);
 
     if (response.status === 401) throw new AuthExpiredError();
-    if (!response.ok) {
-      const body = (await response.json().catch(() => null)) as { error?: string } | null;
-      throw new Error(body?.error || "Your workspace changes could not be fetched.");
+    if (!response.ok || !response.body) {
+      throw new Error(describeSyncFailure(response.status, response.body?.error, "download"));
     }
 
-    const data = (await response.json()) as SyncPullResponse;
-    if (!data.profile || !data.profile.id) {
-      throw new Error("The sync response was missing your account.");
+    const data = response.body;
+    if (!data.profile || !data.profile.id || !data.changes) {
+      throw new Error("Folio’s server sent an answer this version of the app does not understand. Please update the app.");
     }
 
     // Account switch: the local mirror (and any unsynced outbox entries of
@@ -381,6 +424,26 @@ class DesktopSyncEngine {
 
     await setLocalMetadata(META_KEYS.lastPulledAt, data.server_time);
     return { changed };
+  }
+}
+
+const SYNC_GENERIC_ERROR = "Folio couldn’t sync just now. Your work is saved on this computer and Folio will try again automatically.";
+
+/** Plain-English explanation for a failed sync request. */
+function describeSyncFailure(status: number, serverMessage: string | undefined, direction: "upload" | "download"): string {
+  if (status === 429) return "Folio is syncing too often and was asked to slow down. It will try again in a moment.";
+  if (status === 503 || status === 502 || status === 504) {
+    return serverMessage || "Folio’s servers are busy or restarting. Your work is saved on this computer and will sync as soon as they are back.";
+  }
+  if (status >= 500) return `Folio’s servers had a problem while trying to ${direction} your changes. Your work is saved on this computer and Folio will try again automatically.`;
+  return serverMessage || SYNC_GENERIC_ERROR;
+}
+
+/** The server did not finish answering in time (slow or stalled connection). */
+class SyncTimeoutError extends Error {
+  constructor() {
+    super("Folio’s server is taking too long to answer. Your work is saved on this computer and Folio will try again automatically.");
+    this.name = "SyncTimeoutError";
   }
 }
 

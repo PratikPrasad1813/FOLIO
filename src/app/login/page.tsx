@@ -8,7 +8,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<Re
   const params = await searchParams; const next = safeDestination(params.next);
   const { user, dbError } = await currentUserSafe(); if (user) redirect(signedInDestination(user, next));
   const error = dbError
-    ? `${dbError.message} ${dbError.hint}`
+    ? dbError.userMessage
     : typeof params.error === "string" ? params.error.slice(0, 240) : "";
   return <AuthScreen mode="login" next={next} error={error}/>;
 }

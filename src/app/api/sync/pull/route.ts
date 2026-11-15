@@ -22,7 +22,8 @@ import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { activities, ideas, milestones, notificationPreferences, projects, subtasks, tasks } from "@/db/schema";
 import { publicUser } from "@/lib/auth";
-import { syncUser, unauthorized, corsJson, desktopCorsPreflight } from "@/lib/sync-auth";
+import { syncUser, unauthorized, corsJson, desktopCorsHeaders, desktopCorsPreflight } from "@/lib/sync-auth";
+import { apiFailure } from "@/lib/api-errors";
 import { parseIsoTimestamp, type SyncPullResponse, type SyncEntityRows } from "@/lib/sync-protocol";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ function iso(value: Date | null): string | null {
   return value ? value.toISOString() : null;
 }
 
-export async function GET(request: Request) {
+async function handlePull(request: Request): Promise<Response> {
   const user = await syncUser(request);
   if (!user) return unauthorized("Please sign in to sync your workspace.", request);
 
@@ -174,10 +175,16 @@ export async function GET(request: Request) {
     return corsJson(request, response);
   } catch (error) {
     console.error("Sync pull failed:", error);
-    return corsJson(
-      request,
-      { error: "Your workspace changes could not be fetched. Please try again shortly." },
-      500,
-    );
+    return apiFailure(error, "Folio could not download your latest changes. Your work on this computer is safe. It will try again in a minute.", { headers: desktopCorsHeaders(request) });
+  }
+}
+
+export async function GET(request: Request): Promise<Response> {
+  try {
+    return await handlePull(request);
+  } catch (error) {
+    // Anything thrown outside the data queries (sign-in lookup, schema check) must still
+    // answer with JSON + CORS headers, otherwise the desktop app sees a opaque network error.
+    return apiFailure(error, "Folio could not download your latest changes. Your work on this computer is safe. It will try again in a minute.", { headers: desktopCorsHeaders(request) });
   }
 }

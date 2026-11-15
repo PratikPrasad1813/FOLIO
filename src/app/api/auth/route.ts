@@ -1,12 +1,13 @@
 import { eq } from "drizzle-orm";
-import { db, DatabaseUnavailableError } from "@/db";
+import { db } from "@/db";
+import { databaseOutage } from "@/lib/api-errors";
 import { users } from "@/db/schema";
 import { allowAuthAttempt, createSession, destroySession, requireUser, hashPassword, publicUser, requestOrigin, sameOrigin, signedInDestination, verifyPassword } from "@/lib/auth";
 import { onAccountCreated } from "@/lib/account-events";
 export const dynamic = "force-dynamic";
 const DUMMY_HASH = "00000000000000000000000000000000:" + "0".repeat(128);
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
+  if (!sameOrigin(request)) return Response.json({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, { status: 403 });
   try {
     const body = await request.json();
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
@@ -31,16 +32,17 @@ export async function POST(request: Request) {
     await createSession(user.id);
     return Response.json({ user: publicUser(user), destination: signedInDestination(user, body.next) });
   } catch (error) {
-    if (error instanceof DatabaseUnavailableError) {
+    const outage = databaseOutage(error);
+    if (outage) {
       console.error("Authentication request failed: database unavailable");
-      return Response.json({ error: `${error.message} ${error.hint}`.trim() }, { status: 503 });
+      return Response.json({ error: outage.userMessage }, { status: 503 });
     }
     console.error("Authentication request failed", error instanceof Error ? error.name : "error");
     return Response.json({ error: "We couldn’t complete that request. Please try again." }, { status: 500 });
   }
 }
 export async function PATCH(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
+  if (!sameOrigin(request)) return Response.json({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, { status: 403 });
   try {
     const user = await requireUser();
     const body = await request.json();
@@ -50,12 +52,13 @@ export async function PATCH(request: Request) {
     const [updated] = await db.update(users).set({ name, weeklyGoal }).where(eq(users.id, user.id)).returning();
     return Response.json({ user: publicUser(updated) });
   } catch (error) {
-    if (error instanceof DatabaseUnavailableError) return Response.json({ error: `${error.message} ${error.hint}`.trim() }, { status: 503 });
+    const outage = databaseOutage(error);
+    if (outage) return Response.json({ error: outage.userMessage }, { status: 503 });
     return Response.json({ error: "Please sign in again." }, { status: 401 });
   }
 }
 export async function DELETE(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
+  if (!sameOrigin(request)) return Response.json({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, { status: 403 });
   await destroySession();
   return Response.json({ ok: true });
 }

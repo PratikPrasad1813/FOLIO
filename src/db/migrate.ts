@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { readMigrationFiles } from "drizzle-orm/migrator";
-import { DatabaseUnavailableError, describeDatabaseError, enableMockDbMode, isConnectionFailure, isMockDbMode, pool } from "@/db";
+import { DatabaseUnavailableError, describeDatabaseError, isMockDbMode, pool } from "@/db";
 import { BASE_SCHEMA_STATEMENTS } from "@/db/base-schema";
 
 // Idempotent schema initialisation for Folio.
@@ -127,11 +127,9 @@ export function ensureSchema() {
   }
   if (!migration) {
     migration = run().catch((error) => {
-      if (isConnectionFailure(error)) {
-        enableMockDbMode();
-        return;
-      }
-      // Allow a later request to retry once the environment is fixed.
+      // Never cache a failure and never fall back to the in-memory demo
+      // database: the next request simply tries again, so a Neon cold start or a
+      // dropped connection heals itself instead of poisoning the whole process.
       migration = null;
       // Connection and credential problems arrive as a classified, actionable
       // error instead of a raw driver message (see DATABASE_SETUP.md).

@@ -2,7 +2,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { notifications } from "@/db/schema";
-import { syncUser, corsJson, desktopCorsPreflight, unauthorized } from "@/lib/sync-auth";
+import { syncUser, corsJson, desktopCorsPreflight, unauthorized, desktopCorsHeaders } from "@/lib/sync-auth";
+import { apiFailure } from "@/lib/api-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,7 @@ export async function PATCH(
     });
   } catch (error) {
     console.error("Failed to update notification:", error);
-    return corsJson(request, { error: "Couldn’t update notification." }, 500);
+    return apiFailure(error, "Couldn’t update notification.", { headers: desktopCorsHeaders(request) });
   }
 }
 
@@ -98,6 +99,6 @@ export async function DELETE(
     return corsJson(request, { deleted: true, unreadCount });
   } catch (error) {
     console.error("Failed to delete notification:", error);
-    return corsJson(request, { error: "Couldn’t delete notification." }, 500);
+    return apiFailure(error, "Couldn’t delete notification.", { headers: desktopCorsHeaders(request) });
   }
 }

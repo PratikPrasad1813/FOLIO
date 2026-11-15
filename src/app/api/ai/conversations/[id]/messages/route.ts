@@ -78,7 +78,7 @@ function deriveTitle(messages: { role: string; content: string }[]): string {
  */
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    if (!sameOrigin(request)) return aiJson({ error: "Request not allowed." }, 403);
+    if (!sameOrigin(request)) return aiJson({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, 403);
     const user = await requireUser();
     await ensureSchema();
     const { id } = await context.params;

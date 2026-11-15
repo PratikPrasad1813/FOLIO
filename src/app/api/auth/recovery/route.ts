@@ -10,7 +10,7 @@ import { onPasswordChanged } from "@/lib/account-events";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
+  if (!sameOrigin(request)) return Response.json({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, { status: 403 });
   try {
     const body = await request.json();
     if (!await allowAuthAttempt(request, "recovery")) return Response.json({ error: "Too many attempts. Please try again later." }, { status: 429 });

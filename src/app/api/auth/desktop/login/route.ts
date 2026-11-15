@@ -18,7 +18,8 @@
  */
 
 import { eq } from "drizzle-orm";
-import { db, DatabaseUnavailableError } from "@/db";
+import { db } from "@/db";
+import { databaseOutage } from "@/lib/api-errors";
 import { users } from "@/db/schema";
 import { allowAuthAttempt, publicUser, verifyPassword } from "@/lib/auth";
 import { corsJson, desktopCorsPreflight, mintDesktopSessionToken } from "@/lib/sync-auth";
@@ -70,8 +71,9 @@ export async function POST(request: Request) {
     const { token, expiresAt } = await mintDesktopSessionToken(user.id);
     return corsJson(request, { user: publicUser(user), token, expiresAt });
   } catch (error) {
-    if (error instanceof DatabaseUnavailableError) {
-      return corsJson(request, { error: `${error.message} ${error.hint}`.trim() }, 503);
+    const outage = databaseOutage(error);
+    if (outage) {
+      return corsJson(request, { error: outage.userMessage }, 503);
     }
     console.error("Desktop login failed:", error instanceof Error ? error.name : "error");
     return corsJson(request, { error: "We couldn’t complete that request. Please try again." }, 500);

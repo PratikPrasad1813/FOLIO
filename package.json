@@ -1,5 +1,6 @@
 {
   "name": "nextjs-postgresql-template",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",

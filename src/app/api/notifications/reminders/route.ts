@@ -2,13 +2,14 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { taskReminders } from "@/db/schema";
-import { syncUser, corsJson, desktopCorsPreflight, unauthorized } from "@/lib/sync-auth";
+import { syncUser, corsJson, desktopCorsPreflight, unauthorized, desktopCorsHeaders } from "@/lib/sync-auth";
 import { REMINDER_TIMINGS, type ReminderTiming } from "@/lib/notifications";
 import {
   removeTaskReminder,
   rowToTaskReminder,
   upsertTaskReminder,
 } from "@/lib/reminder-processor";
+import { apiFailure } from "@/lib/api-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,7 @@ export async function GET(request: Request) {
     return corsJson(request, { reminders: rows.map(rowToTaskReminder) });
   } catch (error) {
     console.error("Failed to load task reminders:", error);
-    return corsJson(request, { error: "Couldn’t load task reminders." }, 500);
+    return apiFailure(error, "Couldn’t load task reminders.", { headers: desktopCorsHeaders(request) });
   }
 }
 
@@ -111,6 +112,6 @@ export async function DELETE(request: Request) {
     return corsJson(request, { deleted: true });
   } catch (error) {
     console.error("Failed to remove task reminder:", error);
-    return corsJson(request, { error: "Couldn’t remove task reminder." }, 500);
+    return apiFailure(error, "Couldn’t remove task reminder.", { headers: desktopCorsHeaders(request) });
   }
 }

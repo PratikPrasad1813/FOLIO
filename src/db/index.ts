@@ -47,6 +47,10 @@ function withVerifiedTls(url: string): string {
   return url.replace(/([?&])sslmode=(?:prefer|require|verify-ca)\b/i, "$1sslmode=verify-full");
 }
 
+/** What end users read when the database cannot be reached (never mentions env vars or internals). */
+export const DATABASE_UNAVAILABLE_USER_MESSAGE =
+  "Folio can’t reach its database right now. This is a problem on our side, not yours, and your saved work is safe. Please wait a minute and try again.";
+
 export class DatabaseUnavailableError extends Error {
   /** Concrete, operator-facing steps to resolve the problem. */
   readonly hint: string;
@@ -55,6 +59,15 @@ export class DatabaseUnavailableError extends Error {
     this.name = "DatabaseUnavailableError";
     this.hint = hint;
     if (cause !== undefined) (this as { cause?: unknown }).cause = cause;
+  }
+
+  /**
+   * Text that is safe to return from an API route. In production it is a plain
+   * sentence for end users; during development it keeps the operator hint
+   * (which env var to fix) because the developer is the reader.
+   */
+  get userMessage(): string {
+    return process.env.NODE_ENV === "production" ? DATABASE_UNAVAILABLE_USER_MESSAGE : `${this.message} ${this.hint}`.trim();
   }
 }
 
@@ -165,22 +178,132 @@ const globalForDb = globalThis as typeof globalThis & {
 let poolInstance: Pool | null = null;
 let dbInstance: FolioDatabase | null = null;
 
+/**
+ * THE IN-MEMORY MOCK DATABASE IS A DEMO/TEST TOOL, NOT A FAILOVER.
+ *
+ * It is used only when
+ *   - DATABASE_URL is not set outside production (a first local run), or
+ *   - code explicitly calls enableMockDbMode() (unit tests).
+ *
+ * It is NEVER entered because a connection hiccup happened. The previous
+ * "switch to the mock on the first connection error" behaviour was the root
+ * cause of two production incidents: (1) one Neon cold start / dropped
+ * connection permanently replaced the real database with an empty in-memory
+ * one for the whole server process (data "vanished", sessions stopped
+ * matching, the desktop app lost its sign-in and hung while syncing), and
+ * (2) the query-builder proxy that made the fallback possible broke Drizzle
+ * subqueries (`.as()`), so the Projects list always failed with
+ * "Maximum call stack size exceeded".
+ */
 export function isMockDbMode(): boolean {
-  return !process.env.DATABASE_URL || Boolean(globalForDb.__folioUseMockDb);
+  if (globalForDb.__folioUseMockDb) return true;
+  return !process.env.DATABASE_URL && process.env.NODE_ENV !== "production";
 }
 
 export function enableMockDbMode(): void {
   if (!globalForDb.__folioUseMockDb) {
     globalForDb.__folioUseMockDb = true;
-    console.warn("[AI Studio] Database unreachable — switched to in-memory mock");
+    console.warn("[folio:db] Using the in-memory demo database (explicitly enabled).");
   }
+}
+
+export function disableMockDbMode(): void {
+  globalForDb.__folioUseMockDb = false;
+}
+
+/* ------------------------------------------------------------------ */
+/* pool hardening                                                      */
+/* ------------------------------------------------------------------ */
+
+function envInt(name: string, fallback: number, min: number, max: number): number {
+  const parsed = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+}
+
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Failures that happen BEFORE any SQL reaches the server (safe to retry for every statement). */
+function isConnectFailure(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const err = error as { code?: unknown; message?: unknown };
+  if (typeof err.code === "string" && ["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "ETIMEDOUT", "EHOSTUNREACH", "ENETUNREACH"].includes(err.code)) return true;
+  return typeof err.message === "string" && /timeout exceeded when trying to connect|connection terminated due to connection timeout|ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(err.message);
+}
+
+/** A dropped connection can strike mid-statement: only read-only statements may be replayed. */
+function isDroppedConnection(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const err = error as { code?: unknown; message?: unknown };
+  if (typeof err.code === "string" && ["ECONNRESET", "EPIPE", "57P01", "57P02", "57P03", "08006", "08003"].includes(err.code)) return true;
+  return typeof err.message === "string" && /connection terminated unexpectedly|read ECONNRESET|server closed the connection unexpectedly/i.test(err.message);
+}
+
+function statementText(first: unknown): string {
+  if (typeof first === "string") return first;
+  if (first && typeof first === "object" && typeof (first as { text?: unknown }).text === "string") return (first as { text: string }).text;
+  return "";
+}
+
+/**
+ * Runs `operation`, retrying briefly (≈1.5 s in total) when the database
+ * connection could not be established — the typical Neon cold start or a
+ * dropped idle connection. Read-only statements are also replayed after a
+ * dropped connection; writes never are (they might already have been applied).
+ */
+async function withConnectionRetry<T>(operation: () => Promise<T>, readOnly: boolean): Promise<T> {
+  const delays = [250, 1_250];
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      const retryable = isConnectFailure(error) || (readOnly && isDroppedConnection(error));
+      if (!retryable || attempt >= delays.length) throw error;
+      await wait(delays[attempt] + Math.floor(Math.random() * 100));
+    }
+  }
+}
+
+function createPool(): Pool {
+  const created = new Pool({
+    connectionString: withVerifiedTls(requireDatabaseUrl()),
+    max: envInt("FOLIO_DB_POOL_MAX", 10, 1, 50),
+    // Hosted Postgres (Neon) closes idle connections; let the pool recycle them early.
+    idleTimeoutMillis: envInt("FOLIO_DB_IDLE_TIMEOUT_MS", 20_000, 1_000, 600_000),
+    // Never wait forever for a connection: a stuck request is what made clients appear to "hang".
+    connectionTimeoutMillis: envInt("FOLIO_DB_CONNECT_TIMEOUT_MS", 15_000, 1_000, 120_000),
+    // Client-side ceiling for one statement (no server startup option: poolers such as PgBouncer reject those).
+    query_timeout: envInt("FOLIO_DB_QUERY_TIMEOUT_MS", 30_000, 1_000, 300_000),
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
+    application_name: "folio-web",
+  });
+
+  // An idle client that the server drops emits "error" on the pool. Without a
+  // listener Node treats it as an uncaught exception and kills the process.
+  created.on("error", (error) => {
+    console.warn("[folio:db] An idle database connection was closed; it will be replaced automatically:", error instanceof Error ? error.message : error);
+  });
+
+  const mutable = created as unknown as { query: (...args: unknown[]) => unknown; connect: (...args: unknown[]) => unknown };
+  const rawQuery = mutable.query.bind(created);
+  const rawConnect = mutable.connect.bind(created);
+  mutable.query = (...args: unknown[]) => {
+    if (typeof args[args.length - 1] === "function") return rawQuery(...args); // callback style: untouched
+    const readOnly = /^\s*(select|show)\b/i.test(statementText(args[0]));
+    return withConnectionRetry(() => rawQuery(...args) as Promise<unknown>, readOnly);
+  };
+  mutable.connect = (...args: unknown[]) => {
+    if (typeof args[args.length - 1] === "function") return rawConnect(...args);
+    return withConnectionRetry(() => rawConnect(...args) as Promise<unknown>, false);
+  };
+  return created;
 }
 
 function getRealPool(): Pool {
   const cached = process.env.NODE_ENV !== "production" ? globalForDb.__folioPostgresqlPool : undefined;
   if (cached) return cached;
   if (!poolInstance) {
-    poolInstance = new Pool({ connectionString: withVerifiedTls(requireDatabaseUrl()) });
+    poolInstance = createPool();
     if (process.env.NODE_ENV !== "production") globalForDb.__folioPostgresqlPool = poolInstance;
   }
   return poolInstance;
@@ -198,112 +321,29 @@ function getRealDb(): FolioDatabase {
 
 /** The shared pg Pool, created on first use — never at import time. */
 export function getPool(): Pool {
-  if (isMockDbMode()) {
-    return createMockPool() as unknown as Pool;
-  }
-  try {
-    return getRealPool();
-  } catch {
-    enableMockDbMode();
-    return createMockPool() as unknown as Pool;
-  }
+  return isMockDbMode() ? (createMockPool() as unknown as Pool) : getRealPool();
 }
 
 /** The shared Drizzle handle, created on first use — never at import time. */
 export function getDb(): FolioDatabase {
-  if (isMockDbMode()) {
-    return createMockDb();
-  }
-  try {
-    return getRealDb();
-  } catch {
-    enableMockDbMode();
-    return createMockDb();
-  }
+  return isMockDbMode() ? createMockDb() : getRealDb();
 }
 
-function wrapQueryBuilder(method: string, args: unknown[]): unknown {
-  const calls: [string, unknown[]][] = [[method, args]];
-  const replay = (targetDb: FolioDatabase) => {
-    let current: any = (targetDb as unknown as Record<string, (...a: unknown[]) => unknown>)[calls[0][0]](...calls[0][1]);
-    for (let i = 1; i < calls.length; i++) {
-      current = current[calls[i][0]](...calls[i][1]);
-    }
-    return current;
-  };
-  const proxy: unknown = new Proxy(() => {}, {
-    get(_target, prop) {
-      if (prop === "then" || prop === "catch" || prop === "finally") {
-        const promise = (async () => {
-          if (isMockDbMode()) return await replay(createMockDb());
-          try {
-            return await replay(getRealDb());
-          } catch (error) {
-            if (isConnectionFailure(error)) {
-              enableMockDbMode();
-              return await replay(createMockDb());
-            }
-            throw error;
-          }
-        })();
-        return (promise[prop as "then" | "catch" | "finally"] as (...a: unknown[]) => unknown).bind(promise);
-      }
-      return (...nextArgs: unknown[]) => {
-        calls.push([String(prop), nextArgs]);
-        return proxy;
-      };
+/**
+ * Both exports are THIN, TRANSPARENT forwards to the live handle. They must
+ * not wrap or replay query builders: Drizzle inspects builders and subqueries
+ * (`.as("alias")` + `leftJoin`) structurally, and any wrapper object breaks it.
+ */
+function forward<T extends object>(resolve: () => T): T {
+  return new Proxy({} as T, {
+    get(_target, property) {
+      if (property === "then") return undefined;
+      const instance = resolve() as unknown as Record<string | symbol, unknown>;
+      const value = instance[property];
+      return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(instance) : value;
     },
   });
-  return proxy;
 }
 
-export const pool: Pool = new Proxy({} as Pool, {
-  get(_target, property) {
-    if (property === "then") return undefined;
-    const instance = getPool() as unknown as Record<string | symbol, unknown>;
-    const value = instance[property];
-    return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(instance) : value;
-  },
-});
-
-const QUERY_METHODS = new Set(["select", "selectDistinct", "insert", "update", "delete"]);
-
-export const db: FolioDatabase = new Proxy({} as FolioDatabase, {
-  get(_target, property) {
-    if (property === "then") return undefined;
-    if (typeof property === "string" && QUERY_METHODS.has(property)) {
-      return (...args: unknown[]) => wrapQueryBuilder(property, args);
-    }
-    if (property === "execute") {
-      return async (...args: unknown[]) => {
-        if (isMockDbMode()) return (createMockDb() as unknown as { execute: (...a: unknown[]) => Promise<unknown> }).execute(...args);
-        try {
-          return await (getRealDb() as unknown as { execute: (...a: unknown[]) => Promise<unknown> }).execute(...args);
-        } catch (error) {
-          if (isConnectionFailure(error)) {
-            enableMockDbMode();
-            return (createMockDb() as unknown as { execute: (...a: unknown[]) => Promise<unknown> }).execute(...args);
-          }
-          throw error;
-        }
-      };
-    }
-    if (property === "transaction") {
-      return async (fn: (tx: FolioDatabase) => Promise<unknown>, ...rest: unknown[]) => {
-        if (isMockDbMode()) return createMockDb().transaction(fn);
-        try {
-          return await (getRealDb().transaction as (f: (tx: FolioDatabase) => Promise<unknown>, ...r: unknown[]) => Promise<unknown>)(fn, ...rest);
-        } catch (error) {
-          if (isConnectionFailure(error)) {
-            enableMockDbMode();
-            return createMockDb().transaction(fn);
-          }
-          throw error;
-        }
-      };
-    }
-    const instance = getDb() as unknown as Record<string | symbol, unknown>;
-    const value = instance[property];
-    return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(instance) : value;
-  },
-});
+export const pool: Pool = forward<Pool>(getPool);
+export const db: FolioDatabase = forward<FolioDatabase>(getDb);

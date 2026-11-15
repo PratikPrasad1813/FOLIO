@@ -3,7 +3,8 @@ import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
 import { notifications } from "@/db/schema";
 import { maybeProcessUserReminders } from "@/lib/reminder-processor";
-import { corsJson, desktopCorsPreflight, syncUser, unauthorized } from "@/lib/sync-auth";
+import { corsJson, desktopCorsPreflight, syncUser, unauthorized, desktopCorsHeaders } from "@/lib/sync-auth";
+import { apiFailure } from "@/lib/api-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,6 @@ export async function GET(request: Request) {
     return corsJson(request, { unreadCount: Number(row?.count ?? 0) });
   } catch (error) {
     console.error("Unread count query failed:", error);
-    return corsJson(request, { error: "Couldn’t load unread count." }, 500);
+    return apiFailure(error, "Couldn’t load unread count.", { headers: desktopCorsHeaders(request) });
   }
 }

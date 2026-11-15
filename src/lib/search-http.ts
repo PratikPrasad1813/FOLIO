@@ -1,5 +1,6 @@
 import { AuthenticationError, bearerToken, requireUser, sameOrigin, userFromToken } from "@/lib/auth";
 import { desktopCorsHeaders } from "@/lib/sync-auth";
+import { databaseOutage } from "@/lib/api-errors";
 import { SearchInputError, objectInput } from "@/lib/search-types";
 
 /**
@@ -41,5 +42,7 @@ export function searchError(error: unknown, request?: Request) {
   if (error instanceof AuthenticationError) return privateJson({ error: error.message }, 401, request);
   if (error instanceof SearchInputError) return privateJson({ error: error.message }, error.status, request);
   console.error("Search request failed:", error);
-  return privateJson({ error: "We couldn't complete that request. Please try again." }, 500, request);
+  const outage = databaseOutage(error);
+  if (outage) return privateJson({ error: outage.userMessage, code: "DATABASE_UNAVAILABLE" }, 503, request);
+  return privateJson({ error: "Folio couldn’t finish that search. Please try again in a moment." }, 500, request);
 }

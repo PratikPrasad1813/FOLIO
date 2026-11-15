@@ -13,6 +13,7 @@ import {
   reconcileTaskLifecycle,
   upsertTaskReminder,
 } from "@/lib/reminder-processor";
+import { apiFailure } from "@/lib/api-errors";
 
 export const dynamic = "force-dynamic";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -503,11 +504,11 @@ export async function GET(request: Request) {
       db.select({ timezone: notificationPreferences.timezone }).from(notificationPreferences).where(eq(notificationPreferences.userId, user.id)).limit(1),
     ]);
     return Response.json({ user: { ...publicUser(user), timezone: regional?.timezone || "UTC" }, projects: projectList, tasks: taskList, subtasks: subtaskList, ideas: ideaList, milestones: milestoneList, activities: activityList }, { headers: { "Cache-Control": "no-store" } });
-  } catch (error) { console.error("Workspace load failed:", error); return Response.json({ error: "Your workspace couldn’t be loaded. Please try again." }, { status: 500 }); }
+  } catch (error) { console.error("Workspace load failed:", error); return apiFailure(error, "Folio couldn’t load your workspace. Please try again in a moment."); }
 }
 
 async function mutate(request: Request, method: Method) {
-  if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
+  if (!sameOrigin(request)) return Response.json({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, { status: 403 });
   try {
     const user = await requireUser();
     if (!user) return Response.json({ error: "Your session expired. Please refresh and sign in." }, { status: 401 });
@@ -571,7 +572,7 @@ async function mutate(request: Request, method: Method) {
     if (error instanceof InputError || error instanceof SyntaxError) return Response.json({ error: error.message }, { status: 400 });
     if (error instanceof NotFoundError) return Response.json({ error: "This item was not found in your workspace." }, { status: 404 });
     console.error("Workspace mutation failed:", error);
-    return Response.json({ error: "We couldn’t save that change. Please try again." }, { status: 500 });
+    return apiFailure(error, "Folio couldn’t save that change. Please try again.");
   }
 }
 export async function POST(request: Request) { return mutate(request, "POST"); }

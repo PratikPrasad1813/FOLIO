@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { DESKTOP_APP_VERSION } from "@/lib/desktop-downloads";
 import {
   ArrowRight,
   CheckCircle2,
@@ -253,7 +254,7 @@ export function DesktopSignIn({
           <div className="desktop-app-pill">
             <Monitor size={14} className="desktop-icon" />
             <span className="desktop-title-text">FOLIO DESKTOP WORKSPACE</span>
-            <span className="desktop-version-tag">v1.0</span>
+            <span className="desktop-version-tag">v{DESKTOP_APP_VERSION.split(".").slice(0, 2).join(".")}</span>
           </div>
           <div className="desktop-isolation-pill">
             <ShieldCheck size={13} />
@@ -266,6 +267,7 @@ export function DesktopSignIn({
           <div className="card-brand-header">
             <div className="desktop-logo-wrapper">
               {/* The REAL app icon (same asset Tauri bundles for the window/taskbar), not the inline marketing glyph. */}
+              {/* eslint-disable-next-line @next/next/no-img-element -- static export uses plain images */}
               <img src="/folio-icon.png" alt="Folio" width={56} height={56} className="desktop-app-icon" draggable={false} />
             </div>
             <div className="card-headings">

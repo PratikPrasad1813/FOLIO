@@ -9,7 +9,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Links a Folio task to an existing Google event (stable mapping by Google event ID). */
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
+  if (!sameOrigin(request)) return Response.json({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, { status: 403 });
   const user = await requireUser();
   const body = (await request.json().catch(() => null)) as { eventId?: unknown; taskId?: unknown } | null;
   const eventId = typeof body?.eventId === "string" && UUID.test(body.eventId) ? body.eventId : null;
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
 /** Removes the link. The Google event and the Folio task both stay. */
 export async function DELETE(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
+  if (!sameOrigin(request)) return Response.json({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, { status: 403 });
   const user = await requireUser();
   const body = (await request.json().catch(() => null)) as { eventId?: unknown } | null;
   const eventId = typeof body?.eventId === "string" && UUID.test(body.eventId) ? body.eventId : null;

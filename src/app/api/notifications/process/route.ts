@@ -1,12 +1,13 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { ensureSchema } from "@/db/migrate";
-import { syncUser, corsJson, desktopCorsPreflight, unauthorized } from "@/lib/sync-auth";
+import { syncUser, corsJson, desktopCorsPreflight, unauthorized, desktopCorsHeaders } from "@/lib/sync-auth";
 import {
   getOrCreatePreferences,
   getSchedulerTelemetry,
   processAllUsersReminders,
   processUserReminders,
 } from "@/lib/reminder-processor";
+import { apiFailure } from "@/lib/api-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export async function GET(request: Request) {
     return await handleScheduledCron(cron.token);
   } catch (error) {
     console.error("Cron reminder processing failed:", error);
-    return Response.json({ error: "Reminder processing failed." }, { status: 500 });
+    return apiFailure(error, "Reminder processing failed.");
   }
 }
 
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
         return await handleScheduledCron(cron.token);
       } catch (error) {
         console.error("Cron reminder processing failed:", error);
-        return Response.json({ error: "Reminder processing failed." }, { status: 500 });
+        return apiFailure(error, "Reminder processing failed.");
       }
     }
   }
@@ -111,6 +112,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("User reminder processing failed:", error);
-    return corsJson(request, { error: "Couldn’t process due reminders." }, 500);
+    return apiFailure(error, "Couldn’t process due reminders.", { headers: desktopCorsHeaders(request) });
   }
 }

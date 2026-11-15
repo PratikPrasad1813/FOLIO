@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  * full resync, which is also how an expired token recovers on its own.
  */
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ error: "Request not allowed." }, { status: 403 });
+  if (!sameOrigin(request)) return Response.json({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, { status: 403 });
   const user = await requireUser();
   const full = new URL(request.url).searchParams.get("full") === "1";
   try {

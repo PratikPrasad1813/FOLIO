@@ -8,6 +8,7 @@ import {
   Ellipsis, ExternalLink, Eye, EyeOff, Gauge, GitBranch, Home, KeyRound, MessageSquare, Moon, Play, Plus, RotateCcw, Send, Settings2, ShieldCheck, Sparkles, Square, Sun, Trash2, Wand2, WifiOff,
 } from "lucide-react";
 import { Modal, Spinner } from "@/components/ui";
+import { useTheme } from "@/components/theme-toggle";
 import { MenuButton, MenuItem, MenuLabel, MenuSeparator } from "@/components/menu";
 import { FOLIO_AI_CONFIG, estimateTokenCount } from "@/lib/folio-ai/config";
 import {
@@ -188,7 +189,7 @@ function formatElapsed(seconds: number): string {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 }
 
-/** Synapse-style daypart greeting for the hero state. */
+/** Daypart greeting for the hero state. */
 function daypartGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 5) return "Working late";
@@ -256,7 +257,7 @@ export function AIAvatar({ state = "idle", size = 34 }: { state?: "idle" | "thin
  * bottom-right corner. Based on the user-supplied icon designs ("Pastel
  * Neumorphic AI Folio Icon" / "Futuristic Folio AI Icon"): the two-tone F
  * signals "Folio", the neon AI badge signals "AI". Self-contained on both
- * the dark and light Synapse panel themes.
+ * the light and dark Folio themes.
  */
 export function FolioAILogo({ size = 40, className = "" }: { size?: number; className?: string }) {
   const uid = useId().replace(/[:]/g, "");
@@ -481,15 +482,9 @@ function mapPersistedMessage(message: AiPersistedMessage, taskById: Map<string, 
 
 export function FolioAIPanel({ userName, isFullscreen = false, onBackToFolio }: { userName?: string; isFullscreen?: boolean; onBackToFolio?: () => void }) {
   const initialProviderState = getAIProviderState();
-  const [aiTheme, setAiTheme] = useState<"dark" | "light">(() => {
-    if (typeof window === "undefined") return "dark";
-    const stored = window.localStorage.getItem("folio_ai_theme");
-    return stored === "light" ? "light" : "dark";
-  });
-  useEffect(() => {
-    try { window.localStorage.setItem("folio_ai_theme", aiTheme); } catch { /* private storage */ }
-  }, [aiTheme]);
-  const aiMenuVariant = aiTheme === "light" ? "fm-menu-synapse is-light" : "fm-menu-synapse";
+  // Folio AI uses the app-wide theme: one switch, one set of colours everywhere.
+  const { theme: appTheme, setTheme: setAppTheme } = useTheme();
+  const nextTheme = appTheme === "dark" ? "light" : "dark";
   const [modelState, setModelState] = useState<"idle" | "loading" | "ready" | "error">(
     initialProviderState.ready ? "ready" : "loading",
   );
@@ -1287,7 +1282,7 @@ export function FolioAIPanel({ userName, isFullscreen = false, onBackToFolio }: 
   );
 
   return (
-    <section className={`folio-ai-page is-theme-${aiTheme}${isFullscreen ? " is-fullscreen" : ""}`} aria-label="Folio AI workspace assistant">
+    <section className={`folio-ai-page${isFullscreen ? " is-fullscreen" : ""}`} aria-label="Folio AI workspace assistant">
       <header className="fa-page-header">
         <div className="fa-page-title">
           {isFullscreen && onBackToFolio ? (
@@ -1300,7 +1295,7 @@ export function FolioAIPanel({ userName, isFullscreen = false, onBackToFolio }: 
           <div><span className="eyebrow">BRING YOUR OWN KEY · BYOK</span><h1>Folio AI</h1></div>
         </div>
         <div className="fa-page-actions">
-          <button type="button" className="fa-theme-toggle" aria-label={`Switch to ${aiTheme === "dark" ? "light" : "dark"} theme`} title={`Switch to ${aiTheme === "dark" ? "light" : "dark"} theme`} onClick={() => setAiTheme(prev => prev === "dark" ? "light" : "dark")}>{aiTheme === "dark" ? <Sun size={16} /> : <Moon size={15} />}</button>
+          <button type="button" className="fa-theme-toggle" aria-label={`Switch to ${nextTheme} theme`} title={`Switch to ${nextTheme} theme`} onClick={() => setAppTheme(nextTheme)}>{appTheme === "dark" ? <Sun size={16} /> : <Moon size={15} />}</button>
           <button type="button" className="pj-btn is-ghost is-sm" onClick={() => setAiSettingsOpen(true)}><KeyRound size={13} />AI key</button>
           <button type="button" className="fa-icon-pill" aria-label="Assistant preferences" title="Assistant preferences" onClick={() => setSettingsOpen(true)}><Settings2 size={15} /></button>
           <div className="fa-plan-pill"><span />10,000 tokens / day</div>
@@ -1339,7 +1334,6 @@ export function FolioAIPanel({ userName, isFullscreen = false, onBackToFolio }: 
                   label={`Actions for ${conversation.title || "New conversation"}`}
                   trigger={<Ellipsis size={15} />}
                   triggerClassName="fa-history-menu-trigger"
-                  menuClassName={aiMenuVariant}
                   width={196}
                   disabled={generating || Boolean(pendingSyncTask) || Boolean(runningPlan)}
                 >
