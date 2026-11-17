@@ -1,3 +1,4 @@
+import { desktopCorsPreflight, withDesktopCors } from "@/lib/sync-auth";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import { db } from "@/db";
@@ -477,7 +478,7 @@ async function handleIdeas(method: Method, userId: string, id: string, data: Inp
   return { item, log: item ? { text: `Updated the idea ${quote(item.title)}`, type: "idea", projectId: null } : null, touch: [] };
 }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   try {
     const user = await requireUser();
     if (!user) return Response.json({ error: "Please sign in to see your workspace." }, { status: 401 });
@@ -575,6 +576,13 @@ async function mutate(request: Request, method: Method) {
     return apiFailure(error, "Folio couldn’t save that change. Please try again.");
   }
 }
-export async function POST(request: Request) { return mutate(request, "POST"); }
-export async function PATCH(request: Request) { return mutate(request, "PATCH"); }
-export async function DELETE(request: Request) { return mutate(request, "DELETE"); }
+async function handlePOST(request: Request) { return mutate(request, "POST"); }
+async function handlePATCH(request: Request) { return mutate(request, "PATCH"); }
+async function handleDELETE(request: Request) { return mutate(request, "DELETE"); }
+
+/* Desktop app access: Bearer sign-in plus CORS (see src/lib/sync-auth.ts). */
+export const GET = withDesktopCors(handleGET);
+export const POST = withDesktopCors(handlePOST);
+export const PATCH = withDesktopCors(handlePATCH);
+export const DELETE = withDesktopCors(handleDELETE);
+export function OPTIONS(request: Request): Response { return desktopCorsPreflight(request); }

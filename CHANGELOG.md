@@ -3,6 +3,17 @@
 Folio versions follow `V<major>.<minor>`: every release bumps the minor number (V1.1 → V1.2 → V1.3 …) and a major release moves to the next whole number (V2).
 The version lives in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `package.json` and `src/lib/desktop-downloads.ts` (installer file names).
 
+## V1.4 — 2026-11-17
+
+### Fixed
+- **Desktop "My tasks" showed "You appear to be offline" and 0 tasks.** The Tasks page asked the website for its list instead of reading the copy stored on your computer. It now reads the local copy like Projects and Ideas do, so tasks appear instantly and work without internet.
+- **Desktop Folio AI said it was offline and could not check an API key that works on the web.** The Folio AI services refused requests coming from the desktop app and never told Windows it was allowed to talk to them (the key check also sends custom key headers that needed approval). The AI routes (chat, conversations, tasks, usage, preferences, key check) and the workspace route now accept the desktop sign-in and answer with the right permission headers. AI actions started from the desktop (for example "create a project") also keep the desktop sign-in.
+- **No scrolling in the Folio AI panel.** The panel was taller than the window with nothing allowed to scroll, so the bottom was cut off. The chats list, the conversation, and the side cards now scroll inside their own boxes; on small windows the whole screen scrolls.
+
+### Changed
+- **Folio AI now uses the real Folio logo** in the header, the chats sidebar and next to every assistant message (the old purple "AI" badge and robot face are gone).
+- Routes that answer the desktop app now never fail silently: if one of them crashes, the app receives a plain-English message instead of a misleading "offline" notice.
+
 ## V1.3 — 2026-11-15
 
 ### Fixed

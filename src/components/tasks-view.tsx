@@ -143,7 +143,7 @@ export function TasksPanel({ actions }: { actions: WorkspaceActions }) {
   const searchRef = useRef<HTMLInputElement>(null);
 
   const serverFilters: FilterConfig = { ...defaultFilters("tasks"), ...filters, focus, q: query, sort, dir };
-  const collection = useFilteredCollection<Task>("tasks", serverFilters, data, actions.pending.size);
+  const collection = useFilteredCollection<Task>("tasks", serverFilters, data, actions.pending.size, data);
   const today = collection.today ?? dateKey();
   function applySaved(next: FilterConfig) {
     setFocus(next.focus); setQuery(next.q); setSort(next.sort as TaskSortKey); setDir(next.dir);

@@ -100,15 +100,10 @@
 @media (prefers-reduced-motion:reduce) { .fa-welcome-art, .fa-engine-dot, .fa-thinking > i, .fa-usage-track > i { animation:none; transition:none; } }
 
 /* Phase 2 · personalized workspace operator */
-.fa-avatar-svg .fa-avatar-eye { transition: transform .2s ease; }
-.fa-avatar-svg.is-thinking .fa-avatar-eye { animation: fa-blink 1.6s ease-in-out infinite; }
 .fa-avatar-svg.is-responding .fa-avatar-ring { animation: fa-ring 1.4s ease-out infinite; }
-.fa-avatar-svg.is-processing .fa-avatar-antennae { animation: fa-antenna 1s ease-in-out infinite; }
 .fa-avatar-svg.is-success .fa-avatar-ring { opacity: .7 !important; stroke: var(--tone-green); animation: none; }
 .fa-avatar-svg.is-error .fa-avatar-ring { opacity: .7 !important; stroke: var(--tone-red); animation: none; }
-@keyframes fa-blink { 0%,90%,100% { transform: scaleY(1); } 95% { transform: scaleY(.15); } }
 @keyframes fa-ring { 0% { opacity:.65; transform: scale(.9); } 100% { opacity:0; transform: scale(1.12); } }
-@keyframes fa-antenna { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 
 .fa-page-actions { display:flex; align-items:center; gap:8px; }
 .fa-page-actions .pj-btn { font-size:10px; }
@@ -733,14 +728,21 @@
   position: fixed;
   inset: 0;
   z-index: 5;
-  overflow: hidden;
+  /* Safety net: if the window is too short for the panels, the whole screen
+     scrolls instead of cutting anything off. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--background);
 }
+/* Wide windows: the page is exactly as tall as the window and every panel
+   (chats list, conversation, side cards) scrolls inside its own box. */
 .folio-ai-fullscreen .folio-ai-page {
   max-width: none;
   margin: 0;
   border-radius: 0;
-  min-height: 100dvh;
+  height: 100%;
+  min-height: 540px;
   padding: 16px clamp(12px, 1.6vw, 24px) 22px;
   display: flex;
   flex-direction: column;
@@ -750,31 +752,40 @@
   flex: 1;
   min-height: 0;
   align-items: stretch;
+  grid-template-rows: minmax(0, 1fr);
 }
 .folio-ai-fullscreen .folio-ai-page .fa-history-sidebar,
-.folio-ai-fullscreen .folio-ai-page .fa-chat-card { min-height: 0; height: 100%; }
+.folio-ai-fullscreen .folio-ai-page .fa-chat-card { min-height: 0; height: 100%; overflow: hidden; }
 .folio-ai-fullscreen .folio-ai-page .fa-chat-card { display: flex; flex-direction: column; }
-.folio-ai-fullscreen .folio-ai-page .fa-messages { flex: 1; min-height: 0; max-height: none; }
-.folio-ai-fullscreen .folio-ai-page .fa-hero { flex: 1; min-height: 0; }
+.folio-ai-fullscreen .folio-ai-page .fa-messages { flex: 1; min-height: 0; max-height: none; overflow-y: auto; }
+.folio-ai-fullscreen .folio-ai-page .fa-hero { flex: 1; min-height: 0; overflow-y: auto; }
+.folio-ai-fullscreen .folio-ai-page .fa-side-column { min-height: 0; max-height: 100%; overflow-y: auto; overflow-x: hidden; padding-right: 2px; }
+.folio-ai-fullscreen .folio-ai-page .fa-side-column > * { flex-shrink: 0; }
+
+/* Medium and small windows: the panels stack, so the whole screen scrolls and
+   the conversation keeps a comfortable height of its own. */
 @media (max-width: 1120px) {
-  .folio-ai-fullscreen .folio-ai-page .fa-side-column { max-height: none; }
+  .folio-ai-fullscreen .folio-ai-page { height: auto; min-height: 100%; }
+  .folio-ai-fullscreen .folio-ai-page .fa-layout { flex: none; grid-template-rows: none; }
+  .folio-ai-fullscreen .folio-ai-page .fa-chat-card { height: max(520px, calc(100dvh - 150px)); }
+  .folio-ai-fullscreen .folio-ai-page .fa-history-sidebar { height: auto; align-self: start; max-height: max(420px, calc(100dvh - 150px)); }
+  .folio-ai-fullscreen .folio-ai-page .fa-side-column { max-height: none; overflow: visible; }
 }
 @media (max-width: 760px) {
   .folio-ai-fullscreen .folio-ai-page { padding: 10px 8px 14px; }
-  .folio-ai-fullscreen .folio-ai-page .fa-history-sidebar { height: auto; }
-  .folio-ai-fullscreen .folio-ai-page .fa-chat-card { min-height: calc(100dvh - 150px); height: auto; }
-  .folio-ai-fullscreen .folio-ai-page .fa-messages { flex: 1; min-height: 240px; }
+  .folio-ai-fullscreen .folio-ai-page .fa-history-sidebar { max-height: none; }
+  .folio-ai-fullscreen .folio-ai-page .fa-chat-card { height: max(480px, calc(100dvh - 190px)); }
 }
 
 /* "Go back to Folio" button and the theme switch live with the shared header rules above. */
 .fa-theme-toggle:hover { transform: rotate(12deg); }
 
-/* Folio AI brand logo — purple-tile edition (self-contained, theme-agnostic) */
-.fa-ai-logo { display: block; flex-shrink: 0; border-radius: 13px; }
-.fa-ai-logo .fa-ai-logo-tile { rx: 12px; }
-.fa-ai-logo .fa-ai-logo-badge { transition: filter .25s ease; }
-.fa-ai-logo:hover .fa-ai-logo-badge { filter: brightness(1.12); }
-@media (prefers-reduced-motion: reduce) { .fa-ai-logo .fa-ai-logo-badge { transition: none; } .fa-ai-logo:hover .fa-ai-logo-badge { filter: none; } }
+/* Folio AI shows the real Folio logo mark (same artwork as the sidebar logo). */
+.fa-logo-mark { display: block; flex-shrink: 0; color: var(--heading); }
+.fa-brand-icon .fa-logo-mark { color: var(--heading); }
+.fa-avatar-svg.is-thinking .fa-mark-arm { animation: fa-pulse 1.5s ease-in-out infinite; }
+.fa-avatar-svg.is-processing .fa-mark-arm { animation: fa-pulse .9s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .fa-avatar-svg .fa-mark-arm { animation: none !important; } }
 
 /* ==========================================================================
    Fullscreen scroll fixes

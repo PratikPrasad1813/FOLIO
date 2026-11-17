@@ -229,98 +229,38 @@ const STATUS_BADGE_LABELS: Record<AITaskStatus, string> = {
   cancelled: "Cancelled · usage updated",
 };
 
-export function AIAvatar({ state = "idle", size = 34 }: { state?: "idle" | "thinking" | "processing" | "responding" | "success" | "error"; size?: number }) {
+/**
+ * The real Folio logo mark — the same shape the sidebar uses everywhere else
+ * in the app — so Folio AI looks like part of Folio, not a separate product.
+ * The stem and top bar follow the theme text colour; the small arm is the
+ * logo's own lavender.
+ */
+function FolioMarkPaths() {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" className={`fa-avatar-svg is-${state}`} aria-hidden="true">
-      <defs>
-        <linearGradient id="fa-avatar-body" x1="8" y1="6" x2="40" y2="42" gradientUnits="userSpaceOnUse">
-          <stop stopColor="var(--c-violet)" /><stop offset="1" stopColor="var(--accent-strong)" />
-        </linearGradient>
-      </defs>
-      <rect x="10" y="11" width="28" height="25" rx="7" fill="url(#fa-avatar-body)" />
-      <rect x="14" y="7" width="7" height="7" rx="2.5" fill="var(--surface)" stroke="var(--accent-strong)" strokeWidth="1.4" />
-      <rect x="27" y="7" width="7" height="7" rx="2.5" fill="var(--surface)" stroke="var(--accent-strong)" strokeWidth="1.4" />
-      <rect x="21" y="4" width="6" height="4" rx="1.5" fill="var(--accent-strong)" />
-      <circle cx="18" cy="23" r="2.7" fill="var(--surface)" className="fa-avatar-eye" />
-      <circle cx="30" cy="23" r="2.7" fill="var(--surface)" className="fa-avatar-eye" />
-      <rect x="19" y="30" width="10" height="3" rx="1.5" fill="var(--surface)" opacity=".85" />
-      <path d="M9 17h4M35 17h4M9 25h4M35 25h4" stroke="var(--accent-strong)" strokeWidth="1.5" strokeLinecap="round" className="fa-avatar-antennae" />
-      <circle cx="24" cy="24" r="17" stroke="var(--accent)" strokeWidth="1.5" opacity="0" className="fa-avatar-ring" />
+    <>
+      <path d="M6 6.5C6 3.46 8.46 1 11.5 1H27v9H15v7H6V6.5Z" fill="currentColor" />
+      <path d="M6 17h9v11.5a5.5 5.5 0 0 1-5.5 5.5H6V17Z" fill="currentColor" />
+      <path className="fa-mark-arm" d="M18 13h9v4.5a5.5 5.5 0 0 1-5.5 5.5H18V13Z" fill="#A89AE9" />
+    </>
+  );
+}
+
+export function FolioLogoMark({ size = 40, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg width={Math.round((size * 33) / 35)} height={size} viewBox="0 0 33 35" fill="none" className={`fa-logo-mark ${className}`} role="img" aria-label="Folio">
+      <FolioMarkPaths />
     </svg>
   );
 }
 
-/**
- * Folio AI brand mark — purple-tile edition.
- * A rounded deep-purple tile carrying a bold geometric "F" (dark body + a
- * bright-violet accent arm), with a glowing "AI" capsule badge in the
- * bottom-right corner. Based on the user-supplied icon designs ("Pastel
- * Neumorphic AI Folio Icon" / "Futuristic Folio AI Icon"): the two-tone F
- * signals "Folio", the neon AI badge signals "AI". Self-contained on both
- * the light and dark Folio themes.
- */
-export function FolioAILogo({ size = 40, className = "" }: { size?: number; className?: string }) {
-  const uid = useId().replace(/[:]/g, "");
-  const tileId = `fa-logo-tile-${uid}`;
-  const armId = `fa-logo-arm-${uid}`;
-  const badgeId = `fa-logo-badge-${uid}`;
-  const glowId = `fa-logo-glow-${uid}`;
+/** The assistant's avatar: the Folio mark, with a soft ring that reflects what the assistant is doing. */
+export function AIAvatar({ state = "idle", size = 34 }: { state?: "idle" | "thinking" | "processing" | "responding" | "success" | "error"; size?: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 48 48"
-      fill="none"
-      className={`fa-ai-logo ${className}`}
-      role="img"
-      aria-label="Folio AI"
-    >
-      <defs>
-        <radialGradient id={tileId} cx="42%" cy="26%" r="82%">
-          <stop stopColor="#2C1D40" />
-          <stop offset="0.55" stopColor="#170F26" />
-          <stop offset="1" stopColor="#0A0712" />
-        </radialGradient>
-        <linearGradient id={armId} x1="20.5" y1="20" x2="33" y2="26.5" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#9468E0" />
-          <stop offset="1" stopColor="#5B32A8" />
-        </linearGradient>
-        <linearGradient id={badgeId} x1="26.5" y1="25.5" x2="42.5" y2="35.5" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#A66CF8" />
-          <stop offset="1" stopColor="#7C3AED" />
-        </linearGradient>
-        <filter id={glowId} x="-80%" y="-80%" width="260%" height="260%">
-          <feGaussianBlur stdDeviation="1.5" result="b" />
-          <feMerge>
-            <feMergeNode in="b" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-      {/* tile */}
-      <rect className="fa-ai-logo-tile" x="3" y="3" width="42" height="42" rx="12" fill={`url(#${tileId})`} />
-      <rect x="3" y="3" width="42" height="42" rx="12" fill="none" stroke="#7B4FD8" strokeOpacity="0.28" strokeWidth="0.8" />
-      {/* F body: stem + top arm (dark purple, two overlapping rounded rects) */}
-      <rect x="13.5" y="11" width="7" height="27" rx="3" fill="#473C5C" />
-      <rect x="13.5" y="11" width="20" height="7" rx="3" fill="#473C5C" />
-      {/* bright-violet middle arm (the accent) */}
-      <rect x="20.5" y="20" width="12.5" height="6.5" rx="2" fill={`url(#${armId})`} />
-      {/* AI capsule badge with neon glow */}
-      <g filter={`url(#${glowId})`}>
-        <rect
-          className="fa-ai-logo-badge"
-          x="26.5" y="25.5" width="16" height="10" rx="5"
-          fill={`url(#${badgeId})`}
-          stroke="#C9A8FF" strokeWidth="0.6" strokeOpacity="0.7"
-        />
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" className={`fa-avatar-svg fa-logo-mark is-${state}`} aria-hidden="true">
+      <circle cx="24" cy="24" r="21" stroke="var(--accent)" strokeWidth="1.6" opacity="0" className="fa-avatar-ring" />
+      <g transform="translate(9.2 8.1) scale(.9)">
+        <FolioMarkPaths />
       </g>
-      {/* AI text */}
-      <text
-        x="34.5" y="30.5"
-        textAnchor="middle" dominantBaseline="central"
-        fontFamily="Inter, system-ui, -apple-system, sans-serif"
-        fontWeight="800" fontSize="5.6" fill="#FFFFFF" letterSpacing="0.25"
-      >AI</text>
     </svg>
   );
 }
@@ -1291,7 +1231,7 @@ export function FolioAIPanel({ userName, isFullscreen = false, onBackToFolio }: 
               <span>Back to Folio</span>
             </button>
           ) : null}
-          <span className="fa-brand-icon"><FolioAILogo size={isFullscreen ? 42 : 38} /></span>
+          <span className="fa-brand-icon"><FolioLogoMark size={isFullscreen ? 30 : 28} /></span>
           <div><span className="eyebrow">BRING YOUR OWN KEY · BYOK</span><h1>Folio AI</h1></div>
         </div>
         <div className="fa-page-actions">
@@ -1304,7 +1244,7 @@ export function FolioAIPanel({ userName, isFullscreen = false, onBackToFolio }: 
 
       <div className="fa-layout">
         <aside className="fa-history-sidebar" aria-label="Conversation navigation">
-          <div className="fa-history-brand"><span className="fa-brand-icon"><FolioAILogo size={30} /></span><span>folio<span>·</span>ai</span></div>
+          <div className="fa-history-brand"><span className="fa-brand-icon"><FolioLogoMark size={20} /></span><span>folio<span>·</span>ai</span></div>
           <button type="button" className="fa-new-conversation" disabled={generating || Boolean(pendingSyncTask) || Boolean(runningPlan)} onClick={() => setClearConfirm(true)}>
             <Plus size={15} />New chat
           </button>

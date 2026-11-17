@@ -87,7 +87,10 @@ export function desktopCorsHeaders(request: Request): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    // The x-user-ai-* headers carry the person's own AI provider key (BYOK);
+    // without them in this list the browser refuses the Folio AI requests
+    // before they leave the desktop app and the app reports "offline".
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-user-ai-provider, x-user-ai-key, x-user-ai-model",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
@@ -104,4 +107,47 @@ export function corsJson(request: Request, body: unknown, status = 200, extraHea
     status,
     headers: { "Cache-Control": "no-store", ...desktopCorsHeaders(request), ...extraHeaders },
   });
+}
+
+/**
+ * Merge the desktop CORS headers into an existing response, keeping every
+ * header (and the streaming body) it already has. A no-op for web requests.
+ */
+export function applyDesktopCors(request: Request, response: Response): Response {
+  const cors = desktopCorsHeaders(request);
+  if (!Object.keys(cors).length) return response;
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(cors)) {
+    if (key.toLowerCase() === "vary") {
+      const existing = headers.get("Vary");
+      headers.set("Vary", existing && !/(^|,\s*)origin(\s*,|$)/i.test(existing) ? `${existing}, ${value}` : existing ?? value);
+    } else {
+      headers.set(key, value);
+    }
+  }
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+/**
+ * Wrap a route handler so its answers — successes, errors and streams — carry
+ * the desktop CORS headers. A handler that fails without catching its own
+ * error still answers with a plain JSON message plus the CORS headers, so the
+ * desktop app shows the real problem instead of a misleading "offline" notice.
+ */
+export function withDesktopCors<A extends unknown[]>(
+  handler: (request: Request, ...rest: A) => Promise<Response> | Response,
+): (request: Request, ...rest: A) => Promise<Response> {
+  return async (request: Request, ...rest: A): Promise<Response> => {
+    let response: Response;
+    try {
+      response = await handler(request, ...rest);
+    } catch (error) {
+      console.error("Route failed without handling its own error:", error);
+      response = Response.json(
+        { error: "Folio ran into a problem on our side. Your work is safe — please try again in a moment.", code: "SERVER_ERROR" },
+        { status: 500, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    return applyDesktopCors(request, response);
+  };
 }

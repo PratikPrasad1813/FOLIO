@@ -1,3 +1,4 @@
+import { desktopCorsPreflight, withDesktopCors } from "@/lib/sync-auth";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const TITLE_MAX = 120;
 
 /** Lists the signed-in user's conversations, newest activity first. */
-export async function GET() {
+async function handleGET() {
   try {
     const user = await requireUser();
     await ensureSchema();
@@ -23,7 +24,7 @@ export async function GET() {
 }
 
 /** Creates a new empty conversation for the signed-in user. */
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     if (!sameOrigin(request)) return aiJson({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, 403);
     const user = await requireAIUser(request);
@@ -38,3 +39,8 @@ export async function POST(request: Request) {
     return aiJson({ conversation: created }, 201);
   } catch (error) { return aiError(error); }
 }
+
+/* Desktop app access: Bearer sign-in plus CORS (see src/lib/sync-auth.ts). */
+export const GET = withDesktopCors(handleGET);
+export const POST = withDesktopCors(handlePOST);
+export function OPTIONS(request: Request): Response { return desktopCorsPreflight(request); }

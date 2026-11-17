@@ -1,3 +1,4 @@
+import { desktopCorsPreflight, withDesktopCors } from "@/lib/sync-auth";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
@@ -11,7 +12,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const TITLE_MAX = 120;
 
 /** Creates an independent conversation with a copy of the selected transcript. */
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+async function handlePOST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     if (!sameOrigin(request)) return aiJson({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, 403);
     const user = await requireUser();
@@ -60,3 +61,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return aiError(error);
   }
 }
+
+/* Desktop app access: Bearer sign-in plus CORS (see src/lib/sync-auth.ts). */
+export const POST = withDesktopCors(handlePOST);
+export function OPTIONS(request: Request): Response { return desktopCorsPreflight(request); }

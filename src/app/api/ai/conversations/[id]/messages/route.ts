@@ -1,3 +1,4 @@
+import { desktopCorsPreflight, withDesktopCors } from "@/lib/sync-auth";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
@@ -76,7 +77,7 @@ function deriveTitle(messages: { role: string; content: string }[]): string {
  * Appends or updates messages in a conversation the caller owns.
  * Supports idempotent retries and intermediate/final assistant message updates.
  */
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+async function handlePOST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     if (!sameOrigin(request)) return aiJson({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, 403);
     const user = await requireUser();
@@ -175,3 +176,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return aiJson({ inserted: result.inserted, conversation: result.conversation }, 201);
   } catch (error) { return aiError(error); }
 }
+
+/* Desktop app access: Bearer sign-in plus CORS (see src/lib/sync-auth.ts). */
+export const POST = withDesktopCors(handlePOST);
+export function OPTIONS(request: Request): Response { return desktopCorsPreflight(request); }

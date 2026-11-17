@@ -177,6 +177,14 @@ export function requestOrigin(request: Request) {
   return url.origin;
 }
 export function sameOrigin(request: Request) {
+  // The desktop app signs in with an `Authorization: Bearer` token instead of
+  // a cookie, and its pages live on another origin (tauri.localhost), so the
+  // browser marks its requests "cross-site". That is safe to allow: a request
+  // that carries a Bearer token is authenticated by the token alone
+  // (`currentUser` never falls back to cookies when one is present), and a
+  // web page on another site cannot add an Authorization header without the
+  // server's explicit CORS approval, which only the Folio desktop origins get.
+  if (bearerToken(request.headers.get("authorization"))) return true;
   if (request.headers.get("sec-fetch-site") === "cross-site") return false;
   const origin = request.headers.get("origin");
   if (!origin) return true; // SameSite cookies and JSON-only endpoints protect browser requests without Origin.

@@ -1,4 +1,5 @@
 import { getZonedParts } from "@/lib/timezone";
+import { isAllowedDesktopOrigin } from "@/lib/sync-auth";
 import { ACTION_BY_ID, DEPENDENT_REF_REGEX, type AIActionDefinition } from "@/lib/folio-ai/actions";
 import type { AIActionResult } from "@/lib/folio-ai/types";
 import { formatDate, type Project, type Task } from "@/lib/types";
@@ -9,10 +10,17 @@ class ActionExecutionError extends Error {}
 
 async function internalApi(request: Request, path: string, method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE" = "GET", body?: unknown) {
   const reqUrl = new URL(request.url);
-  const origin = request.headers.get("origin") || reqUrl.origin;
+  // The desktop app calls from its own origin (tauri.localhost). The internal
+  // call goes to this same server, so it presents this server's origin, and
+  // it passes along whichever sign-in the person used: a cookie (web) or a
+  // Bearer token (desktop).
+  const incoming = request.headers.get("origin");
+  const origin = incoming && !isAllowedDesktopOrigin(incoming) ? incoming : reqUrl.origin;
   const cookie = request.headers.get("cookie");
+  const authorization = request.headers.get("authorization");
   const headers: Record<string, string> = { "Content-Type": "application/json", Origin: origin };
   if (cookie) headers.Cookie = cookie;
+  if (authorization) headers.Authorization = authorization;
   const response = await fetch(`${reqUrl.origin}${path}`, {
     method,
     headers,

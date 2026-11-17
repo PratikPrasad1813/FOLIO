@@ -3,7 +3,7 @@
  * src-tauri/Cargo.toml and package.json - the installer file names below are
  * produced from it by the release workflow (git tag v<version>).
  */
-export const DESKTOP_APP_VERSION = "1.3.0";
+export const DESKTOP_APP_VERSION = "1.4.0";
 const V = DESKTOP_APP_VERSION;
 
 export const DESKTOP_DOWNLOADS = {

@@ -1,7 +1,14 @@
-import { AuthenticationError, requireUser, sameOrigin } from "@/lib/auth";
+import { AuthenticationError, bearerToken, requireUser, sameOrigin } from "@/lib/auth";
 import { AIUsageError } from "@/lib/folio-ai/usage";
 
+/**
+ * Resolve the signed-in user for a Folio AI request.
+ *  - Desktop app: `Authorization: Bearer <token>`. The token is the only
+ *    credential (no ambient cookies), so no cross-site check is needed.
+ *  - Web app: the session cookie, from the Folio site itself only.
+ */
 export async function requireAIUser(request: Request) {
+  if (bearerToken(request.headers.get("authorization"))) return requireUser();
   if (!sameOrigin(request) || request.headers.get("sec-fetch-site") === "cross-site") {
     throw new AIUsageError("This AI request is not allowed.", 403, "forbidden");
   }

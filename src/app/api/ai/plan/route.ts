@@ -1,3 +1,4 @@
+import { desktopCorsPreflight, withDesktopCors } from "@/lib/sync-auth";
 import { FOLIO_AI_CONFIG } from "@/lib/folio-ai/config";
 import { aiError, aiJson, parseSmallJson, requireAIUser } from "@/lib/folio-ai/http";
 import { executeWorkspaceAI, requireBYOKConfig } from "@/lib/folio-ai/byok-service";
@@ -15,7 +16,7 @@ export const runtime = "nodejs";
  * provider key of its own and returns 400 `api_key_required` when the headers
  * are missing.
  */
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const user = await requireAIUser(request);
     const body = await parseSmallJson(request, 16_000);
@@ -30,3 +31,7 @@ export async function POST(request: Request) {
     return aiError(error);
   }
 }
+
+/* Desktop app access: Bearer sign-in plus CORS (see src/lib/sync-auth.ts). */
+export const POST = withDesktopCors(handlePOST);
+export function OPTIONS(request: Request): Response { return desktopCorsPreflight(request); }

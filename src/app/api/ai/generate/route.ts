@@ -1,3 +1,4 @@
+import { desktopCorsPreflight, withDesktopCors } from "@/lib/sync-auth";
 import { estimateTokenCount, FOLIO_AI_CONFIG } from "@/lib/folio-ai/config";
 import { aiError, aiJson, parseSmallJson, requireAIUser } from "@/lib/folio-ai/http";
 import { requireBYOKConfig, streamBYOKChat, type BYOKConfig } from "@/lib/folio-ai/byok-service";
@@ -19,7 +20,7 @@ interface ChatMessage {
  * GET: reports whether the request carries usable BYOK credentials.
  * No server-side provider key exists; the user's own key is the only key.
  */
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   try {
     await requireAIUser(request);
     let configured = false;
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const user = await requireAIUser(request);
     const body = await parseSmallJson(request, 32_000);
@@ -169,3 +170,8 @@ export async function POST(request: Request) {
     return aiError(error);
   }
 }
+
+/* Desktop app access: Bearer sign-in plus CORS (see src/lib/sync-auth.ts). */
+export const GET = withDesktopCors(handleGET);
+export const POST = withDesktopCors(handlePOST);
+export function OPTIONS(request: Request): Response { return desktopCorsPreflight(request); }

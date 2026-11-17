@@ -1,10 +1,11 @@
+import { desktopCorsPreflight, withDesktopCors } from "@/lib/sync-auth";
 import { aiError, aiJson, parseSmallJson, requireAIUser } from "@/lib/folio-ai/http";
 import { ACTION_BY_ID, ActionValidationError, validateActionPlan } from "@/lib/folio-ai/actions";
 import { executeAIActions } from "@/lib/folio-ai/action-executor";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const user = await requireAIUser(request);
     const body = await parseSmallJson(request, 32_768);
@@ -29,3 +30,7 @@ export async function POST(request: Request) {
     return aiJson({ results });
   } catch (error) { return aiError(error); }
 }
+
+/* Desktop app access: Bearer sign-in plus CORS (see src/lib/sync-auth.ts). */
+export const POST = withDesktopCors(handlePOST);
+export function OPTIONS(request: Request): Response { return desktopCorsPreflight(request); }

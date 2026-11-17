@@ -1,10 +1,11 @@
+import { desktopCorsPreflight, withDesktopCors } from "@/lib/sync-auth";
 import { AIUsageError, finishAIReservation, renewAIReservation } from "@/lib/folio-ai/usage";
 import { FOLIO_AI_CONFIG } from "@/lib/folio-ai/config";
 import { aiError, aiJson, parseSmallJson, requireAIUser } from "@/lib/folio-ai/http";
 
 export const dynamic = "force-dynamic";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+async function handlePATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAIUser(request);
     const { id } = await context.params;
@@ -29,3 +30,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return aiJson(result);
   } catch (error) { return aiError(error); }
 }
+
+/* Desktop app access: Bearer sign-in plus CORS (see src/lib/sync-auth.ts). */
+export const PATCH = withDesktopCors(handlePATCH);
+export function OPTIONS(request: Request): Response { return desktopCorsPreflight(request); }

@@ -1,3 +1,4 @@
+import { desktopCorsPreflight, withDesktopCors } from "@/lib/sync-auth";
 import { requireUser } from "@/lib/auth";
 import { aiError, aiJson, parseSmallJson, requireAIUser } from "@/lib/folio-ai/http";
 import { getAITaskById, updateAITaskProgress } from "@/lib/folio-ai/tasks-service";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONTENT_MAX = 64_000;
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+async function handleGET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
     const { id } = await context.params;
@@ -24,7 +25,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+async function handlePATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAIUser(request);
     const { id } = await context.params;
@@ -127,3 +128,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return aiError(error);
   }
 }
+
+/* Desktop app access: Bearer sign-in plus CORS (see src/lib/sync-auth.ts). */
+export const GET = withDesktopCors(handleGET);
+export const PATCH = withDesktopCors(handlePATCH);
+export function OPTIONS(request: Request): Response { return desktopCorsPreflight(request); }

@@ -1,3 +1,4 @@
+import { desktopCorsPreflight, withDesktopCors } from "@/lib/sync-auth";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureSchema } from "@/db/migrate";
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /** Loads one conversation with its messages and tasks. Ownership is enforced server-side. */
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+async function handleGET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
     await ensureSchema();
@@ -40,7 +41,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 }
 
 /** Renames a conversation. */
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+async function handlePATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     if (!sameOrigin(request)) return aiJson({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, 403);
     const user = await requireUser();
@@ -60,7 +61,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 }
 
 /** Deletes a conversation and all of its messages. */
-export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+async function handleDELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     if (!sameOrigin(request)) return aiJson({ error: "Folio blocked that request because it did not come from the Folio app. Please reload the page and try again." }, 403);
     const user = await requireUser();
@@ -74,3 +75,9 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     return aiJson({ deleted: true });
   } catch (error) { return aiError(error); }
 }
+
+/* Desktop app access: Bearer sign-in plus CORS (see src/lib/sync-auth.ts). */
+export const GET = withDesktopCors(handleGET);
+export const PATCH = withDesktopCors(handlePATCH);
+export const DELETE = withDesktopCors(handleDELETE);
+export function OPTIONS(request: Request): Response { return desktopCorsPreflight(request); }
